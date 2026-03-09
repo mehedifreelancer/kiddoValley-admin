@@ -242,24 +242,26 @@ const Sidebar: React.FC = () => {
   const renderMenuItem = (item: MenuItem, level: number = 0) => {
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded = expandedItems.includes(item.id);
-    const paddingLeft =
-      isPinned || isHovered ? level * 24 + (level === 0 ? 16 : 32) : 16;
+    const isSidebarExpanded = isPinned || isHovered;
+
+    // Calculate padding
+    const paddingLeft = level * 24 + (level === 0 ? 16 : 32);
 
     return (
       <div key={item.id} className="w-full">
         <motion.div
-          className={`flex items-center w-full px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer rounded-lg transition-colors duration-200 ${!(isPinned || isHovered) && level === 0 ? "justify-center" : ""}`}
+          className={`flex items-center w-full px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer rounded-lg transition-colors duration-200`}
           style={{
-            paddingLeft: isPinned || isHovered ? `${paddingLeft}px` : "16px",
+            paddingLeft: isSidebarExpanded ? `${paddingLeft}px` : "16px",
           }}
           onClick={() => hasChildren && toggleExpand(item.id)}
-          whileHover={{ x: isPinned || isHovered ? 4 : 0 }}
+          whileHover={{ x: isSidebarExpanded ? 4 : 0 }}
           whileTap={{ scale: 0.98 }}
         >
           <span className="text-gray-600 dark:text-gray-300">{item.icon}</span>
 
           <AnimatePresence mode="wait">
-            {(isPinned || isHovered) && (
+            {isSidebarExpanded && (
               <motion.span
                 key={`label-${item.id}`}
                 initial={{ opacity: 0, width: 0 }}
@@ -273,7 +275,7 @@ const Sidebar: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {hasChildren && (isPinned || isHovered) && (
+          {hasChildren && isSidebarExpanded && (
             <motion.span
               animate={{ rotate: isExpanded ? 180 : 0 }}
               transition={{ duration: 0.2 }}
@@ -284,95 +286,102 @@ const Sidebar: React.FC = () => {
           )}
         </motion.div>
 
-        <AnimatePresence initial={false}>
-          {hasChildren && isExpanded && (
-            <motion.div
-              key={`children-${item.id}`}
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="overflow-hidden"
-            >
-              {item.children?.map((child) => renderMenuItem(child, level + 1))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Children */}
+        {hasChildren && (
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-in-out`}
+            style={{
+              maxHeight: isExpanded && isSidebarExpanded ? "1000px" : "0px",
+              opacity: isExpanded && isSidebarExpanded ? 1 : 0,
+            }}
+          >
+            {item.children?.map((child) => renderMenuItem(child, level + 1))}
+          </div>
+        )}
       </div>
     );
   };
 
+  const isSidebarExpanded = isPinned || isHovered;
+
   return (
-    <motion.div
-      initial={{ width: isPinned || isHovered ? 280 : 80 }}
-      animate={{ width: isPinned || isHovered ? 280 : 80 }}
-      transition={{ duration: 0.2, ease: "easeInOut" }}
-      onMouseEnter={() => !isPinned && setIsHovered(true)}
-      onMouseLeave={() => !isPinned && setIsHovered(false)}
-      className="h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 shadow-lg relative overflow-hidden"
-    >
-      {/* Header with Pin Button */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-800">
-        <AnimatePresence mode="wait">
-          {(isPinned || isHovered) && (
-            <motion.h2
-              key="sidebar-title"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="text-lg font-semibold text-gray-800 dark:text-white"
-            >
-              Navigation
-            </motion.h2>
-          )}
-        </AnimatePresence>
+    <>
+      {/* Simple overlay for unpinned state */}
+      {!isPinned && isHovered && (
+        <div className="fixed inset-0" onClick={() => setIsHovered(false)} />
+      )}
 
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => {
-            setIsPinned(!isPinned);
-            setIsHovered(false);
-          }}
-          className={`p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${!(isPinned || isHovered) ? "mx-auto" : ""}`}
-          title={isPinned ? "Unpin sidebar" : "Pin sidebar"}
-        >
-          <Pin
-            className={`w-5 h-5 transition-transform ${
-              isPinned ? "text-blue-500 rotate-45" : "text-gray-400 rotate-0"
-            }`}
-          />
-        </motion.button>
-      </div>
-
-      {/* Menu Items */}
-      <div className="py-4 overflow-y-auto h-[calc(100vh-73px)]">
-        {menuItems.map((item) => renderMenuItem(item))}
-      </div>
-
-      {/* Footer with Settings */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-        <motion.div
-          className={`flex items-center ${!(isPinned || isHovered) ? "justify-center" : "space-x-3"}`}
-          whileHover={{ x: isPinned || isHovered ? 4 : 0 }}
-        >
-          <Settings className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+      {/* Sidebar - always fixed */}
+      <motion.div
+        animate={{ width: isSidebarExpanded ? 280 : 80 }}
+        transition={{ duration: 0.2, ease: "easeInOut" }}
+        onMouseEnter={() => !isPinned && setIsHovered(true)}
+        onMouseLeave={() => !isPinned && setIsHovered(false)}
+        className="fixed left-0 top-0 h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 shadow-lg overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-800">
           <AnimatePresence mode="wait">
-            {(isPinned || isHovered) && (
-              <motion.span
-                key="settings-label"
+            {isSidebarExpanded && (
+              <motion.h2
+                key="sidebar-title"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="text-sm font-medium text-gray-600 dark:text-gray-300"
+                className="text-lg font-semibold text-gray-800 dark:text-white"
               >
-                Settings
-              </motion.span>
+                Navigation
+              </motion.h2>
             )}
           </AnimatePresence>
-        </motion.div>
-      </div>
-    </motion.div>
+
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => {
+              setIsPinned(!isPinned);
+              setIsHovered(false);
+            }}
+            className={`p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${!isSidebarExpanded ? "mx-auto" : ""}`}
+            title={isPinned ? "Unpin sidebar" : "Pin sidebar"}
+          >
+            <Pin
+              className={`w-5 h-5 transition-transform ${
+                isPinned ? "text-blue-500 rotate-45" : "text-gray-400 rotate-0"
+              }`}
+            />
+          </motion.button>
+        </div>
+
+        {/* Menu Items */}
+        <div className="py-4 overflow-y-auto h-[calc(100vh-73px)]">
+          {menuItems.map((item) => renderMenuItem(item))}
+        </div>
+
+        {/* Footer */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+          <motion.div
+            className={`flex items-center ${!isSidebarExpanded ? "justify-center" : "space-x-3"}`}
+            whileHover={{ x: isSidebarExpanded ? 4 : 0 }}
+          >
+            <Settings className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+            <AnimatePresence mode="wait">
+              {isSidebarExpanded && (
+                <motion.span
+                  key="settings-label"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-sm font-medium text-gray-600 dark:text-gray-300"
+                >
+                  Settings
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </div>
+      </motion.div>
+    </>
   );
 };
 
