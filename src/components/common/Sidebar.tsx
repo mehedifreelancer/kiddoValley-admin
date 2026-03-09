@@ -318,13 +318,17 @@ const Sidebar: React.FC = () => {
 
       {/* Sidebar - static when pinned, fixed when unpinned */}
       <motion.div
-        animate={{ width: isSidebarExpanded ? 240 : 56 }} // Reduced from 280 to 240 for expanded, from 80 to 56 for collapsed
+        animate={{ width: isSidebarExpanded ? 240 : 56 }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
         onMouseEnter={() => !isPinned && setIsHovered(true)}
         onMouseLeave={() => !isPinned && setIsHovered(false)}
         className={`h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 shadow-lg overflow-hidden ${
           !isPinned ? "fixed left-0 top-0 z-50" : ""
-        }`}
+        } scrollbar-hide`}
+        style={{
+          scrollbarWidth: "none" /* Firefox */,
+          msOverflowStyle: "none" /* IE and Edge */,
+        }}
       >
         {/* Header - adjusted padding */}
         <div className="flex items-center justify-between px-3 py-4 border-b border-gray-200 dark:border-gray-800">
@@ -362,8 +366,8 @@ const Sidebar: React.FC = () => {
           </motion.button>
         </div>
 
-        {/* Menu Items - adjusted spacing */}
-        <div className="py-3 overflow-y-auto h-[calc(100vh-73px)]">
+        {/* Menu Items - adjusted spacing with hidden scrollbar */}
+        <div className="py-3 overflow-y-auto h-[calc(100vh-73px)] scrollbar-hide">
           {menuItems.map((item) => renderMenuItem(item))}
         </div>
 
