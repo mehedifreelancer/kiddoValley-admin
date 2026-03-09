@@ -244,7 +244,6 @@ const Sidebar: React.FC = () => {
     const isExpanded = expandedItems.includes(item.id);
     const isSidebarExpanded = isPinned || isHovered;
 
-    // Calculate padding
     const paddingLeft = level * 24 + (level === 0 ? 16 : 32);
 
     return (
@@ -286,7 +285,6 @@ const Sidebar: React.FC = () => {
           )}
         </motion.div>
 
-        {/* Children */}
         {hasChildren && (
           <div
             className={`overflow-hidden transition-all duration-300 ease-in-out`}
@@ -305,19 +303,24 @@ const Sidebar: React.FC = () => {
   const isSidebarExpanded = isPinned || isHovered;
 
   return (
-    <>
-      {/* Simple overlay for unpinned state */}
+    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
+      {/* Overlay for unpinned state */}
       {!isPinned && isHovered && (
-        <div className="fixed inset-0" onClick={() => setIsHovered(false)} />
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setIsHovered(false)}
+        />
       )}
 
-      {/* Sidebar - always fixed */}
+      {/* Sidebar - static when pinned, fixed when unpinned */}
       <motion.div
         animate={{ width: isSidebarExpanded ? 280 : 80 }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
         onMouseEnter={() => !isPinned && setIsHovered(true)}
         onMouseLeave={() => !isPinned && setIsHovered(false)}
-        className="fixed left-0 top-0 h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 shadow-lg overflow-hidden"
+        className={`h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 shadow-lg overflow-hidden ${
+          !isPinned ? "fixed left-0 top-0 z-50" : ""
+        }`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-800">
@@ -381,7 +384,7 @@ const Sidebar: React.FC = () => {
           </motion.div>
         </div>
       </motion.div>
-    </>
+    </div>
   );
 };
 
