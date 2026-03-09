@@ -244,14 +244,18 @@ const Sidebar: React.FC = () => {
     const isExpanded = expandedItems.includes(item.id);
     const isSidebarExpanded = isPinned || isHovered;
 
-    const paddingLeft = level * 24 + (level === 0 ? 16 : 32);
+    // Adjusted padding for better alignment
+    const paddingLeft = level * 16 + (level === 0 ? 16 : 24);
 
     return (
       <div key={item.id} className="w-full">
         <motion.div
-          className={`flex items-center w-full px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer rounded-lg transition-colors duration-200`}
+          className={`flex items-center w-full px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer rounded-lg transition-colors duration-200 ${
+            !isSidebarExpanded ? "justify-center" : ""
+          }`}
           style={{
-            paddingLeft: isSidebarExpanded ? `${paddingLeft}px` : "16px",
+            paddingLeft: isSidebarExpanded ? `${paddingLeft}px` : "12px",
+            paddingRight: isSidebarExpanded ? "12px" : "12px",
           }}
           onClick={() => hasChildren && toggleExpand(item.id)}
           whileHover={{ x: isSidebarExpanded ? 4 : 0 }}
@@ -314,7 +318,7 @@ const Sidebar: React.FC = () => {
 
       {/* Sidebar - static when pinned, fixed when unpinned */}
       <motion.div
-        animate={{ width: isSidebarExpanded ? 280 : 80 }}
+        animate={{ width: isSidebarExpanded ? 240 : 56 }} // Reduced from 280 to 240 for expanded, from 80 to 56 for collapsed
         transition={{ duration: 0.2, ease: "easeInOut" }}
         onMouseEnter={() => !isPinned && setIsHovered(true)}
         onMouseLeave={() => !isPinned && setIsHovered(false)}
@@ -322,8 +326,8 @@ const Sidebar: React.FC = () => {
           !isPinned ? "fixed left-0 top-0 z-50" : ""
         }`}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-800">
+        {/* Header - adjusted padding */}
+        <div className="flex items-center justify-between px-3 py-4 border-b border-gray-200 dark:border-gray-800">
           <AnimatePresence mode="wait">
             {isSidebarExpanded && (
               <motion.h2
@@ -331,7 +335,7 @@ const Sidebar: React.FC = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="text-lg font-semibold text-gray-800 dark:text-white"
+                className="text-lg font-semibold text-gray-800 dark:text-white whitespace-nowrap"
               >
                 Navigation
               </motion.h2>
@@ -345,7 +349,9 @@ const Sidebar: React.FC = () => {
               setIsPinned(!isPinned);
               setIsHovered(false);
             }}
-            className={`p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${!isSidebarExpanded ? "mx-auto" : ""}`}
+            className={`p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
+              !isSidebarExpanded ? "mx-auto" : ""
+            }`}
             title={isPinned ? "Unpin sidebar" : "Pin sidebar"}
           >
             <Pin
@@ -356,15 +362,17 @@ const Sidebar: React.FC = () => {
           </motion.button>
         </div>
 
-        {/* Menu Items */}
-        <div className="py-4 overflow-y-auto h-[calc(100vh-73px)]">
+        {/* Menu Items - adjusted spacing */}
+        <div className="py-3 overflow-y-auto h-[calc(100vh-73px)]">
           {menuItems.map((item) => renderMenuItem(item))}
         </div>
 
-        {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        {/* Footer - adjusted padding */}
+        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
           <motion.div
-            className={`flex items-center ${!isSidebarExpanded ? "justify-center" : "space-x-3"}`}
+            className={`flex items-center ${
+              !isSidebarExpanded ? "justify-center" : "space-x-3"
+            }`}
             whileHover={{ x: isSidebarExpanded ? 4 : 0 }}
           >
             <Settings className="w-5 h-5 text-gray-500 dark:text-gray-400" />
