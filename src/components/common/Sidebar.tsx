@@ -27,6 +27,7 @@ import {
   Pin,
   CheckSquare,
 } from "lucide-react";
+import { useGlobal } from "../../context/GlobalContext"; // Add this import
 
 // Define types for our menu items
 interface MenuItem {
@@ -37,7 +38,8 @@ interface MenuItem {
 }
 
 const Sidebar: React.FC = () => {
-  const [isPinned, setIsPinned] = useState(true);
+  // Replace local isPinned with global state
+  const { isSidebarPinned, setSidebarPinned } = useGlobal();
   const [isHovered, setIsHovered] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [activeItem, setActiveItem] = useState<string>("dashboard");
@@ -252,7 +254,7 @@ const Sidebar: React.FC = () => {
   const renderMenuItem = (item: MenuItem, level: number = 0) => {
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded = expandedItems.includes(item.id);
-    const isSidebarExpanded = isPinned || isHovered;
+    const isSidebarExpanded = isSidebarPinned || isHovered;
     const isActive = activeItem === item.id;
 
     // Adjusted padding for better alignment
@@ -333,12 +335,12 @@ const Sidebar: React.FC = () => {
     );
   };
 
-  const isSidebarExpanded = isPinned || isHovered;
+  const isSidebarExpanded = isSidebarPinned || isHovered;
 
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Overlay for unpinned state */}
-      {!isPinned && isHovered && (
+      {!isSidebarPinned && isHovered && (
         <div
           className="fixed inset-0 z-40"
           onClick={() => setIsHovered(false)}
@@ -349,10 +351,10 @@ const Sidebar: React.FC = () => {
       <motion.div
         animate={{ width: isSidebarExpanded ? 240 : 56 }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
-        onMouseEnter={() => !isPinned && setIsHovered(true)}
-        onMouseLeave={() => !isPinned && setIsHovered(false)}
+        onMouseEnter={() => !isSidebarPinned && setIsHovered(true)}
+        onMouseLeave={() => !isSidebarPinned && setIsHovered(false)}
         className={`h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 shadow-lg overflow-hidden ${
-          !isPinned ? "fixed left-0 top-0 z-50" : ""
+          !isSidebarPinned ? "fixed left-0 top-0 z-50" : ""
         } scrollbar-hide`}
         style={{
           scrollbarWidth: "none",
@@ -379,17 +381,19 @@ const Sidebar: React.FC = () => {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => {
-              setIsPinned(!isPinned);
+              setSidebarPinned(!isSidebarPinned);
               setIsHovered(false);
             }}
             className={`p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
               !isSidebarExpanded ? "mx-auto" : ""
             }`}
-            title={isPinned ? "Unpin sidebar" : "Pin sidebar"}
+            title={isSidebarPinned ? "Unpin sidebar" : "Pin sidebar"}
           >
             <Pin
               className={`w-5 h-5 transition-transform ${
-                isPinned ? "text-blue-500 rotate-45" : "text-gray-400 rotate-0"
+                isSidebarPinned
+                  ? "text-blue-500 rotate-45"
+                  : "text-gray-400 rotate-0"
               }`}
             />
           </motion.button>

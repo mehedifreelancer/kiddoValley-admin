@@ -1,46 +1,35 @@
 import Sidebar from "./components/common/Sidebar";
 import Header from "./components/common/Header";
-import { GlobalProvider } from "./context/GlobalContext";
-import Button from "./components/ui/Button";
-import InputField from "./components/ui/InputField";
+import { GlobalProvider, useGlobal } from "./context/GlobalContext";
+import Components from "./components/ui/Components";
+import { motion } from "framer-motion";
+
+// Create a separate component that uses the context
+function AppContent() {
+  const { isSidebarPinned } = useGlobal();
+  console.log("Sidebar pinned:", isSidebarPinned); // Should now log true/false
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-gray-100 dark:bg-gray-950">
+      <Sidebar />
+      <motion.div
+        className="flex-1 flex flex-col overflow-hidden"
+        animate={{ paddingLeft: isSidebarPinned ? 0 : 56 }} // Fixed values: 240px for expanded, 56px for collapsed
+        transition={{ duration: 0.2, ease: "easeInOut" }}
+      >
+        <Header />
+        <main className="flex-1 overflow-y-auto scrollbar-hide p-4">
+          <Components />
+        </main>
+      </motion.div>
+    </div>
+  );
+}
 
 function App() {
   return (
     <GlobalProvider>
-      <div className="flex min-h-screen bg-gray-100 dark:bg-gray-950">
-        <Sidebar />
-        <div className="flex-1 flex flex-col">
-          <Header />
-          <main className="flex-1 p-8 overflow-y-auto scrollbar-hide">
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">
-              Main Content Area
-            </h1>
-
-            <p className="text-gray-600 dark:text-gray-300">
-              Your content goes here. The sidebar is pinned by default. Click
-              the pin icon to toggle between pinned and unpinned states.
-            </p>
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[1, 2, 3].map((item) => (
-                <div
-                  key={item}
-                  className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"
-                >
-                  <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-2">
-                    Card {item}
-                  </h3>
-                  <p className="text-gray-500 dark:text-gray-400">
-                    Sample content for card {item}. This demonstrates the layout
-                    with the sidebar.
-                  </p>
-                </div>
-              ))}
-            </div>
-            <Button className="btn-primary ">Hello</Button>
-            <InputField type="text" value={"hello"} />
-          </main>
-        </div>
-      </div>
+      <AppContent />
     </GlobalProvider>
   );
 }

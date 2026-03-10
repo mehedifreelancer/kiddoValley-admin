@@ -129,7 +129,7 @@ const InputField: React.FC<InputFieldProps> = ({
             initial={{ scaleX: 0 }}
             animate={{ scaleX: isFocused ? 1 : 0 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 dark:bg-blue-400 origin-left"
+            className="absolute bottom-0 left-0 right-0 h-[1px] bg-blue-400 dark:bg-blue-900/60 origin-left"
           />
         )}
       </div>
