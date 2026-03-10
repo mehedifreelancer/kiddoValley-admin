@@ -3,6 +3,7 @@ import Header from "./components/common/Header";
 import { GlobalProvider, useGlobal } from "./context/GlobalContext";
 import Components from "./components/ui/Components";
 import { motion } from "framer-motion";
+import ContactForm from "./components/ui/ContactForm";
 
 // Create a separate component that uses the context
 function AppContent() {
@@ -20,6 +21,7 @@ function AppContent() {
         <Header />
         <main className="flex-1 overflow-y-auto scrollbar-hide p-4">
           <Components />
+          <ContactForm />
         </main>
       </motion.div>
     </div>

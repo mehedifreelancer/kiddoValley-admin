@@ -15,6 +15,7 @@ import {
   Settings,
   Activity,
 } from "lucide-react";
+import Loader from "../common/Loader";
 
 const Components = () => {
   return (
@@ -176,6 +177,7 @@ const Components = () => {
             Product List
           </h2>
           <ProductList />
+          <Loader />
         </div>
       </div>
     </div>
