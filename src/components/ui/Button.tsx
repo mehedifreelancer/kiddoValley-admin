@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
-import styles from "./Button.module.css";
-import Loader from "./Loader";
+import "../../assets/css/button.css";
+import { Loader } from "lucide-react";
 
 export type ButtonVariant =
   | "primary"
@@ -9,8 +9,10 @@ export type ButtonVariant =
   | "success"
   | "danger"
   | "warning"
-  | "outline";
-export type ButtonSize = "sm" | "md" | "lg";
+  | "info"
+  | "outline"
+  | "ghost";
+export type ButtonSize = "xs" | "sm" | "md" | "lg";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
@@ -35,26 +37,50 @@ const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props
 }) => {
-  // Combine classes
   const buttonClasses = [
-    styles.btn,
-    styles[`btn-${size}`],
-    styles[`btn-${variant}`],
-    fullWidth ? styles["btn-full"] : "",
-    loading ? styles["btn-loading"] : "",
+    "btn",
+    `btn-${size}`,
+    `btn-${variant}`,
+    fullWidth ? "btn-full" : "",
+    loading ? "btn-loading" : "",
     className,
   ]
     .filter(Boolean)
     .join(" ");
 
-  // Get loader color based on variant
-  const getLoaderColor = () => {
-    if (variant === "outline") return "gray";
-    if (variant === "warning") return "warning";
-    if (variant === "success") return "success";
-    if (variant === "danger") return "danger";
-    if (variant === "secondary") return "secondary";
-    return "white"; // primary uses white loader
+  const getLoaderColor = (): string => {
+    switch (variant) {
+      case "outline":
+      case "ghost":
+        return "gray";
+      case "warning":
+        return "warning";
+      case "success":
+        return "success";
+      case "danger":
+        return "danger";
+      case "secondary":
+        return "secondary";
+      case "info":
+        return "info";
+      default:
+        return "white";
+    }
+  };
+
+  const getLoaderSize = (): string => {
+    switch (size) {
+      case "xs":
+        return "xs";
+      case "sm":
+        return "xs";
+      case "md":
+        return "sm";
+      case "lg":
+        return "sm";
+      default:
+        return "sm";
+    }
   };
 
   return (
@@ -67,21 +93,21 @@ const Button: React.FC<ButtonProps> = ({
       {loading && (
         <span className="absolute inset-0 flex items-center justify-center">
           <Loader
-            size={size === "sm" ? "xs" : size === "lg" ? "sm" : "xs"}
-            color={getLoaderColor()}
+            size={getLoaderSize() as any}
+            color={getLoaderColor() as any}
           />
         </span>
       )}
 
       <span
-        className={`flex items-center justify-center ${loading ? "opacity-0" : "opacity-100"}`}
+        className={`flex items-center justify-center gap-2 ${loading ? "opacity-0" : "opacity-100"}`}
       >
         {icon && iconPosition === "left" && (
-          <span className={styles["icon-left"]}>{icon}</span>
+          <span className="icon-left">{icon}</span>
         )}
         {children}
         {icon && iconPosition === "right" && (
-          <span className={styles["icon-right"]}>{icon}</span>
+          <span className="icon-right">{icon}</span>
         )}
       </span>
     </motion.button>

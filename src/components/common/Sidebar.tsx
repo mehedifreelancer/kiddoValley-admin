@@ -40,6 +40,7 @@ const Sidebar: React.FC = () => {
   const [isPinned, setIsPinned] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const [activeItem, setActiveItem] = useState<string>("dashboard");
 
   // Menu data structure with 3 levels using Lucide icons
   const menuItems: MenuItem[] = [
@@ -239,10 +240,20 @@ const Sidebar: React.FC = () => {
     );
   };
 
+  const handleItemClick = (itemId: string, hasChildren: boolean) => {
+    if (hasChildren) {
+      toggleExpand(itemId);
+    } else {
+      setActiveItem(itemId);
+      console.log("Navigating to:", itemId);
+    }
+  };
+
   const renderMenuItem = (item: MenuItem, level: number = 0) => {
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded = expandedItems.includes(item.id);
     const isSidebarExpanded = isPinned || isHovered;
+    const isActive = activeItem === item.id;
 
     // Adjusted padding for better alignment
     const paddingLeft = level * 16 + (level === 0 ? 16 : 24);
@@ -250,18 +261,30 @@ const Sidebar: React.FC = () => {
     return (
       <div key={item.id} className="w-full">
         <motion.div
-          className={`flex items-center w-full px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer rounded-lg transition-colors duration-200 ${
+          className={`flex items-center w-full px-3 py-2.5 cursor-pointer transition-colors duration-200 ${
             !isSidebarExpanded ? "justify-center" : ""
+          } ${
+            isActive
+              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+              : "hover:bg-gray-100 dark:hover:bg-gray-800"
           }`}
           style={{
             paddingLeft: isSidebarExpanded ? `${paddingLeft}px` : "12px",
             paddingRight: isSidebarExpanded ? "12px" : "12px",
           }}
-          onClick={() => hasChildren && toggleExpand(item.id)}
+          onClick={() => handleItemClick(item.id, hasChildren)}
           whileHover={{ x: isSidebarExpanded ? 4 : 0 }}
           whileTap={{ scale: 0.98 }}
         >
-          <span className="text-gray-600 dark:text-gray-300">{item.icon}</span>
+          <span
+            className={
+              isActive
+                ? "text-blue-600 dark:text-blue-400"
+                : "text-gray-600 dark:text-gray-300"
+            }
+          >
+            {item.icon}
+          </span>
 
           <AnimatePresence mode="wait">
             {isSidebarExpanded && (
@@ -271,7 +294,11 @@ const Sidebar: React.FC = () => {
                 animate={{ opacity: 1, width: "auto" }}
                 exit={{ opacity: 0, width: 0 }}
                 transition={{ duration: 0.2 }}
-                className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap overflow-hidden"
+                className={`ml-3 text-sm font-medium whitespace-nowrap overflow-hidden ${
+                  isActive
+                    ? "text-blue-700 dark:text-blue-300"
+                    : "text-gray-700 dark:text-gray-200"
+                }`}
               >
                 {item.label}
               </motion.span>
@@ -282,7 +309,9 @@ const Sidebar: React.FC = () => {
             <motion.span
               animate={{ rotate: isExpanded ? 180 : 0 }}
               transition={{ duration: 0.2 }}
-              className="ml-auto text-gray-400"
+              className={`ml-auto ${
+                isActive ? "text-blue-500" : "text-gray-400"
+              }`}
             >
               <ChevronDown className="w-4 h-4" />
             </motion.span>
@@ -316,7 +345,7 @@ const Sidebar: React.FC = () => {
         />
       )}
 
-      {/* Sidebar - static when pinned, fixed when unpinned */}
+      {/* Sidebar */}
       <motion.div
         animate={{ width: isSidebarExpanded ? 240 : 56 }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
@@ -326,11 +355,11 @@ const Sidebar: React.FC = () => {
           !isPinned ? "fixed left-0 top-0 z-50" : ""
         } scrollbar-hide`}
         style={{
-          scrollbarWidth: "none" /* Firefox */,
-          msOverflowStyle: "none" /* IE and Edge */,
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
         }}
       >
-        {/* Header - adjusted padding */}
+        {/* Header */}
         <div className="flex items-center justify-between px-3 py-4 border-b border-gray-200 dark:border-gray-800">
           <AnimatePresence mode="wait">
             {isSidebarExpanded && (
@@ -366,12 +395,12 @@ const Sidebar: React.FC = () => {
           </motion.button>
         </div>
 
-        {/* Menu Items - adjusted spacing with hidden scrollbar */}
+        {/* Menu Items */}
         <div className="py-3 overflow-y-auto h-[calc(100vh-73px)] scrollbar-hide">
           {menuItems.map((item) => renderMenuItem(item))}
         </div>
 
-        {/* Footer - adjusted padding */}
+        {/* Footer */}
         <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
           <motion.div
             className={`flex items-center ${

@@ -85,8 +85,9 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
-      <div className="flex items-center justify-end px-6 py-3">
+    <header className="sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-blue-200 dark:border-gray-800 shadow-sm">
+      {" "}
+      <div className="flex items-center justify-end px-6 py-[10px]">
         <div className="flex items-center space-x-4">
           {/* Theme Toggle Button */}
           <motion.button
@@ -228,10 +229,9 @@ const Header: React.FC = () => {
           {/* User Menu */}
           <div className="relative" ref={userMenuRef}>
             <motion.button
-              whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center space-x-3 p-1 pr-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="flex items-center space-x-3 p-1 pr-2 rounded-sm  "
             >
               <img
                 src={user?.avatar}
@@ -277,7 +277,7 @@ const Header: React.FC = () => {
                         setShowUserMenu(false);
                         // Handle profile
                       }}
-                      className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                      className="cursor-pointer flex items-center space-x-3 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     >
                       <User className="w-4 h-4" />
                       <span>Profile</span>
@@ -288,7 +288,7 @@ const Header: React.FC = () => {
                         setShowUserMenu(false);
                         // Handle change password
                       }}
-                      className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                      className="cursor-pointer flex items-center space-x-3 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     >
                       <Lock className="w-4 h-4" />
                       <span>Change Password</span>
@@ -299,7 +299,7 @@ const Header: React.FC = () => {
                         setShowUserMenu(false);
                         // Handle settings
                       }}
-                      className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                      className="cursor-pointer flex items-center space-x-3 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     >
                       <Settings className="w-4 h-4" />
                       <span>Settings</span>
@@ -312,7 +312,7 @@ const Header: React.FC = () => {
                         logout();
                         setShowUserMenu(false);
                       }}
-                      className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      className="cursor-pointer flex items-center space-x-3 w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>Logout</span>

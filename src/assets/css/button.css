@@ -1,19 +1,31 @@
+/* button.css */
+@reference "tailwindcss";
+
 /* Base Button Styles */
 .btn {
-  @apply relative inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply relative inline-flex items-center justify-center font-medium transition-all duration-200 disabled:opacity-50 backdrop-blur-sm;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+  outline: none;
+  cursor: pointer;
 }
 
-/* Sizes */
+/* Sizes - Reduced vertical padding for rectangular shape */
+.btn-xs {
+  @apply px-2 py-0.5 text-xs gap-1 rounded-sm;
+}
+
 .btn-sm {
-  @apply px-3 py-1.5 text-sm gap-1.5;
+  @apply px-3 py-1 text-sm gap-1.5 rounded-sm;
 }
 
 .btn-md {
-  @apply px-4 py-2 text-base gap-2;
+  @apply px-4 py-1.5 text-base gap-2 rounded-sm;
 }
 
 .btn-lg {
-  @apply px-6 py-3 text-lg gap-2.5;
+  @apply px-6 py-2 text-lg gap-2.5 rounded-sm;
 }
 
 /* Width */
@@ -21,66 +33,104 @@
   @apply w-full;
 }
 
-/* Variants - Light Mode */
+/* ===== SMOOTH WATERY COLOR VARIANTS ===== */
+/* All buttons keep their original background color on hover - no background change */
+
+/* Primary - Soft Ocean */
 .btn-primary {
-  @apply bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500 focus:ring-offset-white;
+  @apply bg-blue-100/80 text-blue-900 shadow-sm shadow-blue-200/30
+         dark:bg-blue-900/30 dark:text-blue-50 dark:shadow-blue-900/30;
 }
 
+/* Secondary - Soft Lavender */
 .btn-secondary {
-  @apply bg-gray-600 hover:bg-gray-700 text-white focus:ring-gray-500 focus:ring-offset-white;
+  @apply bg-purple-100/80 text-purple-900 shadow-sm shadow-purple-200/30
+         dark:bg-purple-900/30 dark:text-purple-50 dark:shadow-purple-900/30;
 }
 
+/* Success - Soft Mint */
 .btn-success {
-  @apply bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 focus:ring-offset-white;
+  @apply bg-green-100/80 text-green-900 shadow-sm shadow-green-200/30
+         dark:bg-green-900/30 dark:text-green-50 dark:shadow-green-900/30;
 }
 
+/* Danger - Soft Coral */
 .btn-danger {
-  @apply bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 focus:ring-offset-white;
+  @apply bg-red-100/80 text-red-900 shadow-sm shadow-red-200/30
+         dark:bg-red-900/30 dark:text-red-50 dark:shadow-red-900/30;
 }
 
+/* Warning - Soft Peach */
 .btn-warning {
-  @apply bg-yellow-500 hover:bg-yellow-600 text-white focus:ring-yellow-500 focus:ring-offset-white;
+  @apply bg-orange-100/80 text-orange-900 shadow-sm shadow-orange-200/30
+         dark:bg-orange-900/30 dark:text-orange-50 dark:shadow-orange-900/30;
 }
 
+/* Info - Soft Sky */
+.btn-info {
+  @apply bg-sky-100/80 text-sky-900 shadow-sm shadow-sky-200/30
+         dark:bg-sky-900/30 dark:text-sky-50 dark:shadow-sky-900/30;
+}
+
+/* Outline - Soft Glass */
 .btn-outline {
-  @apply bg-transparent border-2 border-gray-300 hover:bg-gray-50 text-gray-700 focus:ring-gray-400 focus:ring-offset-white;
+  @apply bg-transparent text-gray-800 shadow-sm shadow-gray-200/20 backdrop-blur-none
+         dark:text-gray-100;
 }
 
-/* Variants - Dark Mode */
-.dark .btn-primary {
-  @apply bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500 focus:ring-offset-gray-900;
-}
-
-.dark .btn-secondary {
-  @apply bg-gray-700 hover:bg-gray-600 text-gray-200 focus:ring-gray-500 focus:ring-offset-gray-900;
-}
-
-.dark .btn-success {
-  @apply bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 focus:ring-offset-gray-900;
-}
-
-.dark .btn-danger {
-  @apply bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 focus:ring-offset-gray-900;
-}
-
-.dark .btn-warning {
-  @apply bg-yellow-600 hover:bg-yellow-700 text-white focus:ring-yellow-500 focus:ring-offset-gray-900;
-}
-
-.dark .btn-outline {
-  @apply bg-transparent border-2 border-gray-600 hover:bg-gray-800 text-gray-200 focus:ring-gray-500 focus:ring-offset-gray-900;
+/* Ghost - Extra Soft */
+.btn-ghost {
+  @apply bg-transparent text-gray-700
+         dark:text-gray-200;
 }
 
 /* Loading State */
 .btn-loading {
-  @apply cursor-wait opacity-80;
+  @apply cursor-wait opacity-70 backdrop-blur-sm;
 }
 
 /* Icon Positioning */
 .icon-left {
-  @apply mr-1;
+  @apply mr-1.5;
 }
 
 .icon-right {
-  @apply ml-1;
+  @apply ml-1.5;
+}
+
+/* Hover Effects - ONLY scale and shadow, NO background color change */
+.btn:hover:not(:disabled) {
+  @apply shadow-md;
+  transform: scale(1.02) translateZ(0);
+}
+
+.btn:active:not(:disabled) {
+  @apply shadow-sm;
+  transform: scale(0.98) translateZ(0);
+}
+
+/* Disabled state */
+.btn:disabled,
+.btn-loading {
+  cursor: not-allowed;
+}
+
+/* Special watery effect on hover - Only for colored buttons, but still NO background color change */
+.btn-primary:hover,
+.btn-secondary:hover,
+.btn-success:hover,
+.btn-danger:hover,
+.btn-warning:hover,
+.btn-info:hover {
+  @apply shadow-lg;
+  background-image: linear-gradient(to bottom, rgba(255,255,255,0.2), rgba(255,255,255,0));
+}
+
+.dark .btn-primary:hover,
+.dark .btn-secondary:hover,
+.dark .btn-success:hover,
+.dark .btn-danger:hover,
+.dark .btn-warning:hover,
+.dark .btn-info:hover {
+  background-image: linear-gradient(to bottom, rgba(255,255,255,0.1), rgba(255,255,255,0));
 }

@@ -1,11 +1,13 @@
 import Sidebar from "./components/common/Sidebar";
 import Header from "./components/common/Header";
 import { GlobalProvider } from "./context/GlobalContext";
+import Button from "./components/ui/Button";
+import InputField from "./components/ui/InputField";
 
 function App() {
   return (
     <GlobalProvider>
-      <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
+      <div className="flex min-h-screen bg-gray-100 dark:bg-gray-950">
         <Sidebar />
         <div className="flex-1 flex flex-col">
           <Header />
@@ -13,6 +15,7 @@ function App() {
             <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">
               Main Content Area
             </h1>
+
             <p className="text-gray-600 dark:text-gray-300">
               Your content goes here. The sidebar is pinned by default. Click
               the pin icon to toggle between pinned and unpinned states.
@@ -33,6 +36,8 @@ function App() {
                 </div>
               ))}
             </div>
+            <Button className="btn-primary ">Hello</Button>
+            <InputField type="text" value={"hello"} />
           </main>
         </div>
       </div>
