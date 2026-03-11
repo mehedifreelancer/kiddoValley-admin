@@ -73,10 +73,10 @@ const ListCard: React.FC<ProductListCardProps> = ({
             <img
               src={image}
               alt={title}
-              className="w-16 h-16 object-cover rounded-lg bg-gray-100 dark:bg-blue-900/20"
+              className="w-16 h-16 object-cover rounded-lg bg-gray-100 dark:bg-blue-900"
             />
           ) : (
-            <div className="w-16 h-16 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+            <div className="w-16 h-16 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
               <Package className="w-6 h-6 text-blue-500 dark:text-blue-400" />
             </div>
           )}

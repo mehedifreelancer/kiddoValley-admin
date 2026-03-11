@@ -16,8 +16,15 @@ import {
   Activity,
 } from "lucide-react";
 import Loader from "../common/Loader";
+import { useState } from "react";
+import Modal from "./Modal";
+import { toast } from "./Toast";
 
 const Components = () => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalFor, setModalFor] = useState<
+    "create" | "edit" | "delete" | "view" | null
+  >(null);
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">
@@ -180,6 +187,35 @@ const Components = () => {
           <Loader />
         </div>
       </div>
+
+      <Modal
+        isOpen={modalFor === "create"}
+        onClose={() => {
+          setIsModalOpen(false);
+          setModalFor(null);
+        }}
+        title="Confirm Delete"
+        size="xl"
+        hideFooter
+      >
+        <p>sdft</p>
+      </Modal>
+      <Button
+        onClick={() => {
+          setModalFor("create");
+          // You can also pass size through state if needed
+        }}
+        variant="outline"
+      >
+        Small
+      </Button>
+
+      <Button
+        onClick={() => toast.success("Operation completed successfully!")}
+        variant="success"
+      >
+        Success Toast
+      </Button>
     </div>
   );
 };

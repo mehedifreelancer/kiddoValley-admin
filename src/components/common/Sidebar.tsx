@@ -405,29 +405,7 @@ const Sidebar: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-          <motion.div
-            className={`flex items-center ${
-              !isSidebarExpanded ? "justify-center" : "space-x-3"
-            }`}
-            whileHover={{ x: isSidebarExpanded ? 4 : 0 }}
-          >
-            <Settings className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-            <AnimatePresence mode="wait">
-              {isSidebarExpanded && (
-                <motion.span
-                  key="settings-label"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="text-sm font-medium text-gray-600 dark:text-gray-300"
-                >
-                  Settings
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        </div>
+    
       </motion.div>
     </div>
   );
