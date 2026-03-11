@@ -11,7 +11,7 @@ function AppContent() {
   const { isSidebarPinned } = useGlobal();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-100 dark:bg-gray-950">
+    <div className="flex h-screen overflow-hidden bg-gray-100 dark:bg-gray-900">
       <Sidebar />
       <motion.div
         className="flex-1 flex flex-col overflow-hidden"

@@ -27,7 +27,7 @@ const Card: React.FC<CardProps> = ({
   return (
     <motion.div
       className={`
-        bg-white dark:bg-blue-200/10
+        bg-white dark:bg-gray-800
         rounded-lg shadow-sm
         transition-all duration-200
         ${hoverable ? "cursor-pointer hover:shadow-sm" : ""}

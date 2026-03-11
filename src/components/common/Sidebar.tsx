@@ -353,7 +353,7 @@ const Sidebar: React.FC = () => {
         transition={{ duration: 0.2, ease: "easeInOut" }}
         onMouseEnter={() => !isSidebarPinned && setIsHovered(true)}
         onMouseLeave={() => !isSidebarPinned && setIsHovered(false)}
-        className={`h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 shadow-lg overflow-hidden ${
+        className={`h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-800 shadow-lg overflow-hidden ${
           !isSidebarPinned ? "fixed left-0 top-0 z-50" : ""
         } scrollbar-hide`}
         style={{
