@@ -85,7 +85,7 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white dark:bg-[#111826] border-b border-blue-200 dark:border-gray-800 shadow-sm">
+    <header className="rounded-md sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-blue-200 dark:border-gray-800 shadow-sm">
       {" "}
       <div className="flex items-center justify-end px-6 py-[10px]">
         <div className="flex items-center space-x-4">

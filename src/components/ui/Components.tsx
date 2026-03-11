@@ -10,7 +10,7 @@ import {
   FileText,
   Star,
   Mail,
-  Calendar,
+
   Bell,
   Settings,
   Activity,
@@ -19,6 +19,9 @@ import Loader from "../common/Loader";
 import { useState } from "react";
 import Modal from "./Modal";
 import { toast } from "./Toast";
+import Toolbar from "./Toolbar";
+import { Calendar } from 'primereact/calendar';
+import DatePicker from "./DatePicker";
 
 const Components = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -160,6 +163,7 @@ const Components = () => {
             label="Sample Input"
             type="text"
             placeholder="Enter something..."
+            fullBorder={true}
           />
         </div>
 
@@ -216,8 +220,18 @@ const Components = () => {
       >
         Success Toast
       </Button>
+
+      <Toolbar className="mt-5" title="Toolbar">
+        <div className="flex gap-2 justify-end">
+          <InputField type="date" className="w-40" placeholder="Start date" />
+          <InputField type="date" className="w-40" placeholder="End date" />
+        </div>
+      </Toolbar>
+     <DatePicker/>
     </div>
   );
+
+
 };
 
 export default Components;

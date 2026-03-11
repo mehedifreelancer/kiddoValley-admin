@@ -1,6 +1,5 @@
 import React from "react";
 import { Dialog } from "primereact/dialog";
-import Button from "./Button";
 import { X } from "lucide-react";
 
 export type ModalSize = "xs" | "sm" | "md" | "lg" | "xl" | "full";
@@ -40,14 +39,14 @@ const Modal: React.FC<ModalProps> = ({
 
   // Custom header with close button
   const headerTemplate = (
-    <div className="flex items-center justify-between w-full px-2 py-1">
-      <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+    <div className="rounded-t-sm flex items-center justify-between w-full px-2 py-1 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+      <h3 className="text-lg font-semibold text-gray-800 dark:text-white text-color">
         {title}
       </h3>
       {showCloseButton && (
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+          className="cursor-pointer p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
           aria-label="Close modal"
         >
           <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -61,7 +60,7 @@ const Modal: React.FC<ModalProps> = ({
       header={headerTemplate}
       visible={isOpen}
       onHide={onClose}
-      className={`
+      className={`rounded-sm
         ${sizeClasses[size]} 
         ${className}
         [&_.p-dialog-header]:bg-white 
@@ -85,7 +84,7 @@ const Modal: React.FC<ModalProps> = ({
       modal
       blockScroll
     >
-      <div className="py-4 px-6 bg-white dark:bg-gray-900">
+      <div className="py-4 px-6 bg-white dark:bg-gray-800">
         {children}
       </div>
     </Dialog>

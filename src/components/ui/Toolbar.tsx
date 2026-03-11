@@ -1,0 +1,47 @@
+import React from "react";
+
+interface ToolbarProps {
+  title?: string;
+  children: React.ReactNode;
+  className?: string;
+  titleClassName?: string;
+  actions?: React.ReactNode; // For right-aligned actions
+}
+
+const Toolbar: React.FC<ToolbarProps> = ({
+  title,
+  children,
+  className = "",
+  titleClassName = "",
+  actions,
+}) => {
+  return (
+    <div
+      className={`
+        bg-white dark:bg-gray-800
+        rounded-md shadow-sm
+        border border-gray-200 dark:border-gray-700
+        p-2
+        flex items-center justify-between
+        ${className}
+      `}
+    >
+      {/* Left section with title and main content */}
+
+      <h3
+        className={`
+            text-sm font-medium text-color
+            whitespace-nowrap
+            ${titleClassName}
+          `}
+      >
+        {title}
+      </h3>
+
+      {/* Main toolbar content (date pickers, inputs, etc) */}
+      {children}
+    </div>
+  );
+};
+
+export default Toolbar;

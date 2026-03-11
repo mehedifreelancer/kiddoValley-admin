@@ -2,7 +2,6 @@ import React from "react";
 import { useActionState } from "react";
 import Button from "../ui/Button";
 import InputField from "../ui/InputField";
-import Card from "../ui/Card";
 import {
   Send,
   User,
@@ -11,6 +10,7 @@ import {
   CheckCircle,
   User2,
 } from "lucide-react";
+import Panel from "./Panel";
 
 interface FormState {
   success: boolean;
@@ -66,7 +66,7 @@ const ContactForm: React.FC = () => {
   });
 
   return (
-    <Card title="Contact Us" icon={<MessageSquare className="w-5 h-5" />}>
+    <Panel title="Contact Us" icon={<MessageSquare className="w-5 h-5" />}>
       <form action={formAction} className="space-y-4">
         {/* Success Message */}
         {state.success && (
@@ -135,7 +135,7 @@ const ContactForm: React.FC = () => {
           Button shows loading state automatically while form is submitting
         </p>
       </form>
-    </Card>
+    </Panel>
   );
 };
 
