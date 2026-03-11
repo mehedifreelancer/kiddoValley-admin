@@ -4,7 +4,6 @@ import { GlobalProvider, useGlobal } from "./context/GlobalContext";
 import Components from "./components/ui/Components";
 import { motion } from "framer-motion";
 import ContactForm from "./components/ui/ContactForm";
-import { Toaster } from "react-hot-toast";
 import ToasterProvider from "./components/ui/ToasterProvider";
 
 // Create a separate component that uses the context
@@ -16,7 +15,7 @@ function AppContent() {
       <Sidebar />
       <motion.div
         className="flex-1 flex flex-col overflow-hidden"
-        animate={{ paddingLeft: isSidebarPinned ? 240 : 56 }}
+        animate={{ paddingLeft: isSidebarPinned ? 0 : 56 }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
       >
         <Header />
