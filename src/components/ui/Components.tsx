@@ -10,7 +10,6 @@ import {
   FileText,
   Star,
   Mail,
-
   Bell,
   Settings,
   Activity,
@@ -20,14 +19,17 @@ import { useState } from "react";
 import Modal from "./Modal";
 import { toast } from "./Toast";
 import Toolbar from "./Toolbar";
-import { Calendar } from 'primereact/calendar';
 import DatePicker from "./DatePicker";
+import { Calendar } from "primereact/calendar";
+import "../../assets/css/calendar.css";
 
 const Components = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalFor, setModalFor] = useState<
     "create" | "edit" | "delete" | "view" | null
   >(null);
+  const [date, setDate] = useState<Date | null>(null);
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">
@@ -227,11 +229,13 @@ const Components = () => {
           <InputField type="date" className="w-40" placeholder="End date" />
         </div>
       </Toolbar>
-     <DatePicker/>
+      <DatePicker />
+
+      <div className="space-y-4 max-w-md">
+        <Calendar value={date} onChange={(e) => setDate(e.value)} />
+      </div>
     </div>
   );
-
-
 };
 
 export default Components;
