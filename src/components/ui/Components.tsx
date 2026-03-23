@@ -22,6 +22,8 @@ import Toolbar from "./Toolbar";
 import DatePicker from "./DatePicker";
 import { Calendar } from "primereact/calendar";
 import "../../assets/css/calendar.css";
+import AdvancedDatePicker from "./AdvancedDatePicker";
+import DataTableComponent from "./DataTableComponent";
 
 const Components = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -225,15 +227,23 @@ const Components = () => {
 
       <Toolbar className="mt-5" title="Toolbar">
         <div className="flex gap-2 justify-end">
-          <InputField type="date" className="w-40" placeholder="Start date" />
-          <InputField type="date" className="w-40" placeholder="End date" />
+          <Calendar
+            value={date}
+            onChange={(e) => setDate(e.value)}
+            showIcon  // ← This shows the calendar icon
+            placeholder="Select Date"  // ← This shows the placeholder text
+          />
+          <Calendar
+            value={date}
+            onChange={(e) => setDate(e.value)}
+            showIcon  // ← This shows the calendar icon
+            placeholder="Select Date"  // ← This shows the placeholder text
+          />
         </div>
       </Toolbar>
-      <DatePicker />
-
-      <div className="space-y-4 max-w-md">
-        <Calendar value={date} onChange={(e) => setDate(e.value)} />
-      </div>
+      <AdvancedDatePicker />
+      <DataTableComponent/>
+      
     </div>
   );
 };

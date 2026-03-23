@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import App from "./App";
 import "./index.css";
 import "./assets/css/calendar.css"; // <-- Import directly here
+import "./assets/css/table.css"; // <-- Import directly here
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

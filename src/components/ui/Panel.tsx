@@ -25,7 +25,7 @@ const Panel: React.FC<PanelProps> = ({
   return (
     <div
       className={`
-        bg-white dark:bg-blue-200/10 
+        bg-white dark:bg-gray-800
         rounded-lg shadow-sm 
         transition-all duration-200 
         hover:shadow-md

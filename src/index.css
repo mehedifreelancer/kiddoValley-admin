@@ -1,9 +1,7 @@
 @import "tailwindcss";
 @variant dark (&:where(.dark, .dark *));
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&family=Public+Sans:wght@100..900&display=swap');
-/* or */
-/* or */
+/* @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&family=Public+Sans:wght@100..900&display=swap'); */
 
 body {
   font-family: "Poppins", sans-serif;
@@ -20,4 +18,15 @@ body {
 
 .text-color {
   @apply text-gray-600 dark:text-gray-300;
+}
+
+.p-dialog-mask {
+  backdrop-filter: blur(4px);
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Optional: Dark mode blur */
+.dark .p-dialog-mask {
+  backdrop-filter: blur(4px);
+  background-color: rgba(0, 0, 0, 0.5);
 }

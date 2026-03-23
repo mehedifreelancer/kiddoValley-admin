@@ -1,0 +1,175 @@
+/* table.css */
+@reference "tailwindcss";
+
+/* Column Header */
+.column-header {
+  @apply p-3 bg-gray-50 text-gray-700 font-semibold border-b border-gray-200 text-xs;
+}
+
+/* Dark mode for column header */
+.dark .column-header {
+  @apply bg-gray-800 text-gray-200 border-gray-800;
+}
+
+/* Column Body */
+.column-body {
+  @apply p-3 text-gray-600 text-xs;
+}
+
+/* Dark mode for column body */
+.dark .column-body {
+  @apply text-gray-300;
+}
+
+/* Table Row */
+.table-row {
+  @apply bg-white text-gray-600 text-xs transition-colors duration-200 border-b border-gray-200 ;
+}
+
+/* Dark mode for table row */
+.dark .table-row {
+  @apply bg-gray-800 text-gray-300 border-gray-900;
+}
+
+/* Hover states */
+.table-row:hover {
+  @apply bg-gray-50;
+}
+
+.dark .table-row:hover {
+  @apply bg-gray-700/50;
+}
+
+.p-column-title {
+  @apply pr-3;
+}
+
+.table-row .td {
+  @apply p-3;
+}
+
+/* Status Badge */
+.status-badge {
+  @apply px-2 py-1 rounded-full text-xs font-medium;
+}
+
+.status-badge-active {
+  @apply text-green-600 bg-green-100;
+}
+
+.dark .status-badge-active {
+  @apply text-green-400 bg-green-900/30;
+}
+
+.status-badge-inactive {
+  @apply text-red-600 bg-red-100;
+}
+
+.dark .status-badge-inactive {
+  @apply text-red-400 bg-red-900/30;
+}
+
+.status-badge-pending {
+  @apply text-yellow-600 bg-yellow-100;
+}
+
+.dark .status-badge-pending {
+  @apply text-yellow-400 bg-yellow-900/30;
+}
+
+/* Revenue Text */
+.revenue-text {
+  @apply font-medium text-green-600;
+}
+
+.dark .revenue-text {
+  @apply text-green-400;
+}
+
+/* Pagination Styles */
+.p-paginator {
+  @apply flex items-center justify-end px-4 py-3 bg-white border-t border-gray-200 gap-1;
+}
+
+.dark .p-paginator {
+  @apply bg-gray-900 border-gray-700;
+}
+
+.p-paginator-first,
+.p-paginator-prev,
+.p-paginator-next,
+.p-paginator-last {
+  @apply w-8 h-8 flex items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 transition-colors duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.dark .p-paginator-first,
+.dark .p-paginator-prev,
+.dark .p-paginator-next,
+.dark .p-paginator-last {
+  @apply text-gray-400 hover:bg-gray-800;
+}
+
+.p-paginator-page {
+  @apply w-8 h-8 flex items-center justify-center rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer;
+}
+
+.dark .p-paginator-page {
+  @apply text-gray-300 hover:bg-gray-800;
+}
+
+.p-paginator-page.p-highlight {
+  @apply bg-blue-600 text-white hover:bg-blue-700;
+}
+
+.dark .p-paginator-page.p-highlight {
+  @apply bg-blue-600 text-white hover:bg-blue-700;
+}
+
+/* Dropdown (Rows per page) */
+.p-dropdown {
+  @apply hidden ml-2 bg-white border border-gray-300 rounded-md cursor-pointer;
+}
+
+.dark .p-dropdown {
+  @apply bg-gray-800 border-gray-600;
+}
+
+.p-dropdown .p-dropdown-label {
+  @apply px-3 py-1.5 text-sm text-gray-700;
+}
+
+.dark .p-dropdown .p-dropdown-label {
+  @apply text-gray-300;
+}
+
+.p-dropdown-trigger {
+  @apply px-2 py-1.5 text-gray-500;
+}
+
+.dark .p-dropdown-trigger {
+  @apply text-gray-400;
+}
+
+.p-dropdown-panel {
+  @apply bg-white border border-gray-200 rounded-md shadow-lg mt-1;
+}
+
+.dark .p-dropdown-panel {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.p-dropdown-item {
+  @apply px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer;
+}
+
+.dark .p-dropdown-item {
+  @apply text-gray-300 hover:bg-gray-700;
+}
+
+.p-dropdown-item.p-highlight {
+  @apply bg-blue-50 text-blue-600;
+}
+
+.dark .p-dropdown-item.p-highlight {
+  @apply bg-blue-900/30 text-blue-400;
+}

@@ -20,7 +20,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
       className={`
         bg-white dark:bg-gray-800
         rounded-md shadow-sm
-        border border-gray-200 dark:border-gray-700
+        border border-gray-200 dark:border-gray-800
         p-2
         flex items-center justify-between
         ${className}

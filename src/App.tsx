@@ -12,13 +12,13 @@ function AppContent() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-100 dark:bg-gray-900">
-      <Sidebar />
+      <Sidebar /> 
       <motion.div
         className="flex-1 flex flex-col overflow-hidden"
         animate={{ paddingLeft: isSidebarPinned ? 5 : 60 }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
       >
-        <main className="flex-1 overflow-y-auto scrollbar-hide ">
+        <main className="flex-1 overflow-y-auto scrollbar-hide  dark:bg-gray-900 ">
           <Header />
           <ContactForm />
           <Components />
