@@ -4,22 +4,14 @@ import { Column } from 'primereact/column';
 import DataTableSearch from './DataTableSearch';
 
 // Dummy data
-const dummyData = [
-  { id: 1, name: "John Doe", email: "john@example.com", role: "Admin", status: "Active", projects: 12, revenue: 12500 },
-  { id: 2, name: "Jane Smith", email: "jane@example.com", role: "User", status: "Active", projects: 8, revenue: 8900 },
-  { id: 3, name: "Bob Johnson", email: "bob@example.com", role: "Editor", status: "Inactive", projects: 5, revenue: 4500 },
-  { id: 4, name: "Alice Williams", email: "alice@example.com", role: "User", status: "Active", projects: 15, revenue: 15800 },
-  { id: 5, name: "Charlie Brown", email: "charlie@example.com", role: "Viewer", status: "Pending", projects: 3, revenue: 2100 },
-  { id: 6, name: "Diana Prince", email: "diana@example.com", role: "Admin", status: "Active", projects: 22, revenue: 25400 },
-  { id: 7, name: "Ethan Hunt", email: "ethan@example.com", role: "Editor", status: "Active", projects: 9, revenue: 11200 },
-];
 
-const DataTableComponent: React.FC = () => {
+
+const DataTableComponent: React.FC = (data) => {
   const [globalFilter, setGlobalFilter] = useState("");
 
   // Manual filtering function that works with all fields including numbers
   const filteredData = useMemo(() => {
-    if (!globalFilter) return dummyData;
+    if (!globalFilter) return data;
     
     const searchTerm = globalFilter.toLowerCase();
     

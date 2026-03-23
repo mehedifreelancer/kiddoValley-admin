@@ -17,9 +17,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
 }) => {
   return (
     <div
-      className={`
+      className={`my-1
         bg-white dark:bg-gray-800
-        rounded-md shadow-sm
+        rounded-sm shadow-sm
         border border-gray-200 dark:border-gray-800
         p-2
         flex items-center justify-between
@@ -30,7 +30,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
       <h3
         className={`
-            text-sm font-medium text-color
+            text-md font-bold text-color
             whitespace-nowrap
             ${titleClassName}
           `}

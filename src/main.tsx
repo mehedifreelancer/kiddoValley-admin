@@ -1,12 +1,13 @@
-import { createRoot } from "react-dom/client";
-import { StrictMode } from "react";
-import App from "./App";
+import ReactDOM from "react-dom/client";
+import { RouterProvider } from "react-router/dom";
 import "./index.css";
-import "./assets/css/calendar.css"; // <-- Import directly here
-import "./assets/css/table.css"; // <-- Import directly here
+import "./assets/css/calendar.css";
+import "./assets/css/table.css";
+import { router } from "./routes";
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
+
+const root = document.getElementById("root");
+
+ReactDOM.createRoot(root).render(
+  <RouterProvider router={router} />,
 );

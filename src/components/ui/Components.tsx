@@ -19,11 +19,9 @@ import { useState } from "react";
 import Modal from "./Modal";
 import { toast } from "./Toast";
 import Toolbar from "./Toolbar";
-import DatePicker from "./DatePicker";
-import { Calendar } from "primereact/calendar";
+import { Calendar } from "primereact/calendar";menubar
 import "../../assets/css/calendar.css";
 import AdvancedDatePicker from "./AdvancedDatePicker";
-import DataTableComponent from "./DataTableComponent";
 
 const Components = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -242,7 +240,7 @@ const Components = () => {
         </div>
       </Toolbar>
       <AdvancedDatePicker />
-      <DataTableComponent/>
+
       
     </div>
   );

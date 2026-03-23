@@ -26,7 +26,7 @@ const DataTableSearch: React.FC<DataTableSearchProps> = ({
         value={value}
         onChange={handleChange}
         placeholder={placeholder}
-        className=" outline-0  w-full pl-9 pr-3 py-2 text-gray-700 dark:text-gray-200  text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded   transition-all"
+        className="rounded-md  outline-0  w-full pl-9 pr-3 py-2 text-gray-700 dark:text-gray-200  text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600    transition-all"
       />
     </div>
   );

@@ -23,7 +23,7 @@
 
 /* Table Row */
 .table-row {
-  @apply bg-white text-gray-600 text-xs transition-colors duration-200 border-b border-gray-200 ;
+  @apply bg-white  text-gray-600 text-xs transition-colors duration-200 border-b border-gray-200 ;
 }
 
 /* Dark mode for table row */
@@ -172,4 +172,7 @@
 
 .dark .p-dropdown-item.p-highlight {
   @apply bg-blue-900/30 text-blue-400;
+}
+.p-datatable-thead {
+    @apply border-b-2 border-gray-900 py-3;
 }
