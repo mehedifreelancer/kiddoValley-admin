@@ -14,6 +14,7 @@ interface ModalProps {
   closeOnOverlayClick?: boolean;
   className?: string;
   hideFooter?: boolean;
+  hideScrollbar?: boolean; // New prop to hide scrollbar
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -21,11 +22,12 @@ const Modal: React.FC<ModalProps> = ({
   onClose,
   title,
   children,
-  size = "md",
+  size = "lg",
   showCloseButton = true,
   closeOnOverlayClick = true,
   className = "",
   hideFooter = false,
+  hideScrollbar = true, // Default to true to hide scrollbar
 }) => {
   // Size mappings
   const sizeClasses = {
@@ -39,14 +41,14 @@ const Modal: React.FC<ModalProps> = ({
 
   // Custom header with close button
   const headerTemplate = (
-    <div className="rounded-t-sm flex items-center justify-between w-full px-2 py-1 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
-      <h3 className="text-lg font-semibold text-gray-800 dark:text-white text-color">
+    <div className="rounded-t-sm flex items-center justify-between w-full p-2 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+      <h3 className="text-md font-semibold text-gray-800 dark:text-white">
         {title}
       </h3>
       {showCloseButton && (
         <button
           onClick={onClose}
-          className="cursor-pointer p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
+          className="cursor-pointer p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 rounded-lg"
           aria-label="Close modal"
         >
           <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
@@ -60,7 +62,7 @@ const Modal: React.FC<ModalProps> = ({
       header={headerTemplate}
       visible={isOpen}
       onHide={onClose}
-      className={`rounded-sm
+      className={`rounded-sm 
         ${sizeClasses[size]} 
         ${className}
         [&_.p-dialog-header]:bg-white 
@@ -84,7 +86,7 @@ const Modal: React.FC<ModalProps> = ({
       modal
       blockScroll
     >
-      <div className="py-4 px-6 bg-white dark:bg-gray-800">
+      <div className={`p-3 bg-white dark:bg-gray-800 scrollbar-hide`}>
         {children}
       </div>
     </Dialog>

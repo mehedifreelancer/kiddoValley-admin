@@ -98,16 +98,6 @@
   @apply ml-1.5;
 }
 
-/* Hover Effects - ONLY scale and shadow, NO background color change */
-.btn:hover:not(:disabled) {
-  @apply shadow-md;
-  transform: scale(1.02) translateZ(0);
-}
-
-.btn:active:not(:disabled) {
-  @apply shadow-sm;
-  transform: scale(0.98) translateZ(0);
-}
 
 /* Disabled state */
 .btn:disabled,

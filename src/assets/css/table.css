@@ -126,53 +126,7 @@
 }
 
 /* Dropdown (Rows per page) */
-.p-dropdown {
-  @apply hidden ml-2 bg-white border border-gray-300 rounded-md cursor-pointer;
-}
 
-.dark .p-dropdown {
-  @apply bg-gray-800 border-gray-600;
-}
-
-.p-dropdown .p-dropdown-label {
-  @apply px-3 py-1.5 text-sm text-gray-700;
-}
-
-.dark .p-dropdown .p-dropdown-label {
-  @apply text-gray-300;
-}
-
-.p-dropdown-trigger {
-  @apply px-2 py-1.5 text-gray-500;
-}
-
-.dark .p-dropdown-trigger {
-  @apply text-gray-400;
-}
-
-.p-dropdown-panel {
-  @apply bg-white border border-gray-200 rounded-md shadow-lg mt-1;
-}
-
-.dark .p-dropdown-panel {
-  @apply bg-gray-800 border-gray-700;
-}
-
-.p-dropdown-item {
-  @apply px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer;
-}
-
-.dark .p-dropdown-item {
-  @apply text-gray-300 hover:bg-gray-700;
-}
-
-.p-dropdown-item.p-highlight {
-  @apply bg-blue-50 text-blue-600;
-}
-
-.dark .p-dropdown-item.p-highlight {
-  @apply bg-blue-900/30 text-blue-400;
-}
 .p-datatable-thead {
     @apply border-b-2 border-gray-900 py-3;
 }

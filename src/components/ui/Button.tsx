@@ -1,5 +1,4 @@
 import React from "react";
-import { motion } from "framer-motion";
 import "../../assets/css/button.css";
 import Loader from "../common/Loader";
 
@@ -84,15 +83,14 @@ const Button: React.FC<ButtonProps> = ({
   };
 
   return (
-    <motion.button
-      whileTap={{ scale: 0.98 }}
+    <button
       className={buttonClasses}
       disabled={disabled || loading}
       {...props}
     >
       {loading && (
         <span className="absolute inset-0 flex items-center justify-center">
-          <Loader />
+          <Loader size={getLoaderSize()} color={getLoaderColor()} />
         </span>
       )}
 
@@ -107,7 +105,7 @@ const Button: React.FC<ButtonProps> = ({
           <span className="icon-right">{icon}</span>
         )}
       </span>
-    </motion.button>
+    </button>
   );
 };
 

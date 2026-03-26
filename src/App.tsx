@@ -15,7 +15,7 @@ function AppContent() {
       <motion.div
         className="flex-1 flex flex-col overflow-hidden"
         animate={{ paddingLeft: isSidebarPinned ? 4 : 75 }}
-        transition={{ duration: 0.2, ease: "easeInOut" }}
+        transition={{ duration: 0.2, ease: "eas.eInOut" }}
       >
         <Header />
         <main className="flex-1 overflow-y-auto scrollbar-hide dark:bg-gray-900">
@@ -32,6 +32,7 @@ function App() {
   return (
     <GlobalProvider>
       <AppContent />
+
     </GlobalProvider>
   );
 }

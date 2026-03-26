@@ -19,9 +19,10 @@ import { useState } from "react";
 import Modal from "./Modal";
 import { toast } from "./Toast";
 import Toolbar from "./Toolbar";
-import { Calendar } from "primereact/calendar";menubar
+import { Calendar } from "primereact/calendar"; menubar
 import "../../assets/css/calendar.css";
 import AdvancedDatePicker from "./AdvancedDatePicker";
+import { Dropdown } from "primereact/dropdown";
 
 const Components = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -30,6 +31,21 @@ const Components = () => {
   >(null);
   const [date, setDate] = useState<Date | null>(null);
 
+
+
+  const [selectedCountry, setSelectedCountry] = useState(null);
+  const countries = [
+    { name: 'Australia', code: 'AU' },
+    { name: 'Brazil', code: 'BR' },
+    { name: 'China', code: 'CN' },
+    { name: 'Egypt', code: 'EG' },
+    { name: 'France', code: 'FR' },
+    { name: 'Germany', code: 'DE' },
+    { name: 'India', code: 'IN' },
+    { name: 'Japan', code: 'JP' },
+    { name: 'Spain', code: 'ES' },
+    { name: 'United States', code: 'US' }
+  ];
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">
@@ -240,8 +256,20 @@ const Components = () => {
         </div>
       </Toolbar>
       <AdvancedDatePicker />
-
-      
+      <br />
+      <br />
+      <br />
+      <label> dfdfdfdf </label>
+<Dropdown
+  value={selectedCountry}
+  onChange={(e) => setSelectedCountry(e.value)}
+  options={countries}
+  optionLabel="name"
+  optionValue="code"
+  placeholder="Select a Country"
+  className="w-full"
+  appendTo={document.body}
+/>     
     </div>
   );
 };

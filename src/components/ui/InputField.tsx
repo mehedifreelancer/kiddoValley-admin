@@ -115,7 +115,7 @@ const InputField: React.FC<InputFieldProps> = ({
           onFocus={handleFocus}
           onBlur={handleBlur}
           className={`
-            w-full bg-transparent text-base
+            w-full bg-transparent text-sm
             focus:outline-none focus:ring-0 transition-all duration-200
             ${disabled ? "text-gray-400 dark:text-gray-600 cursor-not-allowed" : "text-gray-900 dark:text-white"}
             ${getBorderClasses()}

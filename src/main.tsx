@@ -3,6 +3,8 @@ import { RouterProvider } from "react-router/dom";
 import "./index.css";
 import "./assets/css/calendar.css";
 import "./assets/css/table.css";
+import "./assets/css/dropdown.css";
+
 import { router } from "./routes";
 
 
