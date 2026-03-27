@@ -247,3 +247,24 @@ textarea::-webkit-scrollbar-thumb {
 .dark textarea::-webkit-scrollbar-thumb {
   background: #475569;
 }
+
+
+.dark .ql-picker-options{
+   @apply bg-gray-800! border-gray-600!
+}
+
+.ql-picker-label , .ql-snow .ql-stroke{
+  @apply text-gray-800 stroke-gray-800
+}
+
+.dark .ql-picker-label, .dark .ql-snow .ql-stroke {
+  @apply text-gray-200 stroke-gray-200
+}
+
+.ql-toolbar.ql-snow, .ql-container{
+   @apply border-gray-200!
+}
+
+.dark .ql-toolbar.ql-snow, .dark .ql-container{
+   @apply border-gray-600!
+}

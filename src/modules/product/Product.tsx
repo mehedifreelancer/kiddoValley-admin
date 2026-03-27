@@ -2,6 +2,7 @@ import React, { useState, useMemo, FormEvent, useEffect, useCallback } from "rea
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Dropdown } from "primereact/dropdown";
+import { Editor } from "primereact/editor";
 import { Plus, Edit, Trash2, RefreshCw, GripVertical, Upload, X, Image as ImageIcon } from "lucide-react";
 import Barcode from "react-barcode";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
@@ -102,7 +103,6 @@ const mockProducts: Product[] = [
     sellingPrice: 250,
     hasDiscount: true,
     discountPercent: 10,
-    stockQuantity: 50,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     category: { id: 1, name: "Baby Products", slug: "baby-products" },
@@ -121,7 +121,6 @@ const mockProducts: Product[] = [
     sellingPrice: 80,
     hasDiscount: false,
     discountPercent: 0,
-    stockQuantity: 100,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     category: { id: 2, name: "Dairy", slug: "dairy" },
@@ -140,10 +139,12 @@ export const Product = () => {
   // Form state
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [barcodeValue, setBarcodeValue] = useState<string>("");
+  const [productName, setProductName] = useState<string>("");
   const [imageList, setImageList] = useState<ImageItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [forceOrderPriority, setForceOrderPriority] = useState<number>(0);
   const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [productDetails, setProductDetails] = useState<string>("");
 
   // Form errors state
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -163,6 +164,8 @@ export const Product = () => {
       setSelectedCategory(null);
       setForceOrderPriority(0);
       setDiscountPercent(0);
+      setProductName("");
+      setProductDetails("");
       setFormErrors({});
     } else if (modalFor === "edit" && selectedProduct) {
       setBarcodeValue(selectedProduct.barcode);
@@ -170,6 +173,8 @@ export const Product = () => {
       setSelectedCategory(selectedProduct.category || null);
       setForceOrderPriority(selectedProduct.forceOrderPriority || 0);
       setDiscountPercent(selectedProduct.discountPercent || 0);
+      setProductName(selectedProduct.name);
+      setProductDetails(selectedProduct.description || "");
       setFormErrors({});
     }
   }, [modalFor, selectedProduct]);
@@ -181,7 +186,6 @@ export const Product = () => {
 
     setUploading(true);
 
-    // Simulate upload - replace with actual API call
     for (const file of files) {
       const mockUrl = URL.createObjectURL(file);
       setImageList(prev => [...prev, { imgUrl: mockUrl }]);
@@ -230,6 +234,8 @@ export const Product = () => {
     setImageList([]);
     setForceOrderPriority(0);
     setDiscountPercent(0);
+    setProductName("");
+    setProductDetails("");
   };
 
   // Open create modal
@@ -259,7 +265,6 @@ export const Product = () => {
     const name = formData.get("name") as string;
     const buyingPrice = formData.get("buyingPrice") as string;
     const sellingPrice = formData.get("sellingPrice") as string;
-    const stockQuantity = formData.get("stockQuantity") as string;
 
     if (!barcodeValue) errors.barcode = "Barcode is required";
     if (!name?.trim()) errors.name = "Product name is required";
@@ -268,8 +273,6 @@ export const Product = () => {
     if (Number(buyingPrice) <= 0) errors.buyingPrice = "Buying price must be greater than 0";
     if (!sellingPrice) errors.sellingPrice = "Selling price is required";
     if (Number(sellingPrice) <= 0) errors.sellingPrice = "Selling price must be greater than 0";
-    if (!stockQuantity) errors.stockQuantity = "Stock quantity is required";
-    if (Number(stockQuantity) < 0) errors.stockQuantity = "Stock quantity cannot be negative";
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -288,6 +291,7 @@ export const Product = () => {
       name: formData.get("name") as string,
       slug: (formData.get("name") as string).toLowerCase().replace(/\s+/g, '-'),
       videoUrl: formData.get("videoUrl") as string || "",
+      description: productDetails,
       images: imageList,
       isForceOrder: forceOrderPriority > 0,
       forceOrderPriority: forceOrderPriority,
@@ -296,7 +300,6 @@ export const Product = () => {
       sellingPrice: Number(formData.get("sellingPrice")),
       hasDiscount: discountPercent > 0,
       discountPercent: discountPercent,
-      stockQuantity: Number(formData.get("stockQuantity")),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       category: selectedCategory!,
@@ -321,6 +324,7 @@ export const Product = () => {
           name: formData.get("name") as string,
           slug: (formData.get("name") as string).toLowerCase().replace(/\s+/g, '-'),
           videoUrl: formData.get("videoUrl") as string || "",
+          description: productDetails,
           images: imageList,
           isForceOrder: forceOrderPriority > 0,
           forceOrderPriority: forceOrderPriority,
@@ -329,7 +333,6 @@ export const Product = () => {
           sellingPrice: Number(formData.get("sellingPrice")),
           hasDiscount: discountPercent > 0,
           discountPercent: discountPercent,
-          stockQuantity: Number(formData.get("stockQuantity")),
           updatedAt: new Date().toISOString(),
           category: selectedCategory!,
         }
@@ -410,13 +413,6 @@ export const Product = () => {
     );
   };
 
-  const stockBody = (rowData: Product) => {
-    const stockClass = rowData.stockQuantity <= 10
-      ? "text-red-600 dark:text-red-400 font-medium"
-      : "text-gray-700 dark:text-gray-300";
-    return <span className={stockClass}>{rowData.stockQuantity}</span>;
-  };
-
   const forceOrderBody = (rowData: Product) => {
     if (!rowData.isForceOrder) return <span className="text-gray-400">No</span>;
     return (
@@ -471,21 +467,19 @@ export const Product = () => {
             value={filteredData}
             paginator
             rows={10}
-            rowsPerPageOptions={[5, 10, 25, 50]}
             emptyMessage="No products found"
             stripedRows
             rowClassName={() => 'table-row'}
           >
-            <Column field="id" header="ID" sortable headerClassName="column-header" bodyClassName="column-body" style={{ width: "70px" }} />
-            <Column field="barcode" header="Barcode" sortable headerClassName="column-header" bodyClassName="column-body" style={{ width: "120px" }} />
+            <Column field="id" header="ID" sortable headerClassName="column-header" bodyClassName="column-body" />
+            <Column field="barcode" header="Barcode" sortable headerClassName="column-header" bodyClassName="column-body"  />
             <Column field="name" header="Product Name" sortable headerClassName="column-header" bodyClassName="column-body" />
-            <Column header="Images" body={imageBody} headerClassName="column-header" bodyClassName="column-body" style={{ width: "100px" }} />
-            <Column header="Category" body={categoryBody} headerClassName="column-header" bodyClassName="column-body" style={{ width: "120px" }} />
-            <Column header="Price" body={priceBody} headerClassName="column-header" bodyClassName="column-body" style={{ width: "100px" }} />
-            <Column field="stockQuantity" header="Stock" body={stockBody} sortable headerClassName="column-header" bodyClassName="column-body" style={{ width: "80px" }} />
-            <Column header="Discount" body={discountBody} headerClassName="column-header" bodyClassName="column-body" style={{ width: "100px" }} />
-            <Column header="Force Order" body={forceOrderBody} headerClassName="column-header" bodyClassName="column-body" style={{ width: "100px" }} />
-            <Column header="Actions" body={actionsBody} headerClassName="column-header" bodyClassName="column-body" style={{ width: "100px" }} />
+            <Column header="Images" body={imageBody} headerClassName="column-header" bodyClassName="column-body"  />
+            <Column header="Category" body={categoryBody} headerClassName="column-header" bodyClassName="column-body"  />
+            <Column header="Price" body={priceBody} headerClassName="column-header" bodyClassName="column-body" />
+            <Column header="Discount" body={discountBody} headerClassName="column-header" bodyClassName="column-body"  />
+            <Column header="Force Order" body={forceOrderBody} headerClassName="column-header" bodyClassName="column-body"  />
+            <Column header="Actions" body={actionsBody} headerClassName="column-header" bodyClassName="column-body"  />
           </DataTable>
         </div>
 
@@ -494,7 +488,15 @@ export const Product = () => {
           <Modal isOpen={true} onClose={closeModal} title="Create New Product" size="lg">
             <form onSubmit={handleCreateSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputField label="Product Name *" name="name" type="text" placeholder="Enter product name" error={formErrors.name} required />
+                <InputField
+                  label="Product Name *"
+                  name="name"
+                  type="text"
+                  placeholder="Enter product name"
+                  error={formErrors.name}
+                  onChange={(e) => setProductName(e.target.value)}
+                  required
+                />
 
                 {/* Category Dropdown */}
                 <div>
@@ -521,9 +523,15 @@ export const Product = () => {
 
                 <InputField label="Buying Price *" name="buyingPrice" type="number" placeholder="0.00" error={formErrors.buyingPrice} required />
                 <InputField label="Selling Price *" name="sellingPrice" type="number" placeholder="0.00" error={formErrors.sellingPrice} required />
-                <InputField label="Stock Quantity *" name="stockQuantity" type="number" placeholder="0" error={formErrors.stockQuantity} required />
-                <InputField label="Video URL" name="videoUrl" type="text" placeholder="https://example.com/video.mp4" />
-
+                <InputField
+                  label="Discount Percent"
+                  name="discountPercent"
+                  type="number"
+                  value={discountPercent}
+                  onChange={(e) => setDiscountPercent(Number(e.target.value))}
+                  placeholder="0 (0 = no discount)"
+                  helperText="Set value > 0 to apply discount"
+                />
                 {/* Force Order Priority (Optional) */}
                 <InputField
                   label="Force Order Priority"
@@ -535,15 +543,21 @@ export const Product = () => {
                   helperText="Set value > 0 to enable force order"
                 />
 
-                {/* Discount Percent (Optional) */}
-                <InputField
-                  label="Discount Percent"
-                  name="discountPercent"
-                  type="number"
-                  value={discountPercent}
-                  onChange={(e) => setDiscountPercent(Number(e.target.value))}
-                  placeholder="0 (0 = no discount)"
-                  helperText="Set value > 0 to apply discount"
+
+              </div>
+              <InputField label="Video URL" name="videoUrl" type="text" placeholder="https://example.com/video.mp4" />
+
+
+              {/* Product Details - Rich Text Editor */}
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                  Product Details
+                </label>
+                <Editor
+                  value={productDetails}
+                  onTextChange={(e) => setProductDetails(e.htmlValue)}
+                  style={{ height: '320px' }}
+                  className="border border-gray-300 dark:border-gray-800 rounded-lg"
                 />
               </div>
 
@@ -570,7 +584,7 @@ export const Product = () => {
                 </div>
 
                 {/* Image Grid */}
-                <div className="min-h-[180px] p-4 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="p-2 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-200 dark:border-gray-700">
                   {imageList.length > 0 ? (
                     <div className="flex flex-wrap gap-4">
                       {imageList.map((image, index) => (
@@ -599,14 +613,20 @@ export const Product = () => {
                 </label>
                 <div className="relative flex flex-col items-center gap-4 p-6 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800/50 dark:to-gray-900/30 rounded-xl border border-gray-200 dark:border-gray-700">
                   <div className="bg-white p-4 rounded-lg shadow-sm">
+                    {/* Product Name inside barcode container */}
+                    <div className="text-center mb-2">
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-800">
+                        {productName || "Product Name"}
+                      </p>
+                    </div>
                     <Barcode
                       value={barcodeValue}
                       format="CODE128"
                       width={2}
                       height={60}
                       fontSize={12}
-                      margin={10}
-                      displayValue={true}
+                      margin={0}
+                      displayValue={false}
                     />
                   </div>
                   <button
@@ -635,7 +655,15 @@ export const Product = () => {
           <Modal isOpen={true} onClose={closeModal} title="Edit Product" size="lg">
             <form onSubmit={handleEditSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputField label="Product Name *" name="name" type="text" defaultValue={selectedProduct.name} error={formErrors.name} required />
+                <InputField
+                  label="Product Name *"
+                  name="name"
+                  type="text"
+                  defaultValue={selectedProduct.name}
+                  error={formErrors.name}
+                  onChange={(e) => setProductName(e.target.value)}
+                  required
+                />
 
                 {/* Category Dropdown */}
                 <div>
@@ -662,19 +690,6 @@ export const Product = () => {
 
                 <InputField label="Buying Price *" name="buyingPrice" type="number" defaultValue={selectedProduct.buyingPrice} error={formErrors.buyingPrice} required />
                 <InputField label="Selling Price *" name="sellingPrice" type="number" defaultValue={selectedProduct.sellingPrice} error={formErrors.sellingPrice} required />
-                <InputField label="Stock Quantity *" name="stockQuantity" type="number" defaultValue={selectedProduct.stockQuantity} error={formErrors.stockQuantity} required />
-                <InputField label="Video URL" name="videoUrl" type="text" defaultValue={selectedProduct.videoUrl} />
-
-                {/* Force Order Priority (Optional) */}
-                <InputField
-                  label="Force Order Priority"
-                  name="forceOrderPriority"
-                  type="number"
-                  value={forceOrderPriority}
-                  onChange={(e) => setForceOrderPriority(Number(e.target.value))}
-                  placeholder="0 (0 = disabled)"
-                  helperText="Set value > 0 to enable force order"
-                />
 
                 {/* Discount Percent (Optional) */}
                 <InputField
@@ -686,9 +701,35 @@ export const Product = () => {
                   placeholder="0 (0 = no discount)"
                   helperText="Set value > 0 to apply discount"
                 />
+
+                {/* Force Order Priority (Optional) */}
+                <InputField
+                  label="Force Order Priority"
+                  name="forceOrderPriority"
+                  type="number"
+                  value={forceOrderPriority}
+                  onChange={(e) => setForceOrderPriority(Number(e.target.value))}
+                  placeholder="0 (0 = disabled)"
+                  helperText="Set value > 0 to enable force order"
+                />
               </div>
 
-              {/* Image Upload Section - Same as create modal */}
+              <InputField label="Video URL" name="videoUrl" type="text" defaultValue={selectedProduct.videoUrl} placeholder="https://example.com/video.mp4" />
+
+              {/* Product Details - Rich Text Editor */}
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                  Product Details
+                </label>
+                <Editor
+                  value={productDetails}
+                  onTextChange={(e) => setProductDetails(e.htmlValue)}
+                  style={{ height: '320px' }}
+                  className="border border-gray-300 dark:border-gray-800 rounded-lg"
+                />
+              </div>
+
+              {/* Image Upload Section */}
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                   Product Images
@@ -711,7 +752,7 @@ export const Product = () => {
                 </div>
 
                 {/* Image Grid */}
-                <div className="min-h-[180px] p-4 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="p-2 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-200 dark:border-gray-700">
                   {imageList.length > 0 ? (
                     <div className="flex flex-wrap gap-4">
                       {imageList.map((image, index) => (
@@ -738,16 +779,22 @@ export const Product = () => {
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                   Barcode
                 </label>
-                <div className="flex items-center justify-center p-4 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800/50 dark:to-gray-900/30 rounded-lg border border-gray-200 dark:border-gray-700">
-                  <div className="bg-white p-3 rounded-lg shadow-sm">
+                <div className="flex flex-col items-center gap-4 p-6 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800/50 dark:to-gray-900/30 rounded-xl border border-gray-200 dark:border-gray-700">
+                  <div className="bg-white p-4 rounded-lg shadow-sm">
+                    {/* Product Name inside barcode container */}
+                    <div className="text-center mb-2">
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-800">
+                        {selectedProduct?.name || "Product Name"}
+                      </p>
+                    </div>
                     <Barcode
                       value={barcodeValue}
                       format="CODE128"
-                      width={1.8}
-                      height={50}
-                      fontSize={10}
-                      margin={5}
-                      displayValue={true}
+                      width={2}
+                      height={60}
+                      fontSize={12}
+                      margin={0}
+                      displayValue={false}
                     />
                   </div>
                 </div>
@@ -764,7 +811,6 @@ export const Product = () => {
             </form>
           </Modal>
         )}
-
         {/* Delete Modal */}
         {modalFor === "delete" && (
           <Modal isOpen={true} onClose={closeModal} title="Delete Product" size="sm">
