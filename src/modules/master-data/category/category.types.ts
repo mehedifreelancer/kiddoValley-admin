@@ -1,23 +1,23 @@
+// modules/master-data/category/category.types.ts
 export interface CategoryItem {
   id: number;
   name: string;
-  slug: string;
   productCount: number;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface CreateCategoryDto {
+export interface CreateCategoryPayload {
   name: string;
 }
 
-export interface UpdateCategoryDto {
+export interface UpdateCategoryPayload {
   name: string;
 }
 
 export interface ApiResponse<T = any> {
   success: boolean;
-  data?: T;
+  data: T;
   message?: string;
-  error?: string;
+  errors?: any;
 }

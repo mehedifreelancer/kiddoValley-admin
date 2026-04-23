@@ -3,7 +3,7 @@
 
 /* Column Header */
 .column-header {
-  @apply p-3 bg-gray-50 text-gray-700 font-semibold border-b border-gray-200 text-xs;
+  @apply p-3 bg-gray-50 text-gray-700 font-semibold border-t border-gray-200 text-xs;
 }
 
 /* Dark mode for column header */
@@ -23,7 +23,7 @@
 
 /* Table Row */
 .table-row {
-  @apply bg-white  text-gray-600 text-xs transition-colors duration-200 border-b border-gray-200 ;
+  @apply bg-white text-gray-600 text-xs transition-colors duration-200 border-t border-gray-200;
 }
 
 /* Dark mode for table row */
@@ -128,5 +128,5 @@
 /* Dropdown (Rows per page) */
 
 .p-datatable-thead {
-    @apply border-b-2 border-gray-900 py-3;
+  @apply border-gray-900 py-3;
 }

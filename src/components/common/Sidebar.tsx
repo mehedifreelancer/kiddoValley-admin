@@ -1,4 +1,6 @@
+// components/common/Sidebar.tsx
 import React, { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Pin, Store } from "lucide-react";
 import { useGlobal } from "../../context/GlobalContext";
@@ -6,13 +8,13 @@ import type { MenuItem } from "../../types/sidebar/sidebar.types";
 import { sidebarMenuData } from "../../data/SidebarMenuData";
 
 const Sidebar: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { isSidebarPinned, setSidebarPinned } = useGlobal();
   const [isHovered, setIsHovered] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([
-    "products",
-    "sales",
+    "web-settings",
   ]);
-  const [activeItem, setActiveItem] = useState<string>("dashboard");
 
   // Fixed widths
   const EXPANDED_WIDTH = 220;
@@ -22,27 +24,33 @@ const Sidebar: React.FC = () => {
     setExpandedItems((prev) =>
       prev.includes(itemId)
         ? prev.filter((id) => id !== itemId)
-        : [...prev, itemId]
+        : [...prev, itemId],
     );
   };
 
   const handleItemClick = (item: MenuItem) => {
     if (item.children && item.children.length > 0) {
       toggleExpand(item.id);
-    } else {
-      setActiveItem(item.id);
-      if (item.path) {
-        console.log("Navigating to:", item.path);
-        // Add your navigation logic here (e.g., useNavigate)
-      }
+    } else if (item.path) {
+      navigate(item.path);
     }
+  };
+
+  const isActivePath = (item: MenuItem): boolean => {
+    if (item.path) {
+      return location.pathname === item.path;
+    }
+    if (item.children) {
+      return item.children.some((child) => child.path === location.pathname);
+    }
+    return false;
   };
 
   const renderMenuItem = (item: MenuItem, level: number = 0) => {
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded = expandedItems.includes(item.id);
     const isSidebarExpanded = isSidebarPinned || isHovered;
-    const isActive = activeItem === item.id;
+    const isActive = isActivePath(item);
 
     const paddingLeft = level === 0 ? 16 : level * 12 + 16;
 
@@ -53,7 +61,7 @@ const Sidebar: React.FC = () => {
             !isSidebarExpanded ? "justify-center" : ""
           } ${
             isActive
-              ? "bg-blue-50 dark:bg-gray-900 text-blue-600 dark:text-blue-400 border-r-2 border-blue-500"
+              ? "bg-sky-700/80 dark:bg-sky-700/70 text-white border-r-2 border-sky-500/50 dark:border-sky-500/50"
               : "hover:bg-gray-100 dark:hover:bg-gray-800/50 text-gray-700 dark:text-gray-300"
           }`}
           style={{
@@ -65,7 +73,9 @@ const Sidebar: React.FC = () => {
           whileTap={{ scale: 0.98 }}
         >
           {/* Icon */}
-          <span className={` ${isActive ? "text-blue-500" : ""}`}>{item.icon}</span>
+          <span className={` ${isActive ? "text-white" : ""}`}>
+            {item.icon}
+          </span>
 
           {/* Label */}
           <AnimatePresence mode="wait">
@@ -121,7 +131,7 @@ const Sidebar: React.FC = () => {
   const isSidebarExpanded = isSidebarPinned || isHovered;
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
+    <>
       {/* Overlay for mobile/unpinned state */}
       {!isSidebarPinned && isHovered && (
         <div
@@ -132,19 +142,23 @@ const Sidebar: React.FC = () => {
 
       {/* Sidebar */}
       <motion.aside
-        animate={{ width: isSidebarExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH }}
+        animate={{
+          width: isSidebarExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH,
+        }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
         onMouseEnter={() => !isSidebarPinned && setIsHovered(true)}
         onMouseLeave={() => !isSidebarPinned && setIsHovered(false)}
-        className={`h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-800 shadow-lg z-50 flex flex-col ${
+        className={`h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-lg z-50 flex flex-col ${
           !isSidebarPinned ? "fixed left-0 top-0" : "relative"
         } scrollbar-hide`}
         style={{
-          width: isSidebarExpanded ? `${EXPANDED_WIDTH}px` : `${COLLAPSED_WIDTH}px`,
+          width: isSidebarExpanded
+            ? `${EXPANDED_WIDTH}px`
+            : `${COLLAPSED_WIDTH}px`,
         }}
       >
         {/* Fixed Header - Logo section */}
-        <div className="flex-shrink-0 px-4 py-[18px] border-b border-gray-200 dark:border-gray-800">
+        <div className="flex-shrink-0 px-4 py-[18px] border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <AnimatePresence mode="wait">
               {isSidebarExpanded ? (
@@ -153,9 +167,10 @@ const Sidebar: React.FC = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={() => navigate("/")}
                 >
-                  <Store className="w-6 h-6 text-blue-500" />
+                  <Store className="w-6 h-6 text-sky-700/80 dark:text-sky-700/70" />
                   <span className="font-bold text-md text-gray-800 dark:text-white">
                     Kiddo Valley
                   </span>
@@ -166,8 +181,11 @@ const Sidebar: React.FC = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="w-full flex justify-center"
-                />
+                  className="w-full flex justify-center cursor-pointer"
+                  onClick={() => navigate("/")}
+                >
+                  <Store className="w-6 h-6 text-sky-700/80 dark:text-sky-700/70" />
+                </motion.div>
               )}
             </AnimatePresence>
 
@@ -186,7 +204,7 @@ const Sidebar: React.FC = () => {
               <Pin
                 className={`w-4 h-4 transition-transform ${
                   isSidebarPinned
-                    ? "text-blue-500 rotate-45"
+                    ? "text-sky-700/80 dark:text-sky-700/70 rotate-45"
                     : "text-gray-400 rotate-0"
                 }`}
               />
@@ -199,7 +217,7 @@ const Sidebar: React.FC = () => {
           {sidebarMenuData.map((item) => renderMenuItem(item))}
         </div>
       </motion.aside>
-    </div>
+    </>
   );
 };
 

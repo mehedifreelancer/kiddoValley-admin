@@ -1,12 +1,12 @@
 import React, { useState } from "react";
-import { LogIn, User, Lock, Eye, EyeOff } from "lucide-react";
+import { LogIn, Eye, EyeOff } from "lucide-react";
 import { toast } from "react-hot-toast";
 import Cookies from "js-cookie";
 import Panel from "../../components/ui/Panel";
 import InputField from "../../components/ui/InputField";
 import Button from "../../components/ui/Button";
 import { useTheme } from "../../hooks/useTheme";
-import { login } from "./auth.service";  // Direct import
+import { login } from "./auth.service"; // Direct import
 import { useNavigate } from "react-router";
 
 // Cookie keys
@@ -14,7 +14,7 @@ const ACCESS_TOKEN_KEY = "accessToken";
 const REFRESH_TOKEN_KEY = "refreshToken";
 const USER_INFO_KEY = "userInfo";
 
-const Login: React.FC = () => {
+const SignIn: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -25,28 +25,27 @@ const Login: React.FC = () => {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    
+
     const usernameOrEmail = formData.get("usernameOrEmail") as string;
     const password = formData.get("password") as string;
     const remember = formData.get("rememberMe") === "on";
-    
+
     if (!usernameOrEmail || !password) {
       setError("Please fill in all fields");
       return;
     }
-    
+
     setIsLoading(true);
     setError("");
-    
+
     try {
       const payload = { usernameOrEmail, password };
-      const response = await login(payload);  // Direct call
+      const response = await login(payload); // Direct call
       console.log(response);
-      
-      
+
       if (response?.data?.success) {
         const { accessToken, refreshToken, user } = response.data;
-        
+
         // Store tokens in cookies
         const cookieConfig = {
           expires: remember ? 7 : undefined,
@@ -54,11 +53,11 @@ const Login: React.FC = () => {
           sameSite: "strict" as const,
           path: "/",
         };
-        
+
         Cookies.set(ACCESS_TOKEN_KEY, accessToken, cookieConfig);
         Cookies.set(REFRESH_TOKEN_KEY, refreshToken, cookieConfig);
         Cookies.set(USER_INFO_KEY, JSON.stringify(user), cookieConfig);
-        
+
         toast.success("Login successful! Redirecting...");
         navigate("/");
       } else {
@@ -76,10 +75,13 @@ const Login: React.FC = () => {
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
-          backgroundImage: 'url("https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=2070&auto=format&fit=crop")',
+          backgroundImage:
+            'url("https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=2070&auto=format&fit=crop")',
         }}
       >
-        <div className={`absolute inset-0 ${theme === 'dark' ? 'bg-black/70' : 'bg-black/40'}`} />
+        <div
+          className={`absolute inset-0 ${theme === "dark" ? "bg-black/70" : "bg-black/40"}`}
+        />
         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-pink-500/20" />
       </div>
 
@@ -87,7 +89,7 @@ const Login: React.FC = () => {
         <div className="backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-4">
           <Panel className="bg-transparent! shadow-none!">
             <h1 className="mb-3 text-xl text-center text-white">Log In</h1>
-            
+
             <form onSubmit={handleSubmit} className="space-y-6">
               {error && (
                 <div className="p-3 bg-red-500/20 backdrop-blur-sm border border-red-500/30 text-red-100 rounded-lg text-sm">
@@ -122,7 +124,11 @@ const Login: React.FC = () => {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-9 text-gray-400 hover:text-gray-200 transition-colors"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
 
@@ -163,4 +169,4 @@ const Login: React.FC = () => {
   );
 };
 
-export default Login;
+export default SignIn;

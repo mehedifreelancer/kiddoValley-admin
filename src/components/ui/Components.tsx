@@ -19,7 +19,8 @@ import { useState } from "react";
 import Modal from "./Modal";
 import { toast } from "./Toast";
 import Toolbar from "./Toolbar";
-import { Calendar } from "primereact/calendar"; menubar
+import { Calendar } from "primereact/calendar";
+menubar;
 import "../../assets/css/calendar.css";
 import AdvancedDatePicker from "./AdvancedDatePicker";
 import { Dropdown } from "primereact/dropdown";
@@ -31,20 +32,18 @@ const Components = () => {
   >(null);
   const [date, setDate] = useState<Date | null>(null);
 
-
-
   const [selectedCountry, setSelectedCountry] = useState(null);
   const countries = [
-    { name: 'Australia', code: 'AU' },
-    { name: 'Brazil', code: 'BR' },
-    { name: 'China', code: 'CN' },
-    { name: 'Egypt', code: 'EG' },
-    { name: 'France', code: 'FR' },
-    { name: 'Germany', code: 'DE' },
-    { name: 'India', code: 'IN' },
-    { name: 'Japan', code: 'JP' },
-    { name: 'Spain', code: 'ES' },
-    { name: 'United States', code: 'US' }
+    { name: "Australia", code: "AU" },
+    { name: "Brazil", code: "BR" },
+    { name: "China", code: "CN" },
+    { name: "Egypt", code: "EG" },
+    { name: "France", code: "FR" },
+    { name: "Germany", code: "DE" },
+    { name: "India", code: "IN" },
+    { name: "Japan", code: "JP" },
+    { name: "Spain", code: "ES" },
+    { name: "United States", code: "US" },
   ];
   return (
     <div>
@@ -174,6 +173,7 @@ const Components = () => {
           <Button className="btn-primary">Primary Button</Button>
           <Button className="btn-secondary">Secondary Button</Button>
           <Button className="btn-outline">Outline Button</Button>
+          <Button className="btn-danger">Outline Button</Button>
         </div>
 
         <div className="max-w-md">
@@ -244,14 +244,14 @@ const Components = () => {
           <Calendar
             value={date}
             onChange={(e) => setDate(e.value)}
-            showIcon  // ← This shows the calendar icon
-            placeholder="Select Date"  // ← This shows the placeholder text
+            showIcon // ← This shows the calendar icon
+            placeholder="Select Date" // ← This shows the placeholder text
           />
           <Calendar
             value={date}
             onChange={(e) => setDate(e.value)}
-            showIcon  // ← This shows the calendar icon
-            placeholder="Select Date"  // ← This shows the placeholder text
+            showIcon // ← This shows the calendar icon
+            placeholder="Select Date" // ← This shows the placeholder text
           />
         </div>
       </Toolbar>
@@ -260,16 +260,16 @@ const Components = () => {
       <br />
       <br />
       <label> dfdfdfdf </label>
-<Dropdown
-  value={selectedCountry}
-  onChange={(e) => setSelectedCountry(e.value)}
-  options={countries}
-  optionLabel="name"
-  optionValue="code"
-  placeholder="Select a Country"
-  className="w-full"
-  appendTo={document.body}
-/>     
+      <Dropdown
+        value={selectedCountry}
+        onChange={(e) => setSelectedCountry(e.value)}
+        options={countries}
+        optionLabel="name"
+        optionValue="code"
+        placeholder="Select a Country"
+        className="w-full"
+        appendTo={document.body}
+      />
     </div>
   );
 };

@@ -18,6 +18,8 @@ interface InputFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
   labelClassName?: string;
   inputClassName?: string;
   fullBorder?: boolean;
+  helperText?: string; // Add helperText to the interface
+  error?: string; // Add error for validation
 }
 
 const InputField: React.FC<InputFieldProps> = ({
@@ -37,7 +39,9 @@ const InputField: React.FC<InputFieldProps> = ({
   labelClassName = "",
   inputClassName = "",
   fullBorder = false,
-  ...props
+  helperText, // Destructure helperText so it doesn't get passed to input
+  error, // Destructure error so it doesn't get passed to input
+  ...props // Only native input props remain
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [hasValue, setHasValue] = useState(!!value || !!defaultValue);
@@ -65,9 +69,12 @@ const InputField: React.FC<InputFieldProps> = ({
     if (fullBorder) {
       return `
         border rounded-lg px-3 py-2
-        ${disabled 
-          ? "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50" 
-          : "border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
+        ${
+          disabled
+            ? "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50"
+            : error
+              ? "border-red-500 dark:border-red-500"
+              : "border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
         }
         transition-colors duration-200
       `;
@@ -75,11 +82,14 @@ const InputField: React.FC<InputFieldProps> = ({
       // Bottom border only
       return `
         border-0 border-b px-0 py-2
-        ${disabled
-          ? "border-gray-200 dark:border-gray-700"
-          : isFocused
-            ? "border-blue-500 dark:border-blue-400"
-            : "border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600"
+        ${
+          disabled
+            ? "border-gray-200 dark:border-gray-700"
+            : isFocused
+              ? "border-blue-500 dark:border-blue-400"
+              : error
+                ? "border-red-500 dark:border-red-500"
+                : "border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600"
         }
       `;
     }
@@ -94,7 +104,9 @@ const InputField: React.FC<InputFieldProps> = ({
           className={`block text-sm font-medium mb-1 transition-colors duration-200 ${
             disabled
               ? "text-gray-400 dark:text-gray-600"
-              : "text-gray-700 dark:text-gray-300"
+              : error
+                ? "text-red-600 dark:text-red-400"
+                : "text-gray-700 dark:text-gray-300"
           } ${labelClassName}`}
         >
           {label}
@@ -121,12 +133,12 @@ const InputField: React.FC<InputFieldProps> = ({
             ${getBorderClasses()}
             ${inputClassName}
           `}
-          style={fullBorder ? {} : { borderBottomWidth: '1px' }}
+          style={fullBorder ? {} : { borderBottomWidth: "1px" }}
           {...props}
         />
 
         {/* Bottom border animation - only show for non-fullBorder and not disabled */}
-        {!fullBorder && !disabled && (
+        {!fullBorder && !disabled && !error && (
           <motion.div
             initial={{ scaleX: 0 }}
             animate={{ scaleX: isFocused ? 1 : 0 }}
@@ -135,6 +147,16 @@ const InputField: React.FC<InputFieldProps> = ({
           />
         )}
       </div>
+
+      {/* Helper Text or Error Message */}
+      {helperText && !error && (
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          {helperText}
+        </p>
+      )}
+      {error && (
+        <p className="text-xs text-red-500 dark:text-red-400 mt-1">{error}</p>
+      )}
     </div>
   );
 };

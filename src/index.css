@@ -249,11 +249,11 @@ textarea::-webkit-scrollbar-thumb {
 }
 
 
-.dark .ql-picker-options{
-   @apply bg-gray-800! border-gray-600!
+.dark .ql-picker-options {
+  @apply bg-gray-800! border-gray-600!
 }
 
-.ql-picker-label , .ql-snow .ql-stroke{
+.ql-picker-label, .ql-snow .ql-stroke {
   @apply text-gray-800 stroke-gray-800
 }
 
@@ -261,10 +261,10 @@ textarea::-webkit-scrollbar-thumb {
   @apply text-gray-200 stroke-gray-200
 }
 
-.ql-toolbar.ql-snow, .ql-container{
-   @apply border-gray-200!
+.ql-toolbar.ql-snow, .ql-container {
+  @apply border-gray-200!
 }
 
-.dark .ql-toolbar.ql-snow, .dark .ql-container{
-   @apply border-gray-600!
+.dark .ql-toolbar.ql-snow, .dark .ql-container {
+  @apply border-gray-600!
 }

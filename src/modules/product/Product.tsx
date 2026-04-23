@@ -1,9 +1,24 @@
-import React, { useState, useMemo, FormEvent, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useMemo,
+  FormEvent,
+  useEffect,
+  useCallback,
+} from "react";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Dropdown } from "primereact/dropdown";
 import { Editor } from "primereact/editor";
-import { Plus, Edit, Trash2, RefreshCw, GripVertical, Upload, X, Image as ImageIcon } from "lucide-react";
+import {
+  Plus,
+  Edit,
+  Trash2,
+  RefreshCw,
+  GripVertical,
+  Upload,
+  X,
+  Image as ImageIcon,
+} from "lucide-react";
 import Barcode from "react-barcode";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -24,7 +39,12 @@ interface DraggableImageProps {
   removeImage: (index: number) => void;
 }
 
-const DraggableImage: React.FC<DraggableImageProps> = ({ image, index, moveImage, removeImage }) => {
+const DraggableImage: React.FC<DraggableImageProps> = ({
+  image,
+  index,
+  moveImage,
+  removeImage,
+}) => {
   const ref = React.useRef<HTMLDivElement>(null);
   const [{ isDragging }, drag] = useDrag({
     type: ItemType,
@@ -54,7 +74,11 @@ const DraggableImage: React.FC<DraggableImageProps> = ({ image, index, moveImage
       className={`relative group cursor-move ${isDragging ? "opacity-50" : ""}`}
     >
       <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 transition-all">
-        <img src={image.imgUrl} alt="Product" className="w-full h-full object-cover" />
+        <img
+          src={image.imgUrl}
+          alt="Product"
+          className="w-full h-full object-cover"
+        />
         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
           <GripVertical className="w-5 h-5 text-white cursor-grab" />
         </div>
@@ -75,7 +99,9 @@ const DraggableImage: React.FC<DraggableImageProps> = ({ image, index, moveImage
 
 // Generate random barcode number
 const generateBarcode = (): string => {
-  return Math.floor(Math.random() * 1000000000000).toString().padStart(12, '0');
+  return Math.floor(Math.random() * 1000000000000)
+    .toString()
+    .padStart(12, "0");
 };
 
 // Mock categories for dropdown
@@ -95,7 +121,12 @@ const mockProducts: Product[] = [
     name: "Baby Wipes",
     slug: "baby-wipes",
     videoUrl: "https://example.com/video.mp4",
-    images: [{ imgUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=150" }],
+    images: [
+      {
+        imgUrl:
+          "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=150",
+      },
+    ],
     isForceOrder: true,
     forceOrderPriority: 0,
     categoryId: 1,
@@ -133,11 +164,15 @@ export const Product = () => {
   const [globalFilter, setGlobalFilter] = useState("");
 
   // Modal state
-  const [modalFor, setModalFor] = useState<"create" | "edit" | "delete" | null>(null);
+  const [modalFor, setModalFor] = useState<"create" | "edit" | "delete" | null>(
+    null,
+  );
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Form state
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(
+    null,
+  );
   const [barcodeValue, setBarcodeValue] = useState<string>("");
   const [productName, setProductName] = useState<string>("");
   const [imageList, setImageList] = useState<ImageItem[]>([]);
@@ -188,7 +223,7 @@ export const Product = () => {
 
     for (const file of files) {
       const mockUrl = URL.createObjectURL(file);
-      setImageList(prev => [...prev, { imgUrl: mockUrl }]);
+      setImageList((prev) => [...prev, { imgUrl: mockUrl }]);
     }
 
     setUploading(false);
@@ -207,7 +242,7 @@ export const Product = () => {
 
   // Remove image
   const removeImage = useCallback((index: number) => {
-    setImageList(prev => prev.filter((_, i) => i !== index));
+    setImageList((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   // Filtered data based on search
@@ -270,9 +305,11 @@ export const Product = () => {
     if (!name?.trim()) errors.name = "Product name is required";
     if (!selectedCategory) errors.categoryId = "Category is required";
     if (!buyingPrice) errors.buyingPrice = "Buying price is required";
-    if (Number(buyingPrice) <= 0) errors.buyingPrice = "Buying price must be greater than 0";
+    if (Number(buyingPrice) <= 0)
+      errors.buyingPrice = "Buying price must be greater than 0";
     if (!sellingPrice) errors.sellingPrice = "Selling price is required";
-    if (Number(sellingPrice) <= 0) errors.sellingPrice = "Selling price must be greater than 0";
+    if (Number(sellingPrice) <= 0)
+      errors.sellingPrice = "Selling price must be greater than 0";
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -286,11 +323,11 @@ export const Product = () => {
     if (!validateForm(formData)) return;
 
     const newProduct: Product = {
-      id: Math.max(...products.map(p => p.id), 0) + 1,
+      id: Math.max(...products.map((p) => p.id), 0) + 1,
       barcode: barcodeValue,
       name: formData.get("name") as string,
-      slug: (formData.get("name") as string).toLowerCase().replace(/\s+/g, '-'),
-      videoUrl: formData.get("videoUrl") as string || "",
+      slug: (formData.get("name") as string).toLowerCase().replace(/\s+/g, "-"),
+      videoUrl: (formData.get("videoUrl") as string) || "",
       description: productDetails,
       images: imageList,
       isForceOrder: forceOrderPriority > 0,
@@ -316,27 +353,29 @@ export const Product = () => {
 
     if (!validateForm(formData) || !selectedProduct) return;
 
-    const updatedProducts = products.map(p =>
+    const updatedProducts = products.map((p) =>
       p.id === selectedProduct.id
         ? {
-          ...p,
-          barcode: barcodeValue,
-          name: formData.get("name") as string,
-          slug: (formData.get("name") as string).toLowerCase().replace(/\s+/g, '-'),
-          videoUrl: formData.get("videoUrl") as string || "",
-          description: productDetails,
-          images: imageList,
-          isForceOrder: forceOrderPriority > 0,
-          forceOrderPriority: forceOrderPriority,
-          categoryId: selectedCategory?.id || 0,
-          buyingPrice: Number(formData.get("buyingPrice")),
-          sellingPrice: Number(formData.get("sellingPrice")),
-          hasDiscount: discountPercent > 0,
-          discountPercent: discountPercent,
-          updatedAt: new Date().toISOString(),
-          category: selectedCategory!,
-        }
-        : p
+            ...p,
+            barcode: barcodeValue,
+            name: formData.get("name") as string,
+            slug: (formData.get("name") as string)
+              .toLowerCase()
+              .replace(/\s+/g, "-"),
+            videoUrl: (formData.get("videoUrl") as string) || "",
+            description: productDetails,
+            images: imageList,
+            isForceOrder: forceOrderPriority > 0,
+            forceOrderPriority: forceOrderPriority,
+            categoryId: selectedCategory?.id || 0,
+            buyingPrice: Number(formData.get("buyingPrice")),
+            sellingPrice: Number(formData.get("sellingPrice")),
+            hasDiscount: discountPercent > 0,
+            discountPercent: discountPercent,
+            updatedAt: new Date().toISOString(),
+            category: selectedCategory!,
+          }
+        : p,
     );
 
     setProducts(updatedProducts);
@@ -348,7 +387,9 @@ export const Product = () => {
   const handleDelete = () => {
     if (!selectedProduct) return;
 
-    const filteredProducts = products.filter(p => p.id !== selectedProduct.id);
+    const filteredProducts = products.filter(
+      (p) => p.id !== selectedProduct.id,
+    );
     setProducts(filteredProducts);
     setModalFor(null);
     setSelectedProduct(null);
@@ -363,7 +404,8 @@ export const Product = () => {
 
   // Column Templates
   const imageBody = (rowData: Product) => {
-    if (!rowData.images || rowData.images.length === 0) return <span className="text-gray-400">—</span>;
+    if (!rowData.images || rowData.images.length === 0)
+      return <span className="text-gray-400">—</span>;
     return (
       <div className="flex -space-x-2">
         {rowData.images.slice(0, 3).map((img, idx) => (
@@ -454,7 +496,10 @@ export const Product = () => {
               placeholder="Search products..."
               className="w-[220px]"
             />
-            <Button onClick={openCreateModal} className="btn-primary flex items-center gap-2 text-xs">
+            <Button
+              onClick={openCreateModal}
+              className="btn-primary flex items-center gap-2 text-xs"
+            >
               <Plus className="w-4 h-4" />
               Add Product
             </Button>
@@ -469,23 +514,76 @@ export const Product = () => {
             rows={10}
             emptyMessage="No products found"
             stripedRows
-            rowClassName={() => 'table-row'}
+            rowClassName={() => "table-row"}
           >
-            <Column field="id" header="ID" sortable headerClassName="column-header" bodyClassName="column-body" />
-            <Column field="barcode" header="Barcode" sortable headerClassName="column-header" bodyClassName="column-body"  />
-            <Column field="name" header="Product Name" sortable headerClassName="column-header" bodyClassName="column-body" />
-            <Column header="Images" body={imageBody} headerClassName="column-header" bodyClassName="column-body"  />
-            <Column header="Category" body={categoryBody} headerClassName="column-header" bodyClassName="column-body"  />
-            <Column header="Price" body={priceBody} headerClassName="column-header" bodyClassName="column-body" />
-            <Column header="Discount" body={discountBody} headerClassName="column-header" bodyClassName="column-body"  />
-            <Column header="Force Order" body={forceOrderBody} headerClassName="column-header" bodyClassName="column-body"  />
-            <Column header="Actions" body={actionsBody} headerClassName="column-header" bodyClassName="column-body"  />
+            <Column
+              field="id"
+              header="ID"
+              sortable
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              field="barcode"
+              header="Barcode"
+              sortable
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              field="name"
+              header="Product Name"
+              sortable
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              header="Images"
+              body={imageBody}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              header="Category"
+              body={categoryBody}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              header="Price"
+              body={priceBody}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              header="Discount"
+              body={discountBody}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              header="Force Order"
+              body={forceOrderBody}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              header="Actions"
+              body={actionsBody}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
           </DataTable>
         </div>
 
         {/* Create Modal */}
         {modalFor === "create" && (
-          <Modal isOpen={true} onClose={closeModal} title="Create New Product" size="lg">
+          <Modal
+            isOpen={true}
+            onClose={closeModal}
+            title="Create New Product"
+            size="lg"
+          >
             <form onSubmit={handleCreateSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <InputField
@@ -506,7 +604,7 @@ export const Product = () => {
                   <Dropdown
                     value={selectedCategory?.id}
                     onChange={(e) => {
-                      const cat = categories.find(c => c.id === e.value);
+                      const cat = categories.find((c) => c.id === e.value);
                       setSelectedCategory(cat || null);
                     }}
                     options={categories}
@@ -517,12 +615,28 @@ export const Product = () => {
                     appendTo="self"
                   />
                   {formErrors.categoryId && (
-                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.categoryId}</p>
+                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                      {formErrors.categoryId}
+                    </p>
                   )}
                 </div>
 
-                <InputField label="Buying Price *" name="buyingPrice" type="number" placeholder="0.00" error={formErrors.buyingPrice} required />
-                <InputField label="Selling Price *" name="sellingPrice" type="number" placeholder="0.00" error={formErrors.sellingPrice} required />
+                <InputField
+                  label="Buying Price *"
+                  name="buyingPrice"
+                  type="number"
+                  placeholder="0.00"
+                  error={formErrors.buyingPrice}
+                  required
+                />
+                <InputField
+                  label="Selling Price *"
+                  name="sellingPrice"
+                  type="number"
+                  placeholder="0.00"
+                  error={formErrors.sellingPrice}
+                  required
+                />
                 <InputField
                   label="Discount Percent"
                   name="discountPercent"
@@ -538,15 +652,19 @@ export const Product = () => {
                   name="forceOrderPriority"
                   type="number"
                   value={forceOrderPriority}
-                  onChange={(e) => setForceOrderPriority(Number(e.target.value))}
+                  onChange={(e) =>
+                    setForceOrderPriority(Number(e.target.value))
+                  }
                   placeholder="0 (0 = disabled)"
                   helperText="Set value > 0 to enable force order"
                 />
-
-
               </div>
-              <InputField label="Video URL" name="videoUrl" type="text" placeholder="https://example.com/video.mp4" />
-
+              <InputField
+                label="Video URL"
+                name="videoUrl"
+                type="text"
+                placeholder="https://example.com/video.mp4"
+              />
 
               {/* Product Details - Rich Text Editor */}
               <div>
@@ -556,7 +674,7 @@ export const Product = () => {
                 <Editor
                   value={productDetails}
                   onTextChange={(e) => setProductDetails(e.htmlValue)}
-                  style={{ height: '320px' }}
+                  style={{ height: "320px" }}
                   className="border border-gray-300 dark:border-gray-800 rounded-lg"
                 />
               </div>
@@ -580,7 +698,11 @@ export const Product = () => {
                       className="hidden"
                     />
                   </label>
-                  {uploading && <span className="ml-3 text-sm text-gray-500 animate-pulse">Uploading...</span>}
+                  {uploading && (
+                    <span className="ml-3 text-sm text-gray-500 animate-pulse">
+                      Uploading...
+                    </span>
+                  )}
                 </div>
 
                 {/* Image Grid */}
@@ -600,7 +722,10 @@ export const Product = () => {
                   ) : (
                     <div className="flex flex-col items-center justify-center h-[148px] text-gray-400 dark:text-gray-500">
                       <ImageIcon className="w-12 h-12 mb-2 opacity-50" />
-                      <span className="text-sm">No images uploaded. Click "Upload Images" to add product photos.</span>
+                      <span className="text-sm">
+                        No images uploaded. Click "Upload Images" to add product
+                        photos.
+                      </span>
                     </div>
                   )}
                 </div>
@@ -639,12 +764,18 @@ export const Product = () => {
                 </div>
                 <input type="hidden" name="barcode" value={barcodeValue} />
                 {formErrors.barcode && (
-                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.barcode}</p>
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                    {formErrors.barcode}
+                  </p>
                 )}
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
-                <Button type="button" onClick={closeModal} variant="outline">Cancel</Button>
-                <Button type="submit" variant="primary">Create Product</Button>
+                <Button type="button" onClick={closeModal} variant="outline">
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary">
+                  Create Product
+                </Button>
               </div>
             </form>
           </Modal>
@@ -652,7 +783,12 @@ export const Product = () => {
 
         {/* Edit Modal */}
         {modalFor === "edit" && selectedProduct && (
-          <Modal isOpen={true} onClose={closeModal} title="Edit Product" size="lg">
+          <Modal
+            isOpen={true}
+            onClose={closeModal}
+            title="Edit Product"
+            size="lg"
+          >
             <form onSubmit={handleEditSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <InputField
@@ -673,7 +809,7 @@ export const Product = () => {
                   <Dropdown
                     value={selectedCategory?.id}
                     onChange={(e) => {
-                      const cat = categories.find(c => c.id === e.value);
+                      const cat = categories.find((c) => c.id === e.value);
                       setSelectedCategory(cat || null);
                     }}
                     options={categories}
@@ -684,12 +820,28 @@ export const Product = () => {
                     appendTo="self"
                   />
                   {formErrors.categoryId && (
-                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.categoryId}</p>
+                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                      {formErrors.categoryId}
+                    </p>
                   )}
                 </div>
 
-                <InputField label="Buying Price *" name="buyingPrice" type="number" defaultValue={selectedProduct.buyingPrice} error={formErrors.buyingPrice} required />
-                <InputField label="Selling Price *" name="sellingPrice" type="number" defaultValue={selectedProduct.sellingPrice} error={formErrors.sellingPrice} required />
+                <InputField
+                  label="Buying Price *"
+                  name="buyingPrice"
+                  type="number"
+                  defaultValue={selectedProduct.buyingPrice}
+                  error={formErrors.buyingPrice}
+                  required
+                />
+                <InputField
+                  label="Selling Price *"
+                  name="sellingPrice"
+                  type="number"
+                  defaultValue={selectedProduct.sellingPrice}
+                  error={formErrors.sellingPrice}
+                  required
+                />
 
                 {/* Discount Percent (Optional) */}
                 <InputField
@@ -708,13 +860,21 @@ export const Product = () => {
                   name="forceOrderPriority"
                   type="number"
                   value={forceOrderPriority}
-                  onChange={(e) => setForceOrderPriority(Number(e.target.value))}
+                  onChange={(e) =>
+                    setForceOrderPriority(Number(e.target.value))
+                  }
                   placeholder="0 (0 = disabled)"
                   helperText="Set value > 0 to enable force order"
                 />
               </div>
 
-              <InputField label="Video URL" name="videoUrl" type="text" defaultValue={selectedProduct.videoUrl} placeholder="https://example.com/video.mp4" />
+              <InputField
+                label="Video URL"
+                name="videoUrl"
+                type="text"
+                defaultValue={selectedProduct.videoUrl}
+                placeholder="https://example.com/video.mp4"
+              />
 
               {/* Product Details - Rich Text Editor */}
               <div>
@@ -724,7 +884,7 @@ export const Product = () => {
                 <Editor
                   value={productDetails}
                   onTextChange={(e) => setProductDetails(e.htmlValue)}
-                  style={{ height: '320px' }}
+                  style={{ height: "320px" }}
                   className="border border-gray-300 dark:border-gray-800 rounded-lg"
                 />
               </div>
@@ -739,7 +899,9 @@ export const Product = () => {
                 <div className="mb-4">
                   <label className="inline-flex items-center justify-center w-full gap-2 p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors border border-blue-200 dark:border-blue-700">
                     <Upload className="w-4 h-4" />
-                    <span className="text-sm font-medium">Upload More Images</span>
+                    <span className="text-sm font-medium">
+                      Upload More Images
+                    </span>
                     <input
                       type="file"
                       accept="image/*"
@@ -748,7 +910,11 @@ export const Product = () => {
                       className="hidden"
                     />
                   </label>
-                  {uploading && <span className="ml-3 text-sm text-gray-500 animate-pulse">Uploading...</span>}
+                  {uploading && (
+                    <span className="ml-3 text-sm text-gray-500 animate-pulse">
+                      Uploading...
+                    </span>
+                  )}
                 </div>
 
                 {/* Image Grid */}
@@ -768,7 +934,10 @@ export const Product = () => {
                   ) : (
                     <div className="flex flex-col items-center justify-center h-[148px] text-gray-400 dark:text-gray-500">
                       <ImageIcon className="w-12 h-12 mb-2 opacity-50" />
-                      <span className="text-sm">No images uploaded. Click "Upload More Images" to add product photos.</span>
+                      <span className="text-sm">
+                        No images uploaded. Click "Upload More Images" to add
+                        product photos.
+                      </span>
                     </div>
                   )}
                 </div>
@@ -800,34 +969,55 @@ export const Product = () => {
                 </div>
                 <input type="hidden" name="barcode" value={barcodeValue} />
                 {formErrors.barcode && (
-                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.barcode}</p>
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                    {formErrors.barcode}
+                  </p>
                 )}
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
-                <Button type="button" onClick={closeModal} variant="outline">Cancel</Button>
-                <Button type="submit" variant="primary">Save Changes</Button>
+                <Button type="button" onClick={closeModal} variant="outline">
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary">
+                  Save Changes
+                </Button>
               </div>
             </form>
           </Modal>
         )}
         {/* Delete Modal */}
         {modalFor === "delete" && (
-          <Modal isOpen={true} onClose={closeModal} title="Delete Product" size="sm">
+          <Modal
+            isOpen={true}
+            onClose={closeModal}
+            title="Delete Product"
+            size="sm"
+          >
             <div className="space-y-4">
               <p className="text-gray-700 dark:text-gray-300">
                 Are you sure you want to delete the product{" "}
-                <span className="font-semibold text-red-600 dark:text-red-400">"{selectedProduct?.name}"</span>?
+                <span className="font-semibold text-red-600 dark:text-red-400">
+                  "{selectedProduct?.name}"
+                </span>
+                ?
               </p>
               {selectedProduct && selectedProduct.stockQuantity > 0 && (
                 <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 p-3 rounded-lg">
-                  ⚠️ Warning: This product has {selectedProduct.stockQuantity} units in stock. Deleting will remove all stock data.
+                  ⚠️ Warning: This product has {selectedProduct.stockQuantity}{" "}
+                  units in stock. Deleting will remove all stock data.
                 </p>
               )}
-              <p className="text-sm text-gray-500 dark:text-gray-400">This action cannot be undone.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                This action cannot be undone.
+              </p>
               <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
-                <Button onClick={closeModal} variant="outline">Cancel</Button>
-                <Button onClick={handleDelete} variant="danger">Delete Product</Button>
+                <Button onClick={closeModal} variant="outline">
+                  Cancel
+                </Button>
+                <Button onClick={handleDelete} variant="danger">
+                  Delete Product
+                </Button>
               </div>
             </div>
           </Modal>

@@ -1,63 +1,56 @@
-import React, { useState, useMemo, FormEvent } from "react";
+// modules/master-data/category/Category.tsx
+import React, { useState, useMemo, FormEvent, useEffect } from "react";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Plus, Edit, Trash2 } from "lucide-react";
+import { toast } from "react-hot-toast";
 import Toolbar from "../../../components/ui/Toolbar";
 import Button from "../../../components/ui/Button";
 import Modal from "../../../components/ui/Modal";
 import InputField from "../../../components/ui/InputField";
 import DataTableSearch from "../../../components/ui/DataTableSearch";
 import type { CategoryItem } from "./category.types";
-
-// Mock data for UI design
-const mockCategories: CategoryItem[] = [
-  {
-    id: 1,
-    name: "Baby Products",
-    productCount: 24,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    name: "Dairy",
-    productCount: 18,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    name: "Beverages",
-    productCount: 32,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 4,
-    name: "Snacks",
-    productCount: 45,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 5,
-    name: "Household",
-    productCount: 12,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
+import {
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+} from "./category.service";
 
 export const Category = () => {
-  const [categories, setCategories] = useState<CategoryItem[]>(mockCategories);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [globalFilter, setGlobalFilter] = useState("");
-  
+  const [loading, setLoading] = useState(true);
+
   // Single modal state
-  const [modalFor, setModalFor] = useState<"create" | "edit" | "delete" | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<CategoryItem | null>(null);
-  
+  const [modalFor, setModalFor] = useState<"create" | "edit" | "delete" | null>(
+    null,
+  );
+  const [selectedCategory, setSelectedCategory] = useState<CategoryItem | null>(
+    null,
+  );
+
   // Form errors state
   const [formError, setFormError] = useState<string>("");
+  const [submitting, setSubmitting] = useState(false);
+
+  // Fetch categories on mount
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try { 
+      setLoading(true);
+      const data = await getCategories();
+      setCategories(data);
+    } catch (error) {
+      toast.error("Failed to fetch categories");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filtered data based on search
   const filteredData = useMemo(() => {
@@ -118,56 +111,72 @@ export const Category = () => {
   };
 
   // Handle create submit
-  const handleCreateSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleCreateSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const name = formData.get("name") as string;
 
     if (!validateName(name)) return;
 
-    const newCategory: CategoryItem = {
-      id: Math.max(...categories.map(c => c.id), 0) + 1,
-      name: name.trim(),
-      productCount: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    setCategories([...categories, newCategory]);
-    setModalFor(null);
+    try {
+      setSubmitting(true);
+      const newCategory = await createCategory({ name: name.trim() });
+      setCategories([...categories, newCategory]);
+      toast.success("Category created successfully");
+      setModalFor(null);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to create category");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Handle edit submit
-  const handleEditSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleEditSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const name = formData.get("name") as string;
 
     if (!validateName(name) || !selectedCategory) return;
 
-    const updatedCategories = categories.map(cat =>
-      cat.id === selectedCategory.id
-        ? {
-            ...cat,
-            name: name.trim(),
-            updatedAt: new Date().toISOString(),
-          }
-        : cat
-    );
-
-    setCategories(updatedCategories);
-    setModalFor(null);
-    setSelectedCategory(null);
+    try {
+      setSubmitting(true);
+      const updatedCategory = await updateCategory(selectedCategory.id, {
+        name: name.trim(),
+      });
+      const updatedCategories = categories.map((cat) =>
+        cat.id === selectedCategory.id ? updatedCategory : cat,
+      );
+      setCategories(updatedCategories);
+      toast.success("Category updated successfully");
+      setModalFor(null);
+      setSelectedCategory(null);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update category");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Handle delete
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedCategory) return;
 
-    const filteredCategories = categories.filter(cat => cat.id !== selectedCategory.id);
-    setCategories(filteredCategories);
-    setModalFor(null);
-    setSelectedCategory(null);
+    try {
+      setSubmitting(true);
+      await deleteCategory(selectedCategory.id);
+      const filteredCategories = categories.filter(
+        (cat) => cat.id !== selectedCategory.id,
+      );
+      setCategories(filteredCategories);
+      toast.success("Category deleted successfully");
+      setModalFor(null);
+      setSelectedCategory(null);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete category");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Close modal
@@ -202,7 +211,6 @@ export const Category = () => {
           className="p-1 cursor-pointer text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded transition-colors"
           title="Edit"
           role="button"
-
         >
           <Edit className="w-4 h-4" />
         </button>
@@ -218,6 +226,14 @@ export const Category = () => {
     );
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <Toolbar title="Categories">
@@ -228,7 +244,10 @@ export const Category = () => {
             placeholder="Search categories..."
             className="w-[220px]"
           />
-          <Button onClick={openCreateModal} className="btn-primary flex items-center gap-2 text-xs">
+          <Button
+            onClick={openCreateModal}
+            className="btn-primary flex items-center gap-2 text-xs"
+          >
             <Plus className="w-4 h-4" />
             Add Category
           </Button>
@@ -243,7 +262,7 @@ export const Category = () => {
           rows={10}
           emptyMessage="No categories found"
           stripedRows
-          rowClassName={() => 'table-row'}
+          rowClassName={() => "table-row"}
         >
           <Column
             field="id"
@@ -290,11 +309,7 @@ export const Category = () => {
 
       {/* Create Modal */}
       {modalFor === "create" && (
-        <Modal
-          isOpen={true}
-          onClose={closeModal}
-          title="Create New Category"
-        >
+        <Modal isOpen={true} onClose={closeModal} title="Create New Category">
           <form onSubmit={handleCreateSubmit}>
             <div className="space-y-5">
               <InputField
@@ -307,21 +322,19 @@ export const Category = () => {
                 error={formError}
                 required
                 autoFocus
+                disabled={submitting}
               />
 
-              <div className="flex justify-end gap-3 pt-4 ">
+              <div className="flex justify-end gap-3 pt-4">
                 <Button
                   type="button"
                   onClick={closeModal}
                   variant="outline"
-                  
+                  disabled={submitting}
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                >
+                <Button type="submit" variant="primary" loading={submitting}>
                   Create Category
                 </Button>
               </div>
@@ -332,11 +345,7 @@ export const Category = () => {
 
       {/* Edit Modal */}
       {modalFor === "edit" && selectedCategory && (
-        <Modal
-          isOpen={true}
-          onClose={closeModal}
-          title="Edit Category"
-        >
+        <Modal isOpen={true} onClose={closeModal} title="Edit Category">
           <form onSubmit={handleEditSubmit}>
             <div className="space-y-5">
               <InputField
@@ -348,20 +357,19 @@ export const Category = () => {
                 error={formError}
                 required
                 autoFocus
+                disabled={submitting}
               />
 
-              <div className="flex justify-end gap-3 pt-4 ">
+              <div className="flex justify-end gap-3 pt-4">
                 <Button
                   type="button"
                   onClick={closeModal}
                   variant="outline"
+                  disabled={submitting}
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                >
+                <Button type="submit" variant="primary" loading={submitting}>
                   Save Changes
                 </Button>
               </div>
@@ -372,11 +380,7 @@ export const Category = () => {
 
       {/* Delete Modal */}
       {modalFor === "delete" && (
-        <Modal
-          isOpen={true}
-          onClose={closeModal}
-          title="Delete Category"
-        >
+        <Modal isOpen={true} onClose={closeModal} title="Delete Category">
           <div className="space-y-4">
             <p className="text-gray-700 dark:text-gray-300">
               Are you sure you want to delete the category{" "}
@@ -387,21 +391,25 @@ export const Category = () => {
             </p>
             {selectedCategory && selectedCategory.productCount > 0 && (
               <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 p-3 rounded-lg">
-                ⚠️ Warning: This category has {selectedCategory.productCount} products.
-                Deleting it will affect these products.
+                ⚠️ Warning: This category has {selectedCategory.productCount}{" "}
+                products. Deleting it will affect these products.
               </p>
             )}
-            <p className="text-sm text-gray-500 dark:text-gray-400">This action cannot be undone.</p>
-            <div className="flex justify-end gap-3 pt-4 ">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3 pt-4">
               <Button
                 onClick={closeModal}
                 variant="outline"
+                disabled={submitting}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleDelete}
                 variant="danger"
+                loading={submitting}
               >
                 Delete Category
               </Button>
