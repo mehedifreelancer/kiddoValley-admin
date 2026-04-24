@@ -1,5 +1,5 @@
 // modules/master-data/category/Category.tsx
-import React, { useState, useMemo, FormEvent, useEffect } from "react";
+import React, { useState, FormEvent, useEffect } from "react";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Plus, Edit, Trash2 } from "lucide-react";
@@ -9,7 +9,7 @@ import Button from "../../../components/ui/Button";
 import Modal from "../../../components/ui/Modal";
 import InputField from "../../../components/ui/InputField";
 import DataTableSearch from "../../../components/ui/DataTableSearch";
-import type { CategoryItem } from "./category.types";
+import type { CategoryItem, PaginatedResponse } from "./category.types";
 import {
   getCategories,
   createCategory,
@@ -19,8 +19,14 @@ import {
 
 export const Category = () => {
   const [categories, setCategories] = useState<CategoryItem[]>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+
+  // Pagination state
+  const [first, setFirst] = useState(0);
+  const [rows, setRows] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [page, setPage] = useState(1);
 
   // Single modal state
   const [modalFor, setModalFor] = useState<"create" | "edit" | "delete" | null>(
@@ -34,16 +40,35 @@ export const Category = () => {
   const [formError, setFormError] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Fetch categories on mount
+  // Debounce search
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPage(1);
+      setFirst(0);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Fetch categories on page/search change
   useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [page, rows, debouncedSearch]);
 
   const fetchCategories = async () => {
-    try { 
+    try {
       setLoading(true);
-      const data = await getCategories();
-      setCategories(data);
+      const response = await getCategories(page, rows, debouncedSearch);
+
+      if (response.success) {
+        setCategories(response.data);
+        setTotalRecords(response.pagination.total);
+      } else {
+        toast.error("Failed to fetch categories");
+      }
     } catch (error) {
       toast.error("Failed to fetch categories");
       console.error(error);
@@ -52,20 +77,18 @@ export const Category = () => {
     }
   };
 
-  // Filtered data based on search
-  const filteredData = useMemo(() => {
-    if (!globalFilter) return categories;
+  // Handle page change
+  const onPageChange = (event: any) => {
+    setFirst(event.first);
+    setRows(event.rows);
+    const newPage = event.first / event.rows + 1;
+    setPage(newPage);
+  };
 
-    const searchTerm = globalFilter.toLowerCase();
-
-    return categories.filter((item) => {
-      return (
-        item.name.toLowerCase().includes(searchTerm) ||
-        item.id.toString().includes(searchTerm) ||
-        item.productCount.toString().includes(searchTerm)
-      );
-    });
-  }, [categories, globalFilter]);
+  // Reset pagination when search changes
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+  };
 
   // Reset form error
   const resetFormError = () => {
@@ -121,9 +144,10 @@ export const Category = () => {
     try {
       setSubmitting(true);
       const newCategory = await createCategory({ name: name.trim() });
-      setCategories([...categories, newCategory]);
       toast.success("Category created successfully");
       setModalFor(null);
+      // Refresh current page
+      fetchCategories();
     } catch (error: any) {
       toast.error(error.message || "Failed to create category");
     } finally {
@@ -144,13 +168,11 @@ export const Category = () => {
       const updatedCategory = await updateCategory(selectedCategory.id, {
         name: name.trim(),
       });
-      const updatedCategories = categories.map((cat) =>
-        cat.id === selectedCategory.id ? updatedCategory : cat,
-      );
-      setCategories(updatedCategories);
       toast.success("Category updated successfully");
       setModalFor(null);
       setSelectedCategory(null);
+      // Refresh current page
+      fetchCategories();
     } catch (error: any) {
       toast.error(error.message || "Failed to update category");
     } finally {
@@ -165,13 +187,11 @@ export const Category = () => {
     try {
       setSubmitting(true);
       await deleteCategory(selectedCategory.id);
-      const filteredCategories = categories.filter(
-        (cat) => cat.id !== selectedCategory.id,
-      );
-      setCategories(filteredCategories);
       toast.success("Category deleted successfully");
       setModalFor(null);
       setSelectedCategory(null);
+      // Refresh current page
+      fetchCategories();
     } catch (error: any) {
       toast.error(error.message || "Failed to delete category");
     } finally {
@@ -226,7 +246,7 @@ export const Category = () => {
     );
   };
 
-  if (loading) {
+  if (loading && categories.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
@@ -239,8 +259,8 @@ export const Category = () => {
       <Toolbar title="Categories">
         <div className="flex gap-2">
           <DataTableSearch
-            value={globalFilter}
-            onChange={setGlobalFilter}
+            value={searchTerm}
+            onChange={handleSearchChange}
             placeholder="Search categories..."
             className="w-[220px]"
           />
@@ -254,12 +274,17 @@ export const Category = () => {
         </div>
       </Toolbar>
 
-      {/* DataTable */}
+      {/* DataTable with Server-side Pagination */}
       <div className="table-container">
         <DataTable
-          value={filteredData}
+          value={categories}
           paginator
-          rows={10}
+          lazy
+          first={first}
+          rows={rows}
+          totalRecords={totalRecords}
+          onPage={onPageChange}
+          loading={loading}
           emptyMessage="No categories found"
           stripedRows
           rowClassName={() => "table-row"}

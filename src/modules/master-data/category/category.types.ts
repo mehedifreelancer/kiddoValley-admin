@@ -1,10 +1,21 @@
-// modules/master-data/category/category.types.ts
 export interface CategoryItem {
   id: number;
   name: string;
+  slug: string;
   productCount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PaginatedResponse<T> {
+  success: boolean;
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
 }
 
 export interface CreateCategoryPayload {
@@ -17,7 +28,7 @@ export interface UpdateCategoryPayload {
 
 export interface ApiResponse<T = any> {
   success: boolean;
-  data: T;
+  data?: T;
   message?: string;
-  errors?: any;
+  error?: string;
 }
