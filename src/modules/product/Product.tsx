@@ -1,14 +1,10 @@
-import React, {
-  useState,
-  useMemo,
-  FormEvent,
-  useEffect,
-  useCallback,
-} from "react";
+// modules/master-data/product/Product.tsx
+import React, { useState, FormEvent, useEffect, useCallback } from "react";
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Dropdown } from "primereact/dropdown";
 import { Editor } from "primereact/editor";
+import { toast } from "react-hot-toast";
 import {
   Plus,
   Edit,
@@ -22,18 +18,26 @@ import {
 import Barcode from "react-barcode";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import type { Product, Category, ImageItem } from "./product.types";
+
+import {
+  getProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  generateBarcode,
+  getCategoriesForDropdown,
+} from "./product.service";
 import Toolbar from "../../components/ui/Toolbar";
 import DataTableSearch from "../../components/ui/DataTableSearch";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import InputField from "../../components/ui/InputField";
+import { getCategories } from "../master-data/category/category.service";
 
-// Drag & Drop Item Type
 const ItemType = "IMAGE";
 
 interface DraggableImageProps {
-  image: ImageItem;
+  image: ProductImage;
   index: number;
   moveImage: (dragIndex: number, hoverIndex: number) => void;
   removeImage: (index: number) => void;
@@ -97,114 +101,111 @@ const DraggableImage: React.FC<DraggableImageProps> = ({
   );
 };
 
-// Generate random barcode number
-const generateBarcode = (): string => {
-  return Math.floor(Math.random() * 1000000000000)
-    .toString()
-    .padStart(12, "0");
-};
-
-// Mock categories for dropdown
-const mockCategories: Category[] = [
-  { id: 1, name: "Baby Products", slug: "baby-products" },
-  { id: 2, name: "Dairy", slug: "dairy" },
-  { id: 3, name: "Beverages", slug: "beverages" },
-  { id: 4, name: "Snacks", slug: "snacks" },
-  { id: 5, name: "Household", slug: "household" },
-];
-
-// Mock products data
-const mockProducts: Product[] = [
-  {
-    id: 18,
-    barcode: "444444444444",
-    name: "Baby Wipes",
-    slug: "baby-wipes",
-    videoUrl: "https://example.com/video.mp4",
-    images: [
-      {
-        imgUrl:
-          "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=150",
-      },
-    ],
-    isForceOrder: true,
-    forceOrderPriority: 0,
-    categoryId: 1,
-    buyingPrice: 200,
-    sellingPrice: 250,
-    hasDiscount: true,
-    discountPercent: 10,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    category: { id: 1, name: "Baby Products", slug: "baby-products" },
-  },
-  {
-    id: 19,
-    barcode: "555555555555",
-    name: "Milk",
-    slug: "milk",
-    videoUrl: "",
-    images: [],
-    isForceOrder: false,
-    forceOrderPriority: 0,
-    categoryId: 2,
-    buyingPrice: 60,
-    sellingPrice: 80,
-    hasDiscount: false,
-    discountPercent: 0,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    category: { id: 2, name: "Dairy", slug: "dairy" },
-  },
-];
-
 export const Product = () => {
-  const [products, setProducts] = useState<Product[]>(mockProducts);
-  const [categories] = useState<Category[]>(mockCategories);
+  const [products, setProducts] = useState<ProductItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  // Modal state
-  const [modalFor, setModalFor] = useState<"create" | "edit" | "delete" | null>(
-    null,
-  );
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [first, setFirst] = useState(0);
+  const [rows, setRows] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [page, setPage] = useState(1);
 
-  // Form state
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(
-    null,
-  );
+  const [modalFor, setModalFor] = useState<"create" | "edit" | "delete" | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null);
+
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [barcodeValue, setBarcodeValue] = useState<string>("");
+  const [barcodeTitle, setBarcodeTitle] = useState<string>("");
   const [productName, setProductName] = useState<string>("");
-  const [imageList, setImageList] = useState<ImageItem[]>([]);
+  
+  // Image management
+  const [imageList, setImageList] = useState<ProductImage[]>([]);      // For preview (both existing URLs and blob URLs)
+  const [imageFiles, setImageFiles] = useState<File[]>([]);            // Actual new files to upload
+  const [existingImageUrls, setExistingImageUrls] = useState<ProductImage[]>([]); // Existing image URLs from DB
   const [uploading, setUploading] = useState(false);
+
   const [forceOrderPriority, setForceOrderPriority] = useState<number>(0);
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [productDetails, setProductDetails] = useState<string>("");
-
-  // Form errors state
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // Generate new barcode on mount or when regenerated
-  const regenerateBarcode = () => {
-    if (modalFor !== "edit") {
-      setBarcodeValue(generateBarcode());
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(globalFilter);
+      setPage(1);
+      setFirst(0);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [globalFilter]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [page, rows, debouncedSearch]);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await getCategories(1, 1000);
+      if (response.success) {
+        setCategories(response.data);
+      }
+    } catch (error) {
+      toast.error("Failed to fetch categories");
     }
   };
 
-  // Initialize form when opening modal
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const response = await getProducts(page, rows, debouncedSearch);
+      if (response.success) {
+        setProducts(response.data);
+        setTotalRecords(response.pagination.total);
+      }
+    } catch (error) {
+      toast.error("Failed to fetch products");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onPageChange = (event: any) => {
+    setFirst(event.first);
+    setRows(event.rows);
+    setPage(event.first / event.rows + 1);
+  };
+
+  const regenerateBarcode = () => {
+    setBarcodeValue(generateBarcode());
+  };
+
   useEffect(() => {
     if (modalFor === "create") {
       regenerateBarcode();
       setImageList([]);
+      setImageFiles([]);
+      setExistingImageUrls([]);
       setSelectedCategory(null);
       setForceOrderPriority(0);
       setDiscountPercent(0);
       setProductName("");
       setProductDetails("");
+      setBarcodeTitle("");
       setFormErrors({});
     } else if (modalFor === "edit" && selectedProduct) {
       setBarcodeValue(selectedProduct.barcode);
-      setImageList(selectedProduct.images || []);
+      setBarcodeTitle(selectedProduct.name);
+      const existing = selectedProduct.images || [];
+      setExistingImageUrls(existing);
+      setImageList([...existing]);               // Show existing images for preview
+      setImageFiles([]);                         // No new files yet
       setSelectedCategory(selectedProduct.category || null);
       setForceOrderPriority(selectedProduct.forceOrderPriority || 0);
       setDiscountPercent(selectedProduct.discountPercent || 0);
@@ -214,198 +215,191 @@ export const Product = () => {
     }
   }, [modalFor, selectedProduct]);
 
-  // Handle image upload
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    setUploading(true);
-
     for (const file of files) {
       const mockUrl = URL.createObjectURL(file);
-      setImageList((prev) => [...prev, { imgUrl: mockUrl }]);
+      setImageList((prev) => [...prev, { imgUrl: mockUrl }]); // preview
+      setImageFiles((prev) => [...prev, file]);               // actual file
     }
-
-    setUploading(false);
   };
 
-  // Move image (drag & drop)
   const moveImage = useCallback((dragIndex: number, hoverIndex: number) => {
-    setImageList((prevImages) => {
-      const newImages = [...prevImages];
+    // Move preview list
+    setImageList((prev) => {
+      const newImages = [...prev];
       const draggedImage = newImages[dragIndex];
       newImages.splice(dragIndex, 1);
       newImages.splice(hoverIndex, 0, draggedImage);
       return newImages;
     });
+    // Move actual files list (keep same order)
+    setImageFiles((prev) => {
+      const newFiles = [...prev];
+      const draggedFile = newFiles[dragIndex];
+      newFiles.splice(dragIndex, 1);
+      newFiles.splice(hoverIndex, 0, draggedFile);
+      return newFiles;
+    });
   }, []);
 
-  // Remove image
   const removeImage = useCallback((index: number) => {
     setImageList((prev) => prev.filter((_, i) => i !== index));
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  // Filtered data based on search
-  const filteredData = useMemo(() => {
-    if (!globalFilter) return products;
-
-    const searchTerm = globalFilter.toLowerCase();
-
-    return products.filter((item) => {
-      return (
-        item.name.toLowerCase().includes(searchTerm) ||
-        item.barcode.toLowerCase().includes(searchTerm) ||
-        item.category?.name.toLowerCase().includes(searchTerm) ||
-        item.id.toString().includes(searchTerm)
-      );
-    });
-  }, [products, globalFilter]);
-
-  // Reset form
   const resetForm = () => {
     setFormErrors({});
     setSelectedCategory(null);
     setBarcodeValue(generateBarcode());
+    setBarcodeTitle("");
     setImageList([]);
+    setImageFiles([]);
+    setExistingImageUrls([]);
     setForceOrderPriority(0);
     setDiscountPercent(0);
     setProductName("");
     setProductDetails("");
   };
 
-  // Open create modal
   const openCreateModal = () => {
     resetForm();
     setSelectedProduct(null);
     setModalFor("create");
   };
 
-  // Open edit modal
-  const openEditModal = (product: Product) => {
+  const openEditModal = (product: ProductItem) => {
     resetForm();
     setSelectedProduct(product);
     setModalFor("edit");
   };
 
-  // Open delete modal
-  const openDeleteModal = (product: Product) => {
+  const openDeleteModal = (product: ProductItem) => {
     setSelectedProduct(product);
     setModalFor("delete");
   };
 
-  // Validate form
-  const validateForm = (formData: FormData): boolean => {
+  const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
-
-    const name = formData.get("name") as string;
-    const buyingPrice = formData.get("buyingPrice") as string;
-    const sellingPrice = formData.get("sellingPrice") as string;
-
     if (!barcodeValue) errors.barcode = "Barcode is required";
-    if (!name?.trim()) errors.name = "Product name is required";
+    if (!barcodeTitle) errors.barcodeTitle = "Barcode title is required";
+    if (!productName?.trim()) errors.name = "Product name is required";
     if (!selectedCategory) errors.categoryId = "Category is required";
-    if (!buyingPrice) errors.buyingPrice = "Buying price is required";
-    if (Number(buyingPrice) <= 0)
-      errors.buyingPrice = "Buying price must be greater than 0";
-    if (!sellingPrice) errors.sellingPrice = "Selling price is required";
-    if (Number(sellingPrice) <= 0)
-      errors.sellingPrice = "Selling price must be greater than 0";
-
+    if (imageList.length === 0) errors.images = "At least one product image is required";
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  // Handle create submit
-  const handleCreateSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleCreateSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+    if (!validateForm()) return;
 
-    if (!validateForm(formData)) return;
+    try {
+      setSubmitting(true);
 
-    const newProduct: Product = {
-      id: Math.max(...products.map((p) => p.id), 0) + 1,
-      barcode: barcodeValue,
-      name: formData.get("name") as string,
-      slug: (formData.get("name") as string).toLowerCase().replace(/\s+/g, "-"),
-      videoUrl: (formData.get("videoUrl") as string) || "",
-      description: productDetails,
-      images: imageList,
-      isForceOrder: forceOrderPriority > 0,
-      forceOrderPriority: forceOrderPriority,
-      categoryId: selectedCategory?.id || 0,
-      buyingPrice: Number(formData.get("buyingPrice")),
-      sellingPrice: Number(formData.get("sellingPrice")),
-      hasDiscount: discountPercent > 0,
-      discountPercent: discountPercent,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      category: selectedCategory!,
-    };
+      const formData = new FormData();
+      formData.append("barcode", barcodeValue);
+      formData.append("barcodeTitle", barcodeTitle);
+      formData.append("name", productName);
+      formData.append("categoryId", selectedCategory!.id.toString());
+      formData.append("buyingPrice", (event.currentTarget.elements.namedItem("buyingPrice") as HTMLInputElement)?.value || "0");
+      formData.append("sellingPrice", (event.currentTarget.elements.namedItem("sellingPrice") as HTMLInputElement)?.value || "0");
+      
+      const videoUrl = (event.currentTarget.elements.namedItem("videoUrl") as HTMLInputElement)?.value;
+      if (videoUrl) formData.append("videoUrl", videoUrl);
+      if (productDetails) formData.append("description", productDetails);
+      if (forceOrderPriority) formData.append("forceOrderPriority", forceOrderPriority.toString());
+      if (discountPercent) formData.append("discountPercent", discountPercent.toString());
 
-    setProducts([...products, newProduct]);
-    setModalFor(null);
+      // Append all image files (new files only)
+      imageFiles.forEach((file) => {
+        formData.append("images", file);
+      });
+
+      await createProduct(formData);
+      toast.success("Product created successfully");
+      setModalFor(null);
+      fetchProducts();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to create product");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  // Handle edit submit
-  const handleEditSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleEditSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+    if (!validateForm() || !selectedProduct) return;
 
-    if (!validateForm(formData) || !selectedProduct) return;
+    try {
+      setSubmitting(true);
 
-    const updatedProducts = products.map((p) =>
-      p.id === selectedProduct.id
-        ? {
-            ...p,
-            barcode: barcodeValue,
-            name: formData.get("name") as string,
-            slug: (formData.get("name") as string)
-              .toLowerCase()
-              .replace(/\s+/g, "-"),
-            videoUrl: (formData.get("videoUrl") as string) || "",
-            description: productDetails,
-            images: imageList,
-            isForceOrder: forceOrderPriority > 0,
-            forceOrderPriority: forceOrderPriority,
-            categoryId: selectedCategory?.id || 0,
-            buyingPrice: Number(formData.get("buyingPrice")),
-            sellingPrice: Number(formData.get("sellingPrice")),
-            hasDiscount: discountPercent > 0,
-            discountPercent: discountPercent,
-            updatedAt: new Date().toISOString(),
-            category: selectedCategory!,
-          }
-        : p,
-    );
+      const formData = new FormData();
+      formData.append("barcode", barcodeValue);
+      formData.append("barcodeTitle", barcodeTitle);
+      formData.append("name", productName);
+      formData.append("categoryId", selectedCategory!.id.toString());
+      formData.append("buyingPrice", (event.currentTarget.elements.namedItem("buyingPrice") as HTMLInputElement)?.value || "0");
+      formData.append("sellingPrice", (event.currentTarget.elements.namedItem("sellingPrice") as HTMLInputElement)?.value || "0");
 
-    setProducts(updatedProducts);
-    setModalFor(null);
-    setSelectedProduct(null);
+      const videoUrl = (event.currentTarget.elements.namedItem("videoUrl") as HTMLInputElement)?.value;
+      if (videoUrl) formData.append("videoUrl", videoUrl);
+      if (productDetails) formData.append("description", productDetails);
+      if (forceOrderPriority) formData.append("forceOrderPriority", forceOrderPriority.toString());
+      if (discountPercent) formData.append("discountPercent", discountPercent.toString());
+
+      // Send existing image URLs as JSON (preserves order and existing images)
+      // Important: Use the current imageList order (which includes existing images in the dragged order)
+      const currentOrderedUrls = imageList
+        .filter(img => !img.imgUrl.startsWith("blob:"))
+        .map(img => ({ imgUrl: img.imgUrl }));
+      formData.append("existingImages", JSON.stringify(currentOrderedUrls));
+
+      // Append new image files
+      imageFiles.forEach((file) => {
+        formData.append("images", file);
+      });
+
+      await updateProduct(selectedProduct.id, formData);
+      toast.success("Product updated successfully");
+      setModalFor(null);
+      setSelectedProduct(null);
+      fetchProducts();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update product");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  // Handle delete
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedProduct) return;
 
-    const filteredProducts = products.filter(
-      (p) => p.id !== selectedProduct.id,
-    );
-    setProducts(filteredProducts);
-    setModalFor(null);
-    setSelectedProduct(null);
+    try {
+      setSubmitting(true);
+      await deleteProduct(selectedProduct.id);
+      toast.success("Product deleted successfully");
+      setModalFor(null);
+      setSelectedProduct(null);
+      fetchProducts();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete product");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  // Close modal
   const closeModal = () => {
     setModalFor(null);
     setSelectedProduct(null);
     resetForm();
   };
 
-  // Column Templates
-  const imageBody = (rowData: Product) => {
-    if (!rowData.images || rowData.images.length === 0)
-      return <span className="text-gray-400">—</span>;
+  // DataTable column templates (same as before, keep styling)
+  const imageBody = (rowData: ProductItem) => {
+    if (!rowData.images?.length) return <span className="text-gray-400">—</span>;
     return (
       <div className="flex -space-x-2">
         {rowData.images.slice(0, 3).map((img, idx) => (
@@ -425,28 +419,20 @@ export const Product = () => {
     );
   };
 
-  const categoryBody = (rowData: Product) => {
-    return (
-      <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 rounded-full text-xs font-medium">
-        {rowData.category?.name}
-      </span>
-    );
-  };
+  const categoryBody = (rowData: ProductItem) => (
+    <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 rounded-full text-xs font-medium">
+      {rowData.category?.name}
+    </span>
+  );
 
-  const priceBody = (rowData: Product) => {
-    return (
-      <div>
-        <div className="text-gray-700 dark:text-gray-300">
-          Buy: ${rowData.buyingPrice}
-        </div>
-        <div className="text-green-600 dark:text-green-400">
-          Sell: ${rowData.sellingPrice}
-        </div>
-      </div>
-    );
-  };
+  const priceBody = (rowData: ProductItem) => (
+    <div>
+      <div className="text-gray-700 dark:text-gray-300">Buy: ${rowData.buyingPrice}</div>
+      <div className="text-green-600 dark:text-green-400">Sell: ${rowData.sellingPrice}</div>
+    </div>
+  );
 
-  const discountBody = (rowData: Product) => {
+  const discountBody = (rowData: ProductItem) => {
     if (!rowData.hasDiscount) return <span className="text-gray-400">—</span>;
     return (
       <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-xs font-medium">
@@ -455,7 +441,7 @@ export const Product = () => {
     );
   };
 
-  const forceOrderBody = (rowData: Product) => {
+  const forceOrderBody = (rowData: ProductItem) => {
     if (!rowData.isForceOrder) return <span className="text-gray-400">No</span>;
     return (
       <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 rounded-full text-xs font-medium">
@@ -464,26 +450,32 @@ export const Product = () => {
     );
   };
 
-  const actionsBody = (rowData: Product) => {
+  const actionsBody = (rowData: ProductItem) => (
+    <div className="flex gap-2">
+      <button
+        onClick={() => openEditModal(rowData)}
+        className="p-1 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded transition-colors"
+        title="Edit"
+      >
+        <Edit className="w-4 h-4" />
+      </button>
+      <button
+        onClick={() => openDeleteModal(rowData)}
+        className="p-1 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 rounded transition-colors"
+        title="Delete"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </div>
+  );
+
+  if (loading && products.length === 0) {
     return (
-      <div className="flex gap-2">
-        <button
-          onClick={() => openEditModal(rowData)}
-          className="p-1 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded transition-colors"
-          title="Edit"
-        >
-          <Edit className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => openDeleteModal(rowData)}
-          className="p-1 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 rounded transition-colors"
-          title="Delete"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
       </div>
     );
-  };
+  }
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -500,90 +492,40 @@ export const Product = () => {
               onClick={openCreateModal}
               className="btn-primary flex items-center gap-2 text-xs"
             >
-              <Plus className="w-4 h-4" />
-              Add Product
+              <Plus className="w-4 h-4" /> Add Product
             </Button>
           </div>
         </Toolbar>
 
-        {/* DataTable */}
         <div className="table-container">
           <DataTable
-            value={filteredData}
+            value={products}
             paginator
-            rows={10}
+            lazy
+            first={first}
+            rows={rows}
+            totalRecords={totalRecords}
+            onPage={onPageChange}
+            loading={loading}
             emptyMessage="No products found"
             stripedRows
             rowClassName={() => "table-row"}
           >
-            <Column
-              field="id"
-              header="ID"
-              sortable
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-            <Column
-              field="barcode"
-              header="Barcode"
-              sortable
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-            <Column
-              field="name"
-              header="Product Name"
-              sortable
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-            <Column
-              header="Images"
-              body={imageBody}
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-            <Column
-              header="Category"
-              body={categoryBody}
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-            <Column
-              header="Price"
-              body={priceBody}
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-            <Column
-              header="Discount"
-              body={discountBody}
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-            <Column
-              header="Force Order"
-              body={forceOrderBody}
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-            <Column
-              header="Actions"
-              body={actionsBody}
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
+            <Column field="id" header="ID" sortable headerClassName="column-header" bodyClassName="column-body" />
+            <Column field="barcode" header="Barcode" sortable headerClassName="column-header" bodyClassName="column-body" />
+            <Column field="name" header="Product Name" sortable headerClassName="column-header" bodyClassName="column-body" />
+            <Column header="Images" body={imageBody} headerClassName="column-header" bodyClassName="column-body" />
+            <Column header="Category" body={categoryBody} headerClassName="column-header" bodyClassName="column-body" />
+            <Column header="Price" body={priceBody} headerClassName="column-header" bodyClassName="column-body" />
+            <Column header="Discount" body={discountBody} headerClassName="column-header" bodyClassName="column-body" />
+            <Column header="Force Order" body={forceOrderBody} headerClassName="column-header" bodyClassName="column-body" />
+            <Column header="Actions" body={actionsBody} headerClassName="column-header" bodyClassName="column-body" style={{ width: "120px" }} />
           </DataTable>
         </div>
 
         {/* Create Modal */}
         {modalFor === "create" && (
-          <Modal
-            isOpen={true}
-            onClose={closeModal}
-            title="Create New Product"
-            size="lg"
-          >
+          <Modal isOpen={true} onClose={closeModal} title="Create New Product" size="lg">
             <form onSubmit={handleCreateSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <InputField
@@ -591,16 +533,13 @@ export const Product = () => {
                   name="name"
                   type="text"
                   placeholder="Enter product name"
-                  error={formErrors.name}
+                  value={productName}
                   onChange={(e) => setProductName(e.target.value)}
+                  error={formErrors.name}
                   required
                 />
-
-                {/* Category Dropdown */}
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                    Category *
-                  </label>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Category *</label>
                   <Dropdown
                     value={selectedCategory?.id}
                     onChange={(e) => {
@@ -614,29 +553,20 @@ export const Product = () => {
                     className="w-full"
                     appendTo="self"
                   />
-                  {formErrors.categoryId && (
-                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                      {formErrors.categoryId}
-                    </p>
-                  )}
+                  {formErrors.categoryId && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.categoryId}</p>}
                 </div>
-
                 <InputField
-                  label="Buying Price *"
-                  name="buyingPrice"
-                  type="number"
-                  placeholder="0.00"
-                  error={formErrors.buyingPrice}
+                  label="Barcode Title *"
+                  name="barcodeTitle"
+                  type="text"
+                  placeholder="Enter barcode title"
+                  value={barcodeTitle}
+                  onChange={(e) => setBarcodeTitle(e.target.value)}
+                  error={formErrors.barcodeTitle}
                   required
                 />
-                <InputField
-                  label="Selling Price *"
-                  name="sellingPrice"
-                  type="number"
-                  placeholder="0.00"
-                  error={formErrors.sellingPrice}
-                  required
-                />
+                <InputField label="Buying Price *" name="buyingPrice" type="number" placeholder="0.00" error={formErrors.buyingPrice} required />
+                <InputField label="Selling Price *" name="sellingPrice" type="number" placeholder="0.00" error={formErrors.sellingPrice} required />
                 <InputField
                   label="Discount Percent"
                   name="discountPercent"
@@ -646,66 +576,39 @@ export const Product = () => {
                   placeholder="0 (0 = no discount)"
                   helperText="Set value > 0 to apply discount"
                 />
-                {/* Force Order Priority (Optional) */}
                 <InputField
                   label="Force Order Priority"
                   name="forceOrderPriority"
                   type="number"
                   value={forceOrderPriority}
-                  onChange={(e) =>
-                    setForceOrderPriority(Number(e.target.value))
-                  }
+                  onChange={(e) => setForceOrderPriority(Number(e.target.value))}
                   placeholder="0 (0 = disabled)"
                   helperText="Set value > 0 to enable force order"
                 />
               </div>
-              <InputField
-                label="Video URL"
-                name="videoUrl"
-                type="text"
-                placeholder="https://example.com/video.mp4"
-              />
+              <InputField label="Video URL" name="videoUrl" type="text" placeholder="https://example.com/video.mp4" />
 
-              {/* Product Details - Rich Text Editor */}
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                  Product Details
-                </label>
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Product Details</label>
                 <Editor
                   value={productDetails}
-                  onTextChange={(e) => setProductDetails(e.htmlValue)}
+                  onTextChange={(e) => setProductDetails(e.htmlValue || "")}
                   style={{ height: "320px" }}
                   className="border border-gray-300 dark:border-gray-800 rounded-lg"
                 />
               </div>
 
-              {/* Image Upload Section */}
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                  Product Images
-                </label>
-
-                {/* Upload Button */}
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Product Images *</label>
                 <div className="mb-4">
                   <label className="inline-flex items-center justify-center w-full gap-2 p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors border border-blue-200 dark:border-blue-700">
                     <Upload className="w-4 h-4" />
                     <span className="text-sm font-medium">Upload Images</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
+                    <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
                   </label>
-                  {uploading && (
-                    <span className="ml-3 text-sm text-gray-500 animate-pulse">
-                      Uploading...
-                    </span>
-                  )}
+                  {uploading && <span className="ml-3 text-sm text-gray-500 animate-pulse">Uploading...</span>}
+                  {formErrors.images && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.images}</p>}
                 </div>
-
-                {/* Image Grid */}
                 <div className="p-2 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-200 dark:border-gray-700">
                   {imageList.length > 0 ? (
                     <div className="flex flex-wrap gap-4">
@@ -722,60 +625,36 @@ export const Product = () => {
                   ) : (
                     <div className="flex flex-col items-center justify-center h-[148px] text-gray-400 dark:text-gray-500">
                       <ImageIcon className="w-12 h-12 mb-2 opacity-50" />
-                      <span className="text-sm">
-                        No images uploaded. Click "Upload Images" to add product
-                        photos.
-                      </span>
+                      <span className="text-sm">No images uploaded. Click "Upload Images" to add product photos.</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Barcode Section */}
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                  Barcode
-                </label>
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Barcode</label>
                 <div className="relative flex flex-col items-center gap-4 p-6 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800/50 dark:to-gray-900/30 rounded-xl border border-gray-200 dark:border-gray-700">
                   <div className="bg-white p-4 rounded-lg shadow-sm">
-                    {/* Product Name inside barcode container */}
                     <div className="text-center mb-2">
-                      <p className="text-sm font-medium text-gray-800 dark:text-gray-800">
-                        {productName || "Product Name"}
-                      </p>
+                      <p className="text-sm font-medium text-gray-800">{productName || "Product Name"}</p>
                     </div>
-                    <Barcode
-                      value={barcodeValue}
-                      format="CODE128"
-                      width={2}
-                      height={60}
-                      fontSize={12}
-                      margin={0}
-                      displayValue={false}
-                    />
+                    <Barcode value={barcodeValue} format="CODE128" width={2} height={60} fontSize={12} margin={0} displayValue={false} />
                   </div>
                   <button
                     type="button"
                     onClick={regenerateBarcode}
-                    className="absolute top-3 right-3 flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors border border-blue-200 dark:border-blue-700"
+                    className="absolute top-3 right-3 flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
                   >
-                    <RefreshCw className="w-4 h-4" />
+                    <RefreshCw className="w-4 h-4" /> Regenerate
                   </button>
                 </div>
                 <input type="hidden" name="barcode" value={barcodeValue} />
-                {formErrors.barcode && (
-                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                    {formErrors.barcode}
-                  </p>
-                )}
+                {formErrors.barcode && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.barcode}</p>}
               </div>
+
               <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
-                <Button type="button" onClick={closeModal} variant="outline">
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary">
-                  Create Product
-                </Button>
+                <Button type="button" onClick={closeModal} variant="outline" disabled={submitting}>Cancel</Button>
+                <Button type="submit" variant="primary" loading={submitting}>Create Product</Button>
               </div>
             </form>
           </Modal>
@@ -783,12 +662,7 @@ export const Product = () => {
 
         {/* Edit Modal */}
         {modalFor === "edit" && selectedProduct && (
-          <Modal
-            isOpen={true}
-            onClose={closeModal}
-            title="Edit Product"
-            size="lg"
-          >
+          <Modal isOpen={true} onClose={closeModal} title="Edit Product" size="lg">
             <form onSubmit={handleEditSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <InputField
@@ -796,16 +670,12 @@ export const Product = () => {
                   name="name"
                   type="text"
                   defaultValue={selectedProduct.name}
-                  error={formErrors.name}
                   onChange={(e) => setProductName(e.target.value)}
+                  error={formErrors.name}
                   required
                 />
-
-                {/* Category Dropdown */}
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                    Category *
-                  </label>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Category *</label>
                   <Dropdown
                     value={selectedCategory?.id}
                     onChange={(e) => {
@@ -819,31 +689,19 @@ export const Product = () => {
                     className="w-full"
                     appendTo="self"
                   />
-                  {formErrors.categoryId && (
-                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                      {formErrors.categoryId}
-                    </p>
-                  )}
+                  {formErrors.categoryId && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.categoryId}</p>}
                 </div>
-
                 <InputField
-                  label="Buying Price *"
-                  name="buyingPrice"
-                  type="number"
-                  defaultValue={selectedProduct.buyingPrice}
-                  error={formErrors.buyingPrice}
+                  label="Barcode Title *"
+                  name="barcodeTitle"
+                  type="text"
+                  defaultValue={selectedProduct.name}
+                  onChange={(e) => setBarcodeTitle(e.target.value)}
+                  error={formErrors.barcodeTitle}
                   required
                 />
-                <InputField
-                  label="Selling Price *"
-                  name="sellingPrice"
-                  type="number"
-                  defaultValue={selectedProduct.sellingPrice}
-                  error={formErrors.sellingPrice}
-                  required
-                />
-
-                {/* Discount Percent (Optional) */}
+                <InputField label="Buying Price *" name="buyingPrice" type="number" defaultValue={selectedProduct.buyingPrice} error={formErrors.buyingPrice} required />
+                <InputField label="Selling Price *" name="sellingPrice" type="number" defaultValue={selectedProduct.sellingPrice} error={formErrors.sellingPrice} required />
                 <InputField
                   label="Discount Percent"
                   name="discountPercent"
@@ -853,71 +711,39 @@ export const Product = () => {
                   placeholder="0 (0 = no discount)"
                   helperText="Set value > 0 to apply discount"
                 />
-
-                {/* Force Order Priority (Optional) */}
                 <InputField
                   label="Force Order Priority"
                   name="forceOrderPriority"
                   type="number"
                   value={forceOrderPriority}
-                  onChange={(e) =>
-                    setForceOrderPriority(Number(e.target.value))
-                  }
+                  onChange={(e) => setForceOrderPriority(Number(e.target.value))}
                   placeholder="0 (0 = disabled)"
                   helperText="Set value > 0 to enable force order"
                 />
               </div>
+              <InputField label="Video URL" name="videoUrl" type="text" defaultValue={selectedProduct.videoUrl || ""} placeholder="https://example.com/video.mp4" />
 
-              <InputField
-                label="Video URL"
-                name="videoUrl"
-                type="text"
-                defaultValue={selectedProduct.videoUrl}
-                placeholder="https://example.com/video.mp4"
-              />
-
-              {/* Product Details - Rich Text Editor */}
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                  Product Details
-                </label>
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Product Details</label>
                 <Editor
                   value={productDetails}
-                  onTextChange={(e) => setProductDetails(e.htmlValue)}
+                  onTextChange={(e) => setProductDetails(e.htmlValue || "")}
                   style={{ height: "320px" }}
                   className="border border-gray-300 dark:border-gray-800 rounded-lg"
                 />
               </div>
 
-              {/* Image Upload Section */}
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                  Product Images
-                </label>
-
-                {/* Upload Button */}
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Product Images *</label>
                 <div className="mb-4">
                   <label className="inline-flex items-center justify-center w-full gap-2 p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors border border-blue-200 dark:border-blue-700">
                     <Upload className="w-4 h-4" />
-                    <span className="text-sm font-medium">
-                      Upload More Images
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
+                    <span className="text-sm font-medium">Upload More Images</span>
+                    <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
                   </label>
-                  {uploading && (
-                    <span className="ml-3 text-sm text-gray-500 animate-pulse">
-                      Uploading...
-                    </span>
-                  )}
+                  {uploading && <span className="ml-3 text-sm text-gray-500 animate-pulse">Uploading...</span>}
+                  {formErrors.images && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.images}</p>}
                 </div>
-
-                {/* Image Grid */}
                 <div className="p-2 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-200 dark:border-gray-700">
                   {imageList.length > 0 ? (
                     <div className="flex flex-wrap gap-4">
@@ -934,90 +760,46 @@ export const Product = () => {
                   ) : (
                     <div className="flex flex-col items-center justify-center h-[148px] text-gray-400 dark:text-gray-500">
                       <ImageIcon className="w-12 h-12 mb-2 opacity-50" />
-                      <span className="text-sm">
-                        No images uploaded. Click "Upload More Images" to add
-                        product photos.
-                      </span>
+                      <span className="text-sm">No images uploaded. Click "Upload More Images" to add product photos.</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Barcode Section - Without regenerate button */}
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                  Barcode
-                </label>
+                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Barcode</label>
                 <div className="flex flex-col items-center gap-4 p-6 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800/50 dark:to-gray-900/30 rounded-xl border border-gray-200 dark:border-gray-700">
                   <div className="bg-white p-4 rounded-lg shadow-sm">
-                    {/* Product Name inside barcode container */}
                     <div className="text-center mb-2">
-                      <p className="text-sm font-medium text-gray-800 dark:text-gray-800">
-                        {selectedProduct?.name || "Product Name"}
-                      </p>
+                      <p className="text-sm font-medium text-gray-800">{selectedProduct.name}</p>
                     </div>
-                    <Barcode
-                      value={barcodeValue}
-                      format="CODE128"
-                      width={2}
-                      height={60}
-                      fontSize={12}
-                      margin={0}
-                      displayValue={false}
-                    />
+                    <Barcode value={barcodeValue} format="CODE128" width={2} height={60} fontSize={12} margin={0} displayValue={true} />
                   </div>
                 </div>
                 <input type="hidden" name="barcode" value={barcodeValue} />
-                {formErrors.barcode && (
-                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                    {formErrors.barcode}
-                  </p>
-                )}
+                {formErrors.barcode && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.barcode}</p>}
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
-                <Button type="button" onClick={closeModal} variant="outline">
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary">
-                  Save Changes
-                </Button>
+                <Button type="button" onClick={closeModal} variant="outline" disabled={submitting}>Cancel</Button>
+                <Button type="submit" variant="primary" loading={submitting}>Save Changes</Button>
               </div>
             </form>
           </Modal>
         )}
+
         {/* Delete Modal */}
         {modalFor === "delete" && (
-          <Modal
-            isOpen={true}
-            onClose={closeModal}
-            title="Delete Product"
-            size="sm"
-          >
+          <Modal isOpen={true} onClose={closeModal} title="Delete Product" size="sm">
             <div className="space-y-4">
               <p className="text-gray-700 dark:text-gray-300">
                 Are you sure you want to delete the product{" "}
-                <span className="font-semibold text-red-600 dark:text-red-400">
-                  "{selectedProduct?.name}"
-                </span>
-                ?
+                <span className="font-semibold text-red-600 dark:text-red-400">"{selectedProduct?.name}"</span>?
               </p>
-              {selectedProduct && selectedProduct.stockQuantity > 0 && (
-                <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 p-3 rounded-lg">
-                  ⚠️ Warning: This product has {selectedProduct.stockQuantity}{" "}
-                  units in stock. Deleting will remove all stock data.
-                </p>
-              )}
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                This action cannot be undone.
-              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">This action cannot be undone.</p>
               <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
-                <Button onClick={closeModal} variant="outline">
-                  Cancel
-                </Button>
-                <Button onClick={handleDelete} variant="danger">
-                  Delete Product
-                </Button>
+                <Button onClick={closeModal} variant="outline" disabled={submitting}>Cancel</Button>
+                <Button onClick={handleDelete} variant="danger" loading={submitting}>Delete Product</Button>
               </div>
             </div>
           </Modal>
