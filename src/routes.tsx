@@ -1,12 +1,13 @@
 // router.tsx
 import { createBrowserRouter } from "react-router-dom";
-import Category from "./modules/master-data/category/Category";
-import AuthGuard from "./components/guards/AuthGuard";
 import App from "./App";
-import { Product } from "./modules/product/Product";
+import AuthGuard from "./components/guards/AuthGuard";
 import Components from "./components/ui/Components";
 import SignIn from "./modules/auth/SignIn";
 import Dashboard from "./modules/dashboard/dashboard";
+import Category from "./modules/master-data/category/Category";
+import { CreateProductWizard } from "./modules/product/CreateProductWizard";
+import { Product } from "./modules/product/Product";
 
 // Placeholder components for missing routes
 const Customer = () => <div>Customer Page</div>;
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
         children: [
           { path: "category", element: <Category /> },
           { path: "product", element: <Product /> },
+          { path: "create", element: <CreateProductWizard /> },
           { path: "x", element: <Components /> },
         ],
       },
