@@ -156,6 +156,7 @@ export const CreateProductWizard = () => {
   const [productId, setProductId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingVariant, setIsEditingVariant] = useState(false);
 
   // Step 1 state
   const [categories, setCategories] = useState<any[]>([]);
@@ -196,7 +197,7 @@ export const CreateProductWizard = () => {
   const [variantIsImported, setVariantIsImported] = useState(false);
   const [variantCountry, setVariantCountry] = useState("");
 
-  // Step 3: batch addition per variant (batchNo auto)
+  // Step 3: batch addition per variant
   const [batchFormData, setBatchFormData] = useState<{
     [variantId: number]: {
       buyingPrice: number;
@@ -271,7 +272,7 @@ export const CreateProductWizard = () => {
     }
   };
 
-  // ========== Step 1: Create or Update product ==========
+  // ========== Step 1 ==========
   const handleStep1Next = async () => {
     if (submitting) return;
 
@@ -303,7 +304,6 @@ export const CreateProductWizard = () => {
     }
 
     if (!productId) {
-      // New product
       try {
         setSubmitting(true);
         const formData = new FormData();
@@ -325,7 +325,6 @@ export const CreateProductWizard = () => {
         setSubmitting(false);
       }
     } else {
-      // Existing product – update only if changed
       if (hasChanges) {
         try {
           setSubmitting(true);
@@ -341,6 +340,9 @@ export const CreateProductWizard = () => {
               "existingImages",
               JSON.stringify(existingImagesToKeep),
             );
+          } else {
+            // Always send the field even if empty, so backend knows we want to clear
+            formData.append("existingImages", JSON.stringify([]));
           }
           imageFiles.forEach((file) => formData.append("images", file));
           await updateProduct(productId, formData);
@@ -368,16 +370,17 @@ export const CreateProductWizard = () => {
     setVariantIsImported(false);
     setVariantCountry("");
     setEditingVariantId(null);
+    setIsEditingVariant(false);
   };
 
   const editVariant = (variant: any) => {
     setEditingVariantId(variant.id);
     setCurrentAttributes(variant.attributes || {});
-    // Load existing images (they are already full URLs)
     setVariantImages(variant.images || []);
-    setVariantImageFiles([]); // no new files
+    setVariantImageFiles([]);
     setVariantIsImported(variant.isImported || false);
     setVariantCountry(variant.countryOfOrigin || "");
+    setIsEditingVariant(true);
   };
 
   const deleteVariant = async (id: number) => {
@@ -401,17 +404,18 @@ export const CreateProductWizard = () => {
     }
 
     if (editingVariantId) {
-      // Update existing variant – send FormData with existing images and new files
+      // Update variant
       const formData = new FormData();
       formData.append("attributes", JSON.stringify(currentAttributes));
       formData.append("isImported", String(variantIsImported));
       if (variantCountry) formData.append("countryOfOrigin", variantCountry);
-      // Extract existing image URLs (those that are not blob:)
+
+      // ✅ Explicitly send existing image URLs
       const existingImgUrls = variantImages
         .filter((img) => !img.imgUrl.startsWith("blob:"))
         .map((img) => ({ imgUrl: img.imgUrl }));
       formData.append("existingImages", JSON.stringify(existingImgUrls));
-      // Append new image files
+
       variantImageFiles.forEach((file) => formData.append("images", file));
 
       try {
@@ -473,7 +477,7 @@ export const CreateProductWizard = () => {
     }
   };
 
-  // ========== Step 3: Add stock batch ==========
+  // ========== Step 3: Add stock ==========
   const addStock = async (variantId: number) => {
     const data = batchFormData[variantId];
     if (
@@ -489,7 +493,7 @@ export const CreateProductWizard = () => {
       setSubmitting(true);
       await api.post("/stock/add", {
         variantId,
-        batchNo: "", // backend will assign next number
+        batchNo: "",
         buyingOrMakingPrice: data.buyingPrice,
         sellingPrice: data.sellingPrice,
         discountPercent: data.discount,
@@ -529,7 +533,7 @@ export const CreateProductWizard = () => {
     }
   };
 
-  // Product image handlers
+  // Image handlers (product level)
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     for (const file of files) {
@@ -610,7 +614,6 @@ export const CreateProductWizard = () => {
     }
   };
 
-  // Helper to format variant display name for step 3
   const formatVariantName = (variant: any) => {
     const attrEntries = Object.entries(variant.attributes || {});
     if (attrEntries.length === 0) return productName;
@@ -777,7 +780,6 @@ export const CreateProductWizard = () => {
                   <h3 className="text-lg font-semibold mb-4">
                     {editingVariantId ? "Edit Variant" : "Add New Variant"}
                   </h3>
-                  {/* Attribute builder */}
                   <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border mb-4">
                     <div className="flex flex-wrap gap-3 items-end">
                       <div className="flex-1">
@@ -961,14 +963,24 @@ export const CreateProductWizard = () => {
                           <div className="flex gap-2">
                             <button
                               onClick={() => editVariant(row)}
-                              className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              disabled={isEditingVariant}
+                              className={`p-1 rounded transition-colors ${
+                                isEditingVariant
+                                  ? "opacity-50 cursor-not-allowed"
+                                  : "text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
+                              }`}
                               title="Edit"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => deleteVariant(row.id)}
-                              className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                              disabled={isEditingVariant}
+                              className={`p-1 rounded transition-colors ${
+                                isEditingVariant
+                                  ? "opacity-50 cursor-not-allowed"
+                                  : "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30"
+                              }`}
                               title="Delete"
                             >
                               <Trash2 className="w-4 h-4" />
