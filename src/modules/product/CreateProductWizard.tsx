@@ -179,8 +179,8 @@ export const CreateProductWizard = () => {
   const [variantIsImported, setVariantIsImported] = useState(false);
   const [variantCountry, setVariantCountry] = useState("");
   const [variantBarcode, setVariantBarcode] = useState("");
-  const [showVariantForm, setShowVariantForm] = useState(false); // NEW: controls form visibility
-  const [isEditingMode, setIsEditingMode] = useState(false); // true = editing existing, false = adding new
+  const [showVariantForm, setShowVariantForm] = useState(false);
+  const [isEditingMode, setIsEditingMode] = useState(false);
 
   // Step 3
   const [batchFormData, setBatchFormData] = useState<{
@@ -360,7 +360,21 @@ export const CreateProductWizard = () => {
     }
   };
 
-  // Open form for adding a new variant
+  // Helper: delete the default variant (empty attributes) if it exists
+  const deleteDefaultVariantIfExists = async () => {
+    const defaultVariant = variants.find(
+      (v) => Object.keys(v.attributes || {}).length === 0,
+    );
+    if (defaultVariant && defaultVariant.id) {
+      try {
+        await api.delete(`/variant/${defaultVariant.id}`);
+        console.log("Default variant deleted");
+      } catch (err) {
+        console.warn("Could not delete default variant", err);
+      }
+    }
+  };
+
   const openAddVariantForm = () => {
     setEditingVariantId(null);
     setCurrentAttributes({});
@@ -371,7 +385,6 @@ export const CreateProductWizard = () => {
     setShowVariantForm(true);
   };
 
-  // Open form for editing an existing variant
   const openEditVariantForm = (variant: any) => {
     setEditingVariantId(variant.id);
     setCurrentAttributes(variant.attributes || {});
@@ -419,6 +432,8 @@ export const CreateProductWizard = () => {
           headers: { "Content-Type": "multipart/form-data" },
         });
         toast.success("Variant added");
+        // After adding a new custom variant, delete the default variant if it exists
+        await deleteDefaultVariantIfExists();
       }
       await fetchVariants();
       closeVariantForm();
@@ -537,7 +552,6 @@ export const CreateProductWizard = () => {
     );
   };
 
-  // Stock methods
   const addStock = async (variantId: number) => {
     const data = batchFormData[variantId];
     if (
@@ -646,7 +660,6 @@ export const CreateProductWizard = () => {
     }
   };
 
-  // Product image handlers (thumbnail)
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -724,7 +737,6 @@ export const CreateProductWizard = () => {
     }
   }, [step, productId]);
 
-  // Determine if the current editing variant is the default (no attributes)
   const isDefaultVariant =
     isEditingMode &&
     editingVariantId &&
@@ -736,7 +748,6 @@ export const CreateProductWizard = () => {
         <h1 className="text-2xl font-bold mb-6">Create New Product</h1>
         <StepIndicator current={step} />
 
-        {/* STEP 1 - Thumbnail only */}
         {step === 1 && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -834,10 +845,8 @@ export const CreateProductWizard = () => {
           </div>
         )}
 
-        {/* STEP 2 */}
         {step === 2 && (
           <div className="space-y-6">
-            {/* Hint and Add Variant button */}
             <div className="flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
               <span className="text-sm text-gray-700 dark:text-gray-300">
                 💡 Do you have variants such as color, size, etc? Add variant
@@ -848,7 +857,6 @@ export const CreateProductWizard = () => {
               </Button>
             </div>
 
-            {/* Variant Edit/Add Form (hidden by default) */}
             {showVariantForm && (
               <div className="border rounded-lg p-5 bg-gray-50 dark:bg-gray-800/50">
                 <h3 className="text-lg font-semibold mb-4">
@@ -858,7 +866,6 @@ export const CreateProductWizard = () => {
                       : "Edit Variant"
                     : "Add New Variant"}
                 </h3>
-                {/* Attribute section – shown only when not default variant or when adding new */}
                 {(!isDefaultVariant || !isEditingMode) && (
                   <>
                     <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border mb-4">
@@ -936,7 +943,6 @@ export const CreateProductWizard = () => {
                     </div>
                   </>
                 )}
-                {/* Always show barcode and import section */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium mb-2">
                     Barcode (optional)
@@ -1007,7 +1013,6 @@ export const CreateProductWizard = () => {
               </div>
             )}
 
-            {/* Variants Table */}
             <DataTable value={variants} stripedRows>
               <Column header="Name" body={(row) => formatVariantName(row)} />
               <Column field="sku" header="SKU" />
@@ -1063,7 +1068,6 @@ export const CreateProductWizard = () => {
           </div>
         )}
 
-        {/* STEP 3 - Stock & Pricing (unchanged) */}
         {step === 3 && (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold">Stock & Pricing</h3>
@@ -1196,7 +1200,6 @@ export const CreateProductWizard = () => {
           </div>
         )}
 
-        {/* Attribute creation modal */}
         {showAddAttribute && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
