@@ -159,7 +159,7 @@ export const CreateProductWizard = () => {
   const [formErrors, setFormErrors] = useState<any>({});
   const [originalProduct, setOriginalProduct] = useState<any>(null);
 
-  // Step 2: variants and inline form
+  // Step 2: variants and inline form (now hidden by default)
   const [variants, setVariants] = useState<any[]>([]);
   const [editingVariantId, setEditingVariantId] = useState<number | null>(null);
   const [currentAttributes, setCurrentAttributes] = useState<
@@ -179,6 +179,8 @@ export const CreateProductWizard = () => {
   const [variantIsImported, setVariantIsImported] = useState(false);
   const [variantCountry, setVariantCountry] = useState("");
   const [variantBarcode, setVariantBarcode] = useState("");
+  const [showVariantForm, setShowVariantForm] = useState(false); // NEW: controls form visibility
+  const [isEditingMode, setIsEditingMode] = useState(false); // true = editing existing, false = adding new
 
   // Step 3
   const [batchFormData, setBatchFormData] = useState<{
@@ -237,49 +239,6 @@ export const CreateProductWizard = () => {
     }
   }, [productId, step, categories]);
 
-  // Replace your current fetchVariants with this version
-  const fetchVariants = async () => {
-    if (!productId) return;
-    try {
-      const res = await api.get(`/variant/product/${productId}`);
-      let dbVariants = (res.data.data || []).map((v: any) => ({
-        ...v,
-        images: v.images || [],
-      }));
-
-      // ✅ If no variants exist, create a default variant on the spot
-      if (dbVariants.length === 0) {
-        await createDefaultVariant(productId);
-        const newRes = await api.get(`/variant/product/${productId}`);
-        dbVariants = (newRes.data.data || []).map((v: any) => ({
-          ...v,
-          images: v.images || [],
-        }));
-      }
-
-      setVariants(dbVariants);
-      if (dbVariants.length > 0 && editingVariantId === null) {
-        const first = dbVariants[0];
-        setEditingVariantId(first.id);
-        setCurrentAttributes(first.attributes || {});
-        setVariantIsImported(first.isImported || false);
-        setVariantCountry(first.countryOfOrigin || "");
-        setVariantBarcode(first.barcode || "");
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to load variants");
-    }
-  };
-
-  // Also add this useEffect to run whenever step becomes 2 and productId exists
-  useEffect(() => {
-    if (step === 2 && productId) {
-      fetchVariants();
-    }
-  }, [step, productId]);
-
-  // Create default variant only once when product is first created
   const createDefaultVariant = async (prodId: number) => {
     const formData = new FormData();
     formData.append("productId", String(prodId));
@@ -288,6 +247,29 @@ export const CreateProductWizard = () => {
     await api.post("/variant/create", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
+  };
+
+  const fetchVariants = async () => {
+    if (!productId) return;
+    try {
+      let res = await api.get(`/variant/product/${productId}`);
+      let dbVariants = (res.data.data || []).map((v: any) => ({
+        ...v,
+        images: v.images || [],
+      }));
+      if (dbVariants.length === 0) {
+        await createDefaultVariant(productId);
+        res = await api.get(`/variant/product/${productId}`);
+        dbVariants = (res.data.data || []).map((v: any) => ({
+          ...v,
+          images: v.images || [],
+        }));
+      }
+      setVariants(dbVariants);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load variants");
+    }
   };
 
   const handleStep1Next = async () => {
@@ -333,7 +315,6 @@ export const CreateProductWizard = () => {
         setProductId(newProduct.id);
         setOriginalProduct(newProduct);
         toast.success("Product saved");
-        // Create default variant immediately
         await createDefaultVariant(newProduct.id);
         await fetchVariants();
         setStep(2);
@@ -379,32 +360,40 @@ export const CreateProductWizard = () => {
     }
   };
 
-  const resetVariantForm = () => {
+  // Open form for adding a new variant
+  const openAddVariantForm = () => {
+    setEditingVariantId(null);
     setCurrentAttributes({});
     setVariantIsImported(false);
     setVariantCountry("");
     setVariantBarcode("");
-    setEditingVariantId(null);
+    setIsEditingMode(false);
+    setShowVariantForm(true);
   };
 
-  const editVariant = (variant: any) => {
+  // Open form for editing an existing variant
+  const openEditVariantForm = (variant: any) => {
     setEditingVariantId(variant.id);
     setCurrentAttributes(variant.attributes || {});
     setVariantIsImported(variant.isImported || false);
     setVariantCountry(variant.countryOfOrigin || "");
     setVariantBarcode(variant.barcode || "");
+    setIsEditingMode(true);
+    setShowVariantForm(true);
+  };
+
+  const closeVariantForm = () => {
+    setShowVariantForm(false);
+    setEditingVariantId(null);
+    setIsEditingMode(false);
   };
 
   const saveVariant = async () => {
     if (!productId) return;
     if (submitting) return;
 
-    // If editing an existing variant, allow saving even if attributes are empty.
-    // For new variant, require at least one attribute.
-    if (
-      editingVariantId === null &&
-      Object.keys(currentAttributes).length === 0
-    ) {
+    // For new variant, require at least one attribute
+    if (!isEditingMode && Object.keys(currentAttributes).length === 0) {
       toast.error(
         "Please add at least one attribute-value pair for new variant",
       );
@@ -419,7 +408,7 @@ export const CreateProductWizard = () => {
 
     try {
       setSubmitting(true);
-      if (editingVariantId) {
+      if (isEditingMode && editingVariantId) {
         await api.put(`/variant/${editingVariantId}`, formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
@@ -430,9 +419,9 @@ export const CreateProductWizard = () => {
           headers: { "Content-Type": "multipart/form-data" },
         });
         toast.success("Variant added");
-        resetVariantForm();
       }
       await fetchVariants();
+      closeVariantForm();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to save variant");
     } finally {
@@ -453,17 +442,13 @@ export const CreateProductWizard = () => {
       toast.success("Variant deleted");
       await fetchVariants();
       if (editingVariantId === id) {
-        // If we deleted the currently selected variant, reset form
-        // fetchVariants will auto-select the first remaining variant
-        // No need to reset manually, but we can clear to avoid stale state
-        resetVariantForm();
+        closeVariantForm();
       }
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to delete variant");
     }
   };
 
-  // Variant image handlers
   const handleVariantImageUpload = async (
     variantId: number,
     files: FileList | null,
@@ -733,6 +718,18 @@ export const CreateProductWizard = () => {
     }
   };
 
+  useEffect(() => {
+    if (step === 2 && productId) {
+      fetchVariants();
+    }
+  }, [step, productId]);
+
+  // Determine if the current editing variant is the default (no attributes)
+  const isDefaultVariant =
+    isEditingMode &&
+    editingVariantId &&
+    Object.keys(currentAttributes).length === 0;
+
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="max-w-6xl mx-auto p-6 bg-white dark:bg-gray-900 rounded-lg shadow">
@@ -837,151 +834,178 @@ export const CreateProductWizard = () => {
           </div>
         )}
 
-        {/* STEP 2 - Full variant form always visible */}
+        {/* STEP 2 */}
         {step === 2 && (
           <div className="space-y-6">
-            {/* Variant creation/editing form (full) */}
-            <div className="border rounded-lg p-5 bg-gray-50 dark:bg-gray-800/50">
-              <h3 className="text-lg font-semibold mb-4">
-                {editingVariantId ? "Edit Variant" : "Add New Variant"}
-              </h3>
-              <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border mb-4">
-                <div className="flex flex-wrap gap-3 items-end">
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium">
-                      Attribute Name
-                    </label>
-                    <Dropdown
-                      value={selectedAttrName}
-                      options={availableAttributes.map((a) => ({
-                        label: a.name,
-                        value: a.name,
-                      }))}
-                      onChange={(e) => {
-                        setSelectedAttrName(e.value);
-                        setSelectedAttrValue("");
-                      }}
-                      placeholder="Select attribute"
-                      className="w-full"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium">
-                      Attribute Value
-                    </label>
-                    <Dropdown
-                      value={selectedAttrValue}
-                      options={
-                        availableAttributes
-                          .find((a) => a.name === selectedAttrName)
-                          ?.values.map((v: string) => ({
-                            label: v,
-                            value: v,
-                          })) || []
-                      }
-                      onChange={(e) => handleValueSelect(e.value)}
-                      placeholder="Select value"
-                      disabled={!selectedAttrName}
-                      className="w-full"
-                    />
-                  </div>
-                  <button
-                    onClick={() => setShowAddAttribute(true)}
-                    className="text-blue-600 text-sm flex items-center gap-1 mt-2"
-                  >
-                    <Plus className="w-4 h-4" /> New Attribute
-                  </button>
-                </div>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">
-                  Current Attributes
-                </label>
-                <div className="flex flex-wrap gap-2 min-h-[60px] p-3 bg-white rounded-lg border border-dashed">
-                  {Object.entries(currentAttributes).length === 0 ? (
-                    <span className="text-gray-400 text-sm">
-                      No attributes selected
-                    </span>
-                  ) : (
-                    Object.entries(currentAttributes).map(([k, v]) => (
-                      <span
-                        key={k}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 rounded-full text-sm"
-                      >
-                        {k}: {v}
-                        <X
-                          className="w-3.5 h-3.5 cursor-pointer hover:text-red-600"
-                          onClick={() => removeCurrentAttribute(k)}
-                        />
-                      </span>
-                    ))
-                  )}
-                </div>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">
-                  Barcode (optional)
-                </label>
-                <div className="flex gap-2">
-                  <InputField
-                    value={variantBarcode}
-                    onChange={(e) => setVariantBarcode(e.target.value)}
-                    placeholder="Scan or enter barcode"
-                    className="flex-1"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setVariantBarcode(generateEAN13())}
-                    className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 mb-4">
-                <span className="font-medium">Is Imported?</span>
-                <label>
-                  <input
-                    type="radio"
-                    name="variantImported"
-                    checked={!variantIsImported}
-                    onChange={() => {
-                      setVariantIsImported(false);
-                      setVariantCountry("");
-                    }}
-                  />{" "}
-                  No
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name="variantImported"
-                    checked={variantIsImported}
-                    onChange={() => setVariantIsImported(true)}
-                  />{" "}
-                  Yes
-                </label>
-              </div>
-              {variantIsImported && (
-                <InputField
-                  label="Country of Origin"
-                  value={variantCountry}
-                  onChange={(e) => setVariantCountry(e.target.value)}
-                />
-              )}
-              <div className="flex justify-end gap-3">
-                <Button variant="outline" onClick={resetVariantForm}>
-                  Clear
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={saveVariant}
-                  loading={submitting}
-                >
-                  {editingVariantId ? "Update Variant" : "Add as New Variant"}
-                </Button>
-              </div>
+            {/* Hint and Add Variant button */}
+            <div className="flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                💡 Do you have variants such as color, size, etc? Add variant
+                from here.
+              </span>
+              <Button variant="primary" onClick={openAddVariantForm}>
+                <Plus className="w-4 h-4 mr-2" /> Add Variant
+              </Button>
             </div>
+
+            {/* Variant Edit/Add Form (hidden by default) */}
+            {showVariantForm && (
+              <div className="border rounded-lg p-5 bg-gray-50 dark:bg-gray-800/50">
+                <h3 className="text-lg font-semibold mb-4">
+                  {isEditingMode
+                    ? isDefaultVariant
+                      ? "Edit"
+                      : "Edit Variant"
+                    : "Add New Variant"}
+                </h3>
+                {/* Attribute section – shown only when not default variant or when adding new */}
+                {(!isDefaultVariant || !isEditingMode) && (
+                  <>
+                    <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border mb-4">
+                      <div className="flex flex-wrap gap-3 items-end">
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium">
+                            Attribute Name
+                          </label>
+                          <Dropdown
+                            value={selectedAttrName}
+                            options={availableAttributes.map((a) => ({
+                              label: a.name,
+                              value: a.name,
+                            }))}
+                            onChange={(e) => {
+                              setSelectedAttrName(e.value);
+                              setSelectedAttrValue("");
+                            }}
+                            placeholder="Select attribute"
+                            className="w-full"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium">
+                            Attribute Value
+                          </label>
+                          <Dropdown
+                            value={selectedAttrValue}
+                            options={
+                              availableAttributes
+                                .find((a) => a.name === selectedAttrName)
+                                ?.values.map((v: string) => ({
+                                  label: v,
+                                  value: v,
+                                })) || []
+                            }
+                            onChange={(e) => handleValueSelect(e.value)}
+                            placeholder="Select value"
+                            disabled={!selectedAttrName}
+                            className="w-full"
+                          />
+                        </div>
+                        <button
+                          onClick={() => setShowAddAttribute(true)}
+                          className="text-blue-600 text-sm flex items-center gap-1 mt-2"
+                        >
+                          <Plus className="w-4 h-4" /> New Attribute
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium mb-2">
+                        Current Attributes
+                      </label>
+                      <div className="flex flex-wrap gap-2 min-h-[60px] p-3 bg-white rounded-lg border border-dashed">
+                        {Object.entries(currentAttributes).length === 0 ? (
+                          <span className="text-gray-400 text-sm">
+                            No attributes selected
+                          </span>
+                        ) : (
+                          Object.entries(currentAttributes).map(([k, v]) => (
+                            <span
+                              key={k}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 rounded-full text-sm"
+                            >
+                              {k}: {v}
+                              <X
+                                className="w-3.5 h-3.5 cursor-pointer hover:text-red-600"
+                                onClick={() => removeCurrentAttribute(k)}
+                              />
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+                {/* Always show barcode and import section */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2">
+                    Barcode (optional)
+                  </label>
+                  <div className="flex gap-2">
+                    <InputField
+                      value={variantBarcode}
+                      onChange={(e) => setVariantBarcode(e.target.value)}
+                      placeholder="Scan or enter barcode"
+                      className="flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setVariantBarcode(generateEAN13())}
+                      className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 mb-4">
+                  <span className="font-medium">Is Imported?</span>
+                  <label>
+                    <input
+                      type="radio"
+                      name="variantImported"
+                      checked={!variantIsImported}
+                      onChange={() => {
+                        setVariantIsImported(false);
+                        setVariantCountry("");
+                      }}
+                    />{" "}
+                    No
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="variantImported"
+                      checked={variantIsImported}
+                      onChange={() => setVariantIsImported(true)}
+                    />{" "}
+                    Yes
+                  </label>
+                </div>
+                {variantIsImported && (
+                  <InputField
+                    label="Country of Origin"
+                    value={variantCountry}
+                    onChange={(e) => setVariantCountry(e.target.value)}
+                  />
+                )}
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={closeVariantForm}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={saveVariant}
+                    loading={submitting}
+                  >
+                    {isEditingMode
+                      ? isDefaultVariant
+                        ? "Update"
+                        : "Update Variant"
+                      : "Add Variant"}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Variants Table */}
             <DataTable value={variants} stripedRows>
@@ -1010,7 +1034,7 @@ export const CreateProductWizard = () => {
                 body={(row) => (
                   <div className="flex gap-2">
                     <button
-                      onClick={() => editVariant(row)}
+                      onClick={() => openEditVariantForm(row)}
                       className="p-1 text-blue-600 hover:bg-blue-50 rounded"
                       title="Edit"
                     >
@@ -1039,7 +1063,7 @@ export const CreateProductWizard = () => {
           </div>
         )}
 
-        {/* STEP 3 - Stock & Pricing */}
+        {/* STEP 3 - Stock & Pricing (unchanged) */}
         {step === 3 && (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold">Stock & Pricing</h3>
