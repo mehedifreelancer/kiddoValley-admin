@@ -1,5 +1,5 @@
+// modules/master-data/product/EditProductWizard.tsx
 import {
-  Camera,
   CheckCircle,
   Edit,
   GripVertical,
@@ -18,16 +18,14 @@ import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { toast } from "react-hot-toast";
 import { useNavigate } from "react-router";
+
 import api from "../../apiConfig";
 import Button from "../../components/ui/Button";
 import InputField from "../../components/ui/InputField";
 import { getCategories } from "../master-data/category/category.service";
-import {
-  createProduct,
-  getProductById,
-  updateProduct,
-} from "./product.service";
+import { getProductById, updateProduct } from "./product.service";
 
+// ---------- Helper functions (same as in CreateProductWizard) ----------
 function generateEAN13(): string {
   const prefix = "890";
   const random = Math.floor(Math.random() * 1000000000)
@@ -43,6 +41,13 @@ function generateEAN13(): string {
   return withoutCheck + check;
 }
 
+const slugify = (text: string): string =>
+  text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+// Drag & Drop Image Component (same as in create wizard)
 const ItemType = "IMAGE";
 interface DraggableImageProps {
   image: any;
@@ -79,7 +84,7 @@ const DraggableImage: React.FC<DraggableImageProps> = ({
       ref={ref}
       className={`relative group cursor-move ${isDragging ? "opacity-50" : ""}`}
     >
-      <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 transition-all">
+      <div className="relative w-24 h-24 rounded-lg overflow-hidden  border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 transition-all">
         <img
           src={image.imgUrl}
           alt="preview"
@@ -103,6 +108,7 @@ const DraggableImage: React.FC<DraggableImageProps> = ({
   );
 };
 
+// Step Indicator
 const StepIndicator = ({ current }: { current: number }) => (
   <div className="flex items-center justify-between mb-8">
     <div className="flex-1 text-center">
@@ -140,13 +146,25 @@ const StepIndicator = ({ current }: { current: number }) => (
   </div>
 );
 
-export const CreateProductWizard = () => {
+// ---------- Main Edit Wizard Component ----------
+interface EditProductWizardProps {
+  productId: number;
+  onClose: () => void;
+  onSuccess?: () => void;
+}
+
+export const EditProductWizard: React.FC<EditProductWizardProps> = ({
+  productId,
+  onClose,
+  onSuccess,
+}) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
-  const [productId, setProductId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isEditingVariant, setIsEditingVariant] = useState(false);
 
-  // Step 1 state
+  // ---------- Step 1 state (product) ----------
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<any>(null);
   const [productName, setProductName] = useState("");
@@ -157,9 +175,8 @@ export const CreateProductWizard = () => {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [existingImagesToKeep, setExistingImagesToKeep] = useState<any[]>([]);
   const [formErrors, setFormErrors] = useState<any>({});
-  const [originalProduct, setOriginalProduct] = useState<any>(null);
 
-  // Step 2: variants and inline form
+  // ---------- Step 2: variants ----------
   const [variants, setVariants] = useState<any[]>([]);
   const [editingVariantId, setEditingVariantId] = useState<number | null>(null);
   const [currentAttributes, setCurrentAttributes] = useState<
@@ -176,11 +193,13 @@ export const CreateProductWizard = () => {
   const [newValueInput, setNewValueInput] = useState("");
   const [newAttributeName, setNewAttributeName] = useState("");
   const [newAttributeValues, setNewAttributeValues] = useState("");
+  const [variantImages, setVariantImages] = useState<any[]>([]);
+  const [variantImageFiles, setVariantImageFiles] = useState<File[]>([]);
   const [variantIsImported, setVariantIsImported] = useState(false);
   const [variantCountry, setVariantCountry] = useState("");
   const [variantBarcode, setVariantBarcode] = useState("");
 
-  // Step 3
+  // ---------- Step 3: stock batches ----------
   const [batchFormData, setBatchFormData] = useState<{
     [variantId: number]: {
       buyingPrice: number;
@@ -190,6 +209,7 @@ export const CreateProductWizard = () => {
     };
   }>({});
 
+  // Load categories and attributes
   useEffect(() => {
     const loadCategories = async () => {
       try {
@@ -212,347 +232,185 @@ export const CreateProductWizard = () => {
     fetchAttributes();
   }, []);
 
+  // Load product and variants
   useEffect(() => {
-    if (productId && step === 1) {
-      const loadProductData = async () => {
-        try {
-          const product = await getProductById(productId);
-          setOriginalProduct(product);
-          setProductName(product.name);
-          setForceOrderPriority(product.forceOrderPriority);
-          setVideoUrl(product.videoUrl || "");
-          setProductDetails(product.description || "");
-          setSelectedCategory(
-            categories.find((c) => c.id === product.categoryId) || null,
-          );
-          const existingImgs = product.images || [];
-          setExistingImagesToKeep(existingImgs);
-          setImageList(existingImgs);
-          setImageFiles([]);
-        } catch (err) {
-          console.error(err);
-        }
-      };
+    const loadProductData = async () => {
+      try {
+        setLoading(true);
+        const product = await getProductById(productId);
+        setProductName(product.name);
+        setForceOrderPriority(product.forceOrderPriority);
+        setVideoUrl(product.videoUrl || "");
+        setProductDetails(product.description || "");
+        setSelectedCategory(
+          categories.find((c) => c.id === product.categoryId) || null,
+        );
+        const existingImgs = product.images || [];
+        setExistingImagesToKeep(existingImgs);
+        setImageList(existingImgs);
+        setImageFiles([]);
+
+        // Load variants
+        const res = await api.get(`/variant/product/${productId}`);
+        const variantData = res.data.data || [];
+        setVariants(variantData);
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to load product data");
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (categories.length > 0) {
       loadProductData();
     }
-  }, [productId, step, categories]);
+  }, [productId, categories]);
 
-  // Replace your current fetchVariants with this version
-  const fetchVariants = async () => {
-    if (!productId) return;
-    try {
-      const res = await api.get(`/variant/product/${productId}`);
-      let dbVariants = (res.data.data || []).map((v: any) => ({
-        ...v,
-        images: v.images || [],
-      }));
-
-      // ✅ If no variants exist, create a default variant on the spot
-      if (dbVariants.length === 0) {
-        await createDefaultVariant(productId);
-        const newRes = await api.get(`/variant/product/${productId}`);
-        dbVariants = (newRes.data.data || []).map((v: any) => ({
-          ...v,
-          images: v.images || [],
-        }));
-      }
-
-      setVariants(dbVariants);
-      if (dbVariants.length > 0 && editingVariantId === null) {
-        const first = dbVariants[0];
-        setEditingVariantId(first.id);
-        setCurrentAttributes(first.attributes || {});
-        setVariantIsImported(first.isImported || false);
-        setVariantCountry(first.countryOfOrigin || "");
-        setVariantBarcode(first.barcode || "");
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to load variants");
-    }
-  };
-
-  // Also add this useEffect to run whenever step becomes 2 and productId exists
-  useEffect(() => {
-    if (step === 2 && productId) {
-      fetchVariants();
-    }
-  }, [step, productId]);
-
-  // Create default variant only once when product is first created
-  const createDefaultVariant = async (prodId: number) => {
-    const formData = new FormData();
-    formData.append("productId", String(prodId));
-    formData.append("attributes", JSON.stringify({}));
-    formData.append("isImported", "false");
-    await api.post("/variant/create", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-  };
-
+  // ---------- Step 1: Update product (basic info + images) ----------
   const handleStep1Next = async () => {
     if (submitting) return;
 
     const errors: any = {};
     if (!productName.trim()) errors.name = "Product name required";
     if (!selectedCategory) errors.category = "Category required";
-    if (imageList.length === 0) errors.images = "Thumbnail image is required";
+    if (imageList.length === 0) errors.images = "At least one image required";
     setFormErrors(errors);
     if (Object.keys(errors).length) return;
 
-    let hasChanges = false;
-    if (productId && originalProduct) {
-      if (productName !== originalProduct.name) hasChanges = true;
-      if (forceOrderPriority !== originalProduct.forceOrderPriority)
-        hasChanges = true;
-      if (videoUrl !== (originalProduct.videoUrl || "")) hasChanges = true;
-      if (productDetails !== (originalProduct.description || ""))
-        hasChanges = true;
-      if (selectedCategory?.id !== originalProduct.categoryId)
-        hasChanges = true;
-      if (imageFiles.length > 0) hasChanges = true;
-      const currentUrls = imageList.map((img) => img.imgUrl).sort();
-      const originalUrls = (originalProduct.images || [])
-        .map((img: any) => img.imgUrl)
-        .sort();
-      if (JSON.stringify(currentUrls) !== JSON.stringify(originalUrls))
-        hasChanges = true;
-    }
-
-    if (!productId) {
-      try {
-        setSubmitting(true);
-        const formData = new FormData();
-        formData.append("name", productName);
-        formData.append("categoryId", selectedCategory.id);
-        formData.append("forceOrderPriority", String(forceOrderPriority));
-        if (videoUrl) formData.append("videoUrl", videoUrl);
-        if (productDetails) formData.append("description", productDetails);
-        imageFiles.forEach((file) => formData.append("images", file));
-        const newProduct = await createProduct(formData);
-        setProductId(newProduct.id);
-        setOriginalProduct(newProduct);
-        toast.success("Product saved");
-        // Create default variant immediately
-        await createDefaultVariant(newProduct.id);
-        await fetchVariants();
-        setStep(2);
-      } catch (err: any) {
-        toast.error(err.message || "Failed to save product");
-      } finally {
-        setSubmitting(false);
-      }
-    } else {
-      if (hasChanges) {
-        try {
-          setSubmitting(true);
-          const formData = new FormData();
-          formData.append("name", productName);
-          formData.append("categoryId", selectedCategory.id);
-          formData.append("forceOrderPriority", String(forceOrderPriority));
-          if (videoUrl) formData.append("videoUrl", videoUrl);
-          if (productDetails) formData.append("description", productDetails);
-          if (existingImagesToKeep.length) {
-            formData.append(
-              "existingImages",
-              JSON.stringify(existingImagesToKeep),
-            );
-          } else {
-            formData.append("existingImages", JSON.stringify([]));
-          }
-          imageFiles.forEach((file) => formData.append("images", file));
-          await updateProduct(productId, formData);
-          toast.success("Product updated");
-          const updatedProduct = await getProductById(productId);
-          setOriginalProduct(updatedProduct);
-          setExistingImagesToKeep(updatedProduct.images || []);
-          setImageList(updatedProduct.images || []);
-          setImageFiles([]);
-        } catch (err: any) {
-          toast.error(err.message || "Failed to update product");
-        } finally {
-          setSubmitting(false);
-        }
-      }
-      setStep(2);
-      await fetchVariants();
-    }
-  };
-
-  const resetVariantForm = () => {
-    setCurrentAttributes({});
-    setVariantIsImported(false);
-    setVariantCountry("");
-    setVariantBarcode("");
-    setEditingVariantId(null);
-  };
-
-  const editVariant = (variant: any) => {
-    setEditingVariantId(variant.id);
-    setCurrentAttributes(variant.attributes || {});
-    setVariantIsImported(variant.isImported || false);
-    setVariantCountry(variant.countryOfOrigin || "");
-    setVariantBarcode(variant.barcode || "");
-  };
-
-  const saveVariant = async () => {
-    if (!productId) return;
-    if (submitting) return;
-
-    // If editing an existing variant, allow saving even if attributes are empty.
-    // For new variant, require at least one attribute.
-    if (
-      editingVariantId === null &&
-      Object.keys(currentAttributes).length === 0
-    ) {
-      toast.error(
-        "Please add at least one attribute-value pair for new variant",
-      );
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("attributes", JSON.stringify(currentAttributes));
-    formData.append("isImported", String(variantIsImported));
-    if (variantCountry) formData.append("countryOfOrigin", variantCountry);
-    if (variantBarcode) formData.append("barcode", variantBarcode);
-
     try {
       setSubmitting(true);
-      if (editingVariantId) {
-        await api.put(`/variant/${editingVariantId}`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        toast.success("Variant updated");
+      const formData = new FormData();
+      formData.append("name", productName);
+      formData.append("categoryId", selectedCategory.id);
+      formData.append("forceOrderPriority", String(forceOrderPriority));
+      if (videoUrl) formData.append("videoUrl", videoUrl);
+      if (productDetails) formData.append("description", productDetails);
+      if (existingImagesToKeep.length) {
+        formData.append("existingImages", JSON.stringify(existingImagesToKeep));
       } else {
-        formData.append("productId", String(productId));
-        await api.post("/variant/create", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        toast.success("Variant added");
-        resetVariantForm();
+        formData.append("existingImages", JSON.stringify([]));
       }
-      await fetchVariants();
+      imageFiles.forEach((file) => formData.append("images", file));
+
+      await updateProduct(productId, formData);
+      toast.success("Product basic info updated");
+      setStep(2);
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to save variant");
+      toast.error(err.message || "Failed to update product");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const deleteVariant = async (id: number) => {
-    if (variants.length === 1) {
-      toast.error(
-        "Product must have at least one variant. Cannot delete the last variant.",
-      );
+  // ---------- Variant management (same as create wizard but with DELETE) ----------
+  const resetVariantForm = () => {
+    setCurrentAttributes({});
+    setVariantImages([]);
+    setVariantImageFiles([]);
+    setVariantIsImported(false);
+    setVariantCountry("");
+    setVariantBarcode("");
+    setEditingVariantId(null);
+    setIsEditingVariant(false);
+  };
+
+  const editVariant = async (variant: any) => {
+    if (isEditingVariant) {
+      toast.error("Finish current edit before editing another");
       return;
     }
+    try {
+      const res = await api.get(`/variant/${variant.id}`);
+      const freshVariant = res.data.data;
+      setEditingVariantId(freshVariant.id);
+      setCurrentAttributes(freshVariant.attributes || {});
+      setVariantImages(freshVariant.images || []);
+      setVariantImageFiles([]);
+      setVariantIsImported(freshVariant.isImported || false);
+      setVariantCountry(freshVariant.countryOfOrigin || "");
+      setVariantBarcode(freshVariant.barcode || "");
+      setIsEditingVariant(true);
+    } catch (err) {
+      toast.error("Failed to load variant data");
+    }
+  };
+
+  const deleteVariant = async (id: number) => {
     if (!confirm("Are you sure you want to delete this variant?")) return;
     try {
       await api.delete(`/variant/${id}`);
       toast.success("Variant deleted");
-      await fetchVariants();
-      if (editingVariantId === id) {
-        // If we deleted the currently selected variant, reset form
-        // fetchVariants will auto-select the first remaining variant
-        // No need to reset manually, but we can clear to avoid stale state
-        resetVariantForm();
-      }
+      // Refresh variants list
+      const res = await api.get(`/variant/product/${productId}`);
+      setVariants(res.data.data || []);
+      if (editingVariantId === id) resetVariantForm();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to delete variant");
     }
   };
 
-  // Variant image handlers
-  const handleVariantImageUpload = async (
-    variantId: number,
-    files: FileList | null,
-  ) => {
-    if (!files || files.length === 0) return;
-    const formData = new FormData();
-    const variant = variants.find((v) => v.id === variantId);
-    const existingImages = variant?.images || [];
-    formData.append("existingImages", JSON.stringify(existingImages));
-    Array.from(files).forEach((file) => formData.append("images", file));
-    try {
-      setSubmitting(true);
-      await api.put(`/variant/${variantId}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      toast.success("Images added");
-      await fetchVariants();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to upload images");
-    } finally {
-      setSubmitting(false);
+  const saveVariant = async () => {
+    if (submitting) return;
+    if (Object.keys(currentAttributes).length === 0) {
+      toast.error("Please add at least one attribute-value pair");
+      return;
+    }
+
+    if (editingVariantId) {
+      // Update variant
+      const formData = new FormData();
+      formData.append("attributes", JSON.stringify(currentAttributes));
+      formData.append("isImported", String(variantIsImported));
+      if (variantCountry) formData.append("countryOfOrigin", variantCountry);
+      formData.append("barcode", variantBarcode);
+      const existingImgUrls = variantImages
+        .filter((img) => !img.imgUrl.startsWith("blob:"))
+        .map((img) => ({ imgUrl: img.imgUrl }));
+      formData.append("existingImages", JSON.stringify(existingImgUrls));
+      variantImageFiles.forEach((file) => formData.append("images", file));
+
+      try {
+        setSubmitting(true);
+        await api.put(`/variant/${editingVariantId}`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        toast.success("Variant updated");
+        const res = await api.get(`/variant/product/${productId}`);
+        setVariants(res.data.data || []);
+        resetVariantForm();
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || "Failed to update variant");
+      } finally {
+        setSubmitting(false);
+      }
+    } else {
+      // Create new variant
+      const formData = new FormData();
+      formData.append("productId", String(productId));
+      formData.append("attributes", JSON.stringify(currentAttributes));
+      formData.append("isImported", String(variantIsImported));
+      if (variantCountry) formData.append("countryOfOrigin", variantCountry);
+      formData.append("barcode", variantBarcode);
+      variantImageFiles.forEach((file) => formData.append("images", file));
+
+      try {
+        setSubmitting(true);
+        await api.post("/variant/create", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        toast.success("Variant added");
+        const res = await api.get(`/variant/product/${productId}`);
+        setVariants(res.data.data || []);
+        resetVariantForm();
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || "Failed to add variant");
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
-  const removeVariantImage = async (variantId: number, imageUrl: string) => {
-    const variant = variants.find((v) => v.id === variantId);
-    if (!variant) return;
-    const remainingImages = (variant.images || []).filter(
-      (img: any) => img.imgUrl !== imageUrl,
-    );
-    const formData = new FormData();
-    formData.append("existingImages", JSON.stringify(remainingImages));
-    try {
-      setSubmitting(true);
-      await api.put(`/variant/${variantId}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      toast.success("Image removed");
-      await fetchVariants();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to remove image");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const variantImagesBody = (rowData: any) => {
-    const images = rowData.images || [];
-    return (
-      <div className="flex items-center gap-2">
-        <div className="flex -space-x-2">
-          {images.slice(0, 3).map((img: any, idx: number) => (
-            <div key={idx} className="relative group">
-              <img
-                src={img.imgUrl}
-                alt=""
-                className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 object-cover"
-              />
-              <button
-                onClick={() => removeVariantImage(rowData.id, img.imgUrl)}
-                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hidden group-hover:block"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          ))}
-          {images.length > 3 && (
-            <span className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-medium">
-              +{images.length - 3}
-            </span>
-          )}
-        </div>
-        <label className="cursor-pointer p-1 hover:bg-gray-100 rounded">
-          <Camera className="w-4 h-4 text-gray-500" />
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={(e) =>
-              handleVariantImageUpload(rowData.id, e.target.files)
-            }
-          />
-        </label>
-      </div>
-    );
-  };
-
-  // Stock methods
+  // ---------- Stock batch addition ----------
   const addStock = async (variantId: number) => {
     const data = batchFormData[variantId];
     if (
@@ -575,7 +433,9 @@ export const CreateProductWizard = () => {
         quantity: data.quantity,
       });
       toast.success("Stock added");
-      await fetchVariants();
+      // Refresh variants to show updated stock list
+      const res = await api.get(`/variant/product/${productId}`);
+      setVariants(res.data.data || []);
       setBatchFormData((prev) => ({
         ...prev,
         [variantId]: {
@@ -592,99 +452,45 @@ export const CreateProductWizard = () => {
     }
   };
 
-  const addAllPendingStocks = async () => {
-    for (const variant of variants) {
-      const stockData = batchFormData[variant.id];
-      if (
-        stockData &&
-        stockData.quantity > 0 &&
-        stockData.buyingPrice > 0 &&
-        stockData.sellingPrice > 0
-      ) {
-        try {
-          await api.post("/stock/add", {
-            variantId: variant.id,
-            batchNo: "",
-            buyingOrMakingPrice: stockData.buyingPrice,
-            sellingPrice: stockData.sellingPrice,
-            discountPercent: stockData.discount,
-            quantity: stockData.quantity,
-          });
-          setBatchFormData((prev) => ({
-            ...prev,
-            [variant.id]: {
-              buyingPrice: 0,
-              sellingPrice: 0,
-              discount: 0,
-              quantity: 0,
-            },
-          }));
-        } catch (err) {
-          throw new Error(`Failed to add stock for variant ${variant.id}`);
-        }
-      }
-    }
+  // Final save & close
+  const handleSaveAndClose = async () => {
+    // No need to publish – just close and refresh parent
+    onClose();
+    if (onSuccess) onSuccess();
+    else navigate("/products/product-list");
   };
 
-  const handlePublish = async () => {
-    if (!productId) return;
-    if (submitting) return;
-    try {
-      setSubmitting(true);
-      await addAllPendingStocks();
-      await api.patch(`/products/publish/${productId}`);
-      toast.success("Product registered successfully!");
-      navigate("/products/product-list");
-    } catch (err: any) {
-      toast.error(
-        err.message ||
-          err.response?.data?.message ||
-          "Failed to publish product",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleSaveDraft = async () => {
-    if (!productId) return;
-    if (submitting) return;
-    try {
-      setSubmitting(true);
-      await addAllPendingStocks();
-      toast.success("Product saved to draft successfully!");
-      navigate("/products/product-list");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save draft");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // Product image handlers (thumbnail)
+  // Image handlers (product level)
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    const file = files[0];
-    const mockUrl = URL.createObjectURL(file);
-    setImageList([{ imgUrl: mockUrl }]);
-    setImageFiles([file]);
+    for (const file of files) {
+      const mockUrl = URL.createObjectURL(file);
+      setImageList((prev) => [...prev, { imgUrl: mockUrl }]);
+      setImageFiles((prev) => [...prev, file]);
+    }
   };
-  const removeProductImage = () => {
-    setImageList([]);
-    setImageFiles([]);
-    if (imageList[0]?.id) {
+  const removeProductImage = (index: number) => {
+    setImageList((prev) => prev.filter((_, i) => i !== index));
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    const removed = imageList[index];
+    if (removed && removed.id) {
       setExistingImagesToKeep((prev) =>
-        prev.filter((img) => img.id !== imageList[0].id),
+        prev.filter((img) => img.id !== removed.id),
       );
     }
   };
 
-  const formatVariantName = (variant: any) => {
-    const attrEntries = Object.entries(variant.attributes || {});
-    if (attrEntries.length === 0) return productName;
-    const attrStr = attrEntries.map(([k, v]) => `${k}: ${v}`).join(", ");
-    return `${productName} (${attrStr})`;
+  const handleVariantImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    for (const file of files) {
+      const mockUrl = URL.createObjectURL(file);
+      setVariantImages((prev) => [...prev, { imgUrl: mockUrl }]);
+      setVariantImageFiles((prev) => [...prev, file]);
+    }
+  };
+  const removeVariantImage = (idx: number) => {
+    setVariantImages((prev) => prev.filter((_, i) => i !== idx));
+    setVariantImageFiles((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const handleValueSelect = (value: string) => {
@@ -698,6 +504,7 @@ export const CreateProductWizard = () => {
     delete newAttrs[key];
     setCurrentAttributes(newAttrs);
   };
+
   const handleAddValueToExisting = async () => {
     if (!existingAttrName || !newValueInput.trim())
       return toast.error("Select attribute and enter value(s)");
@@ -718,6 +525,7 @@ export const CreateProductWizard = () => {
       toast.error("Failed");
     }
   };
+
   const handleAddNewAttribute = async () => {
     if (!newAttributeName || !newAttributeValues)
       return toast.error("Provide name and values");
@@ -733,13 +541,25 @@ export const CreateProductWizard = () => {
     }
   };
 
+  const formatVariantName = (variant: any) => {
+    const attrEntries = Object.entries(variant.attributes || {});
+    if (attrEntries.length === 0) return productName;
+    const attrStr = attrEntries.map(([k, v]) => `${k}: ${v}`).join(", ");
+    return `${productName} (${attrStr})`;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">Loading product data...</div>
+    );
+  }
+
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="max-w-6xl mx-auto p-6 bg-white dark:bg-gray-900 rounded-lg shadow">
-        <h1 className="text-2xl font-bold mb-6">Create New Product</h1>
+      <div className="max-w-6xl mx-auto p-6 rounded-lg shadow">
         <StepIndicator current={step} />
 
-        {/* STEP 1 - Thumbnail only */}
+        {/* STEP 1 – Edit basic info */}
         {step === 1 && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -794,15 +614,16 @@ export const CreateProductWizard = () => {
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">
-                Thumbnail Image *
+                Product Images *
               </label>
               <div className="mb-2">
                 <label className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg cursor-pointer">
                   <Upload className="w-4 h-4 text-blue-600" />
-                  <span className="text-blue-600">Upload Thumbnail</span>
+                  <span className="text-blue-600">Upload Images</span>
                   <input
                     type="file"
                     accept="image/*"
+                    multiple
                     onChange={handleImageUpload}
                     className="hidden"
                   />
@@ -836,16 +657,22 @@ export const CreateProductWizard = () => {
             </div>
           </div>
         )}
-
-        {/* STEP 2 - Full variant form always visible */}
+        {/* STEP 2 – Variants (edit, add, delete) */}
         {step === 2 && (
           <div className="space-y-6">
-            {/* Variant creation/editing form (full) */}
-            <div className="border rounded-lg p-5 bg-gray-50 dark:bg-gray-800/50">
-              <h3 className="text-lg font-semibold mb-4">
-                {editingVariantId ? "Edit Variant" : "Add New Variant"}
-              </h3>
-              <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border mb-4">
+            <div className="border border-gray-200 dark:border-gray-700 rounded-md    p-5 ">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold mb-4">
+                  {editingVariantId ? "Edit Variant" : "Add New Variant"}
+                </h3>
+                <button
+                  onClick={() => setShowAddAttribute(true)}
+                  className="text-blue-600 text-sm flex items-center gap-1 "
+                >
+                  <Plus className="w-4 h-4" /> New Attribute
+                </button>
+              </div>
+              <div className=" p-4 rounded-md border border-gray-200 dark:border-gray-700 mb-4">
                 <div className="flex flex-wrap gap-3 items-end">
                   <div className="flex-1">
                     <label className="block text-xs font-medium">
@@ -885,19 +712,13 @@ export const CreateProductWizard = () => {
                       className="w-full"
                     />
                   </div>
-                  <button
-                    onClick={() => setShowAddAttribute(true)}
-                    className="text-blue-600 text-sm flex items-center gap-1 mt-2"
-                  >
-                    <Plus className="w-4 h-4" /> New Attribute
-                  </button>
                 </div>
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-2">
                   Current Attributes
                 </label>
-                <div className="flex flex-wrap gap-2 min-h-[60px] p-3 bg-white rounded-lg border border-dashed">
+                <div className="flex flex-wrap gap-2 min-h-[60px] p-3  rounded-lg border border-gray-200 dark:border-gray-700">
                   {Object.entries(currentAttributes).length === 0 ? (
                     <span className="text-gray-400 text-sm">
                       No attributes selected
@@ -906,7 +727,7 @@ export const CreateProductWizard = () => {
                     Object.entries(currentAttributes).map(([k, v]) => (
                       <span
                         key={k}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 rounded-full text-sm"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-200 dark:bg-gray-700 rounded-full text-sm"
                       >
                         {k}: {v}
                         <X
@@ -920,126 +741,175 @@ export const CreateProductWizard = () => {
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-2">
-                  Barcode (optional)
+                  Variant Images (max 3)
                 </label>
-                <div className="flex gap-2">
-                  <InputField
-                    value={variantBarcode}
-                    onChange={(e) => setVariantBarcode(e.target.value)}
-                    placeholder="Scan or enter barcode"
-                    className="flex-1"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setVariantBarcode(generateEAN13())}
-                    className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
+                <div className="flex flex-wrap gap-3 w-full border border-gray-200 dark:border-gray-700 rounded-md p-3">
+                  {variantImages.map((img, idx) => (
+                    <div
+                      key={idx}
+                      className="relative w-20 h-20 rounded overflow-hidden border"
+                    >
+                      <img
+                        src={img.imgUrl}
+                        alt="preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        onClick={() => removeVariantImage(idx)}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {variantImages.length < 3 && (
+                    <label className="w-20 h-20 flex border border-gray-200 dark:border-gray-700 rounded flex items-center justify-center cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                      <Upload className="w-6 h-6 text-gray-400" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleVariantImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-4 mb-4">
-                <span className="font-medium">Is Imported?</span>
-                <label>
-                  <input
-                    type="radio"
-                    name="variantImported"
-                    checked={!variantIsImported}
-                    onChange={() => {
-                      setVariantIsImported(false);
-                      setVariantCountry("");
-                    }}
-                  />{" "}
-                  No
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name="variantImported"
-                    checked={variantIsImported}
-                    onChange={() => setVariantIsImported(true)}
-                  />{" "}
-                  Yes
-                </label>
+              <div className="mb-4 flex justify-between  w-full items-end">
+                <div className="w-1/2">
+                  <label className=" text-sm font-medium mb-2">
+                    Barcode (optional)
+                  </label>
+                  <div className="flex gap-2">
+                    <InputField
+                      value={variantBarcode}
+                      onChange={(e) => setVariantBarcode(e.target.value)}
+                      placeholder="Scan or enter barcode"
+                      className="flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setVariantBarcode(generateEAN13())}
+                      className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer "
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="w-1/2">
+                  <div className="flex items-center justify-end gap-4 ">
+                    <span className="font-medium">Is Imported?</span>
+                    <label>
+                      <input
+                        type="radio"
+                        name="variantImported"
+                        checked={!variantIsImported}
+                        onChange={() => {
+                          setVariantIsImported(false);
+                          setVariantCountry("");
+                        }}
+                      />{" "}
+                      No
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="variantImported"
+                        checked={variantIsImported}
+                        onChange={() => setVariantIsImported(true)}
+                      />{" "}
+                      Yes
+                    </label>
+                  </div>
+                  {variantIsImported && (
+                    <InputField
+                      label="Country of Origin"
+                      value={variantCountry}
+                      onChange={(e) => setVariantCountry(e.target.value)}
+                    />
+                  )}
+                </div>
               </div>
-              {variantIsImported && (
-                <InputField
-                  label="Country of Origin"
-                  value={variantCountry}
-                  onChange={(e) => setVariantCountry(e.target.value)}
-                />
-              )}
+
               <div className="flex justify-end gap-3">
-                <Button variant="outline" onClick={resetVariantForm}>
-                  Clear
-                </Button>
+                {editingVariantId && (
+                  <Button variant="outline" onClick={resetVariantForm}>
+                    Cancel Edit
+                  </Button>
+                )}
                 <Button
                   variant="primary"
                   onClick={saveVariant}
+                  disabled={Object.keys(currentAttributes).length === 0}
                   loading={submitting}
                 >
-                  {editingVariantId ? "Update Variant" : "Add as New Variant"}
+                  {editingVariantId ? "Update Variant" : "Add Variant"}
                 </Button>
               </div>
             </div>
 
-            {/* Variants Table */}
-            <DataTable value={variants} stripedRows>
-              <Column header="Name" body={(row) => formatVariantName(row)} />
-              <Column field="sku" header="SKU" />
-              <Column field="barcode" header="Barcode" />
-              <Column
-                header="Attributes"
-                body={(row) =>
-                  Object.entries(row.attributes || {})
-                    .map(([k, v]) => `${k}:${v}`)
-                    .join(", ") || "—"
-                }
-              />
-              <Column
-                header="Imported"
-                body={(row) => (row.isImported ? "Yes" : "No")}
-              />
-              <Column
-                header="Images"
-                body={variantImagesBody}
-                style={{ width: "200px" }}
-              />
-              <Column
-                header="Actions"
-                body={(row) => (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => editVariant(row)}
-                      className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                      title="Edit"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => deleteVariant(row.id)}
-                      className="p-1 text-red-600 hover:bg-red-50 rounded"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              />
-            </DataTable>
+            {variants.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-lg mb-3">Variants List</h3>
+                <DataTable value={variants} stripedRows>
+                  <Column field="sku" header="SKU" />
+                  <Column field="barcode" header="Barcode" />
+                  <Column
+                    header="Attributes"
+                    body={(row) =>
+                      Object.entries(row.attributes || {})
+                        .map(([k, v]) => `${k}:${v}`)
+                        .join(", ") || "—"
+                    }
+                  />
+                  <Column
+                    header="Imported"
+                    body={(row) => (row.isImported ? "Yes" : "No")}
+                  />
+                  <Column
+                    header="Actions"
+                    body={(row) => (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => editVariant(row)}
+                          disabled={isEditingVariant}
+                          className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          title="Edit"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteVariant(row.id)}
+                          disabled={isEditingVariant}
+                          className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  />
+                </DataTable>
+              </div>
+            )}
 
             <div className="flex justify-between pt-4 border-t">
               <Button variant="outline" onClick={() => setStep(1)}>
                 ← Back
               </Button>
-              <Button variant="primary" onClick={() => setStep(3)}>
+              <Button
+                variant="primary"
+                onClick={() => setStep(3)}
+                disabled={variants.length === 0}
+              >
                 Next: Stock & Pricing →
               </Button>
             </div>
           </div>
         )}
 
-        {/* STEP 3 - Stock & Pricing */}
+        {/* STEP 3 – Stock batches (add new) */}
         {step === 3 && (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold">Stock & Pricing</h3>
@@ -1061,6 +931,7 @@ export const CreateProductWizard = () => {
                     )}
                   </div>
                 </div>
+
                 {variant.stocks && variant.stocks.length > 0 && (
                   <DataTable
                     value={variant.stocks}
@@ -1074,6 +945,7 @@ export const CreateProductWizard = () => {
                     <Column field="currentQty" header="Quantity" />
                   </DataTable>
                 )}
+
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                   <h5 className="text-sm font-medium mb-2">
                     Add new stock batch
@@ -1154,25 +1026,18 @@ export const CreateProductWizard = () => {
               </Button>
               <div className="flex gap-3">
                 <Button
-                  variant="secondary"
-                  onClick={handleSaveDraft}
-                  loading={submitting}
-                >
-                  Save Draft
-                </Button>
-                <Button
                   variant="success"
-                  onClick={handlePublish}
+                  onClick={handleSaveAndClose}
                   loading={submitting}
                 >
-                  Save & Publish
+                  Save All Changes & Close
                 </Button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Attribute creation modal */}
+        {/* Attribute Modal (same as create) */}
         {showAddAttribute && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
@@ -1253,4 +1118,4 @@ export const CreateProductWizard = () => {
   );
 };
 
-export default CreateProductWizard;
+export default EditProductWizard;

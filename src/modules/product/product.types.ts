@@ -27,6 +27,7 @@ export interface ProductItem {
   stockQuantity: number;
   createdAt: string;
   updatedAt: string;
+  isPublished: boolean;
   category?: Category;
 }
 

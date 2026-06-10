@@ -1,16 +1,16 @@
 // data/SidebarMenuData.ts
 import {
+  FileText,
   LayoutDashboard,
+  Link2,
   Package,
-  Users,
-  Truck,
-  Tag,
-  ShoppingCart,
   PackageOpen,
   Settings,
+  ShoppingCart,
+  Tag,
+  Truck,
   Upload,
-  Link2,
-  FileText,
+  Users,
 } from "lucide-react";
 import type { MenuItem } from "../types/sidebar/sidebar.types";
 
@@ -31,7 +31,7 @@ export const sidebarMenuData: MenuItem[] = [
     id: "product",
     label: "Product",
     icon: <Package className="w-4 h-4" />,
-    path: "/products/product",
+    path: "/products/product-list",
   },
   {
     id: "customer",

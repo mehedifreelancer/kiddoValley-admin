@@ -1,38 +1,28 @@
 // modules/master-data/product/Product.tsx
-import React, { useState, FormEvent, useEffect, useCallback } from "react";
-import { DataTable } from "primereact/datatable";
+import { Check, Edit, GripVertical, Plus, Trash2, X } from "lucide-react";
 import { Column } from "primereact/column";
-import { Dropdown } from "primereact/dropdown";
-import { Editor } from "primereact/editor";
-import { toast } from "react-hot-toast";
-import {
-  Plus,
-  Edit,
-  Trash2,
-  RefreshCw,
-  GripVertical,
-  Upload,
-  X,
-  Image as ImageIcon,
-} from "lucide-react";
-import Barcode from "react-barcode";
+import { DataTable } from "primereact/datatable";
+import React, { FormEvent, useCallback, useEffect, useState } from "react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
+import { toast } from "react-hot-toast";
 
+import Button from "../../components/ui/Button";
+import DataTableSearch from "../../components/ui/DataTableSearch";
+import Modal from "../../components/ui/Modal";
+import Toolbar from "../../components/ui/Toolbar";
+import { getCategories } from "../master-data/category/category.service";
 import {
-  getProducts,
-  createProduct,
-  updateProduct,
   deleteProduct,
   generateBarcode,
-  getCategoriesForDropdown,
+  getProducts,
+  updateProduct,
 } from "./product.service";
-import Toolbar from "../../components/ui/Toolbar";
-import DataTableSearch from "../../components/ui/DataTableSearch";
-import Button from "../../components/ui/Button";
-import Modal from "../../components/ui/Modal";
-import InputField from "../../components/ui/InputField";
-import { getCategories } from "../master-data/category/category.service";
+
+// ✅ Import the wizard component (assumed to be in the same directory)
+import CreateProductWizard from "./CreateProductWizard";
+import EditProductWizard from "./EditProductWizard";
+import { Category, ProductImage, ProductItem } from "./product.types";
 
 const ItemType = "IMAGE";
 
@@ -53,14 +43,12 @@ const DraggableImage: React.FC<DraggableImageProps> = ({
   const [{ isDragging }, drag] = useDrag({
     type: ItemType,
     item: { index },
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
+    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
   });
 
   const [, drop] = useDrop({
     accept: ItemType,
-    hover: (item: { index: number }, monitor) => {
+    hover: (item: { index: number }) => {
       if (!ref.current) return;
       const dragIndex = item.index;
       const hoverIndex = index;
@@ -112,27 +100,35 @@ export const Product = () => {
   const [totalRecords, setTotalRecords] = useState(0);
   const [page, setPage] = useState(1);
 
-  const [modalFor, setModalFor] = useState<"create" | "edit" | "delete" | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null);
+  const [modalFor, setModalFor] = useState<"create" | "edit" | "delete" | null>(
+    null,
+  );
+  const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(
+    null,
+  );
 
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  // States used ONLY for edit modal
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(
+    null,
+  );
   const [barcodeValue, setBarcodeValue] = useState<string>("");
   const [barcodeTitle, setBarcodeTitle] = useState<string>("");
   const [productName, setProductName] = useState<string>("");
-  
-  // Image management
-  const [imageList, setImageList] = useState<ProductImage[]>([]);      // For preview (both existing URLs and blob URLs)
-  const [imageFiles, setImageFiles] = useState<File[]>([]);            // Actual new files to upload
-  const [existingImageUrls, setExistingImageUrls] = useState<ProductImage[]>([]); // Existing image URLs from DB
+  const [imageList, setImageList] = useState<ProductImage[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [existingImageUrls, setExistingImageUrls] = useState<ProductImage[]>(
+    [],
+  );
   const [uploading, setUploading] = useState(false);
-
   const [forceOrderPriority, setForceOrderPriority] = useState<number>(0);
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [productDetails, setProductDetails] = useState<string>("");
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
+  // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(globalFilter);
@@ -142,10 +138,12 @@ export const Product = () => {
     return () => clearTimeout(timer);
   }, [globalFilter]);
 
+  // Load categories
   useEffect(() => {
     fetchCategories();
   }, []);
 
+  // Load products on page/rows/search change
   useEffect(() => {
     fetchProducts();
   }, [page, rows, debouncedSearch]);
@@ -182,30 +180,20 @@ export const Product = () => {
     setPage(event.first / event.rows + 1);
   };
 
+  // Regenerate barcode for edit modal
   const regenerateBarcode = () => {
     setBarcodeValue(generateBarcode());
   };
 
+  // Populate edit modal state
   useEffect(() => {
-    if (modalFor === "create") {
-      regenerateBarcode();
-      setImageList([]);
-      setImageFiles([]);
-      setExistingImageUrls([]);
-      setSelectedCategory(null);
-      setForceOrderPriority(0);
-      setDiscountPercent(0);
-      setProductName("");
-      setProductDetails("");
-      setBarcodeTitle("");
-      setFormErrors({});
-    } else if (modalFor === "edit" && selectedProduct) {
+    if (modalFor === "edit" && selectedProduct) {
       setBarcodeValue(selectedProduct.barcode);
       setBarcodeTitle(selectedProduct.name);
       const existing = selectedProduct.images || [];
       setExistingImageUrls(existing);
-      setImageList([...existing]);               // Show existing images for preview
-      setImageFiles([]);                         // No new files yet
+      setImageList([...existing]);
+      setImageFiles([]);
       setSelectedCategory(selectedProduct.category || null);
       setForceOrderPriority(selectedProduct.forceOrderPriority || 0);
       setDiscountPercent(selectedProduct.discountPercent || 0);
@@ -215,19 +203,17 @@ export const Product = () => {
     }
   }, [modalFor, selectedProduct]);
 
+  // Image handlers for edit modal
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-
     for (const file of files) {
       const mockUrl = URL.createObjectURL(file);
-      setImageList((prev) => [...prev, { imgUrl: mockUrl }]); // preview
-      setImageFiles((prev) => [...prev, file]);               // actual file
+      setImageList((prev) => [...prev, { imgUrl: mockUrl }]);
+      setImageFiles((prev) => [...prev, file]);
     }
   };
 
   const moveImage = useCallback((dragIndex: number, hoverIndex: number) => {
-    // Move preview list
     setImageList((prev) => {
       const newImages = [...prev];
       const draggedImage = newImages[dragIndex];
@@ -235,7 +221,6 @@ export const Product = () => {
       newImages.splice(hoverIndex, 0, draggedImage);
       return newImages;
     });
-    // Move actual files list (keep same order)
     setImageFiles((prev) => {
       const newFiles = [...prev];
       const draggedFile = newFiles[dragIndex];
@@ -281,52 +266,23 @@ export const Product = () => {
     setModalFor("delete");
   };
 
+  const closeModal = () => {
+    setModalFor(null);
+    setSelectedProduct(null);
+    resetForm();
+  };
+
+  // Edit form validation
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
     if (!barcodeValue) errors.barcode = "Barcode is required";
     if (!barcodeTitle) errors.barcodeTitle = "Barcode title is required";
     if (!productName?.trim()) errors.name = "Product name is required";
     if (!selectedCategory) errors.categoryId = "Category is required";
-    if (imageList.length === 0) errors.images = "At least one product image is required";
+    if (imageList.length === 0)
+      errors.images = "At least one product image is required";
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
-  };
-
-  const handleCreateSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!validateForm()) return;
-
-    try {
-      setSubmitting(true);
-
-      const formData = new FormData();
-      formData.append("barcode", barcodeValue);
-      formData.append("barcodeTitle", barcodeTitle);
-      formData.append("name", productName);
-      formData.append("categoryId", selectedCategory!.id.toString());
-      formData.append("buyingPrice", (event.currentTarget.elements.namedItem("buyingPrice") as HTMLInputElement)?.value || "0");
-      formData.append("sellingPrice", (event.currentTarget.elements.namedItem("sellingPrice") as HTMLInputElement)?.value || "0");
-      
-      const videoUrl = (event.currentTarget.elements.namedItem("videoUrl") as HTMLInputElement)?.value;
-      if (videoUrl) formData.append("videoUrl", videoUrl);
-      if (productDetails) formData.append("description", productDetails);
-      if (forceOrderPriority) formData.append("forceOrderPriority", forceOrderPriority.toString());
-      if (discountPercent) formData.append("discountPercent", discountPercent.toString());
-
-      // Append all image files (new files only)
-      imageFiles.forEach((file) => {
-        formData.append("images", file);
-      });
-
-      await createProduct(formData);
-      toast.success("Product created successfully");
-      setModalFor(null);
-      fetchProducts();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to create product");
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   const handleEditSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -341,26 +297,40 @@ export const Product = () => {
       formData.append("barcodeTitle", barcodeTitle);
       formData.append("name", productName);
       formData.append("categoryId", selectedCategory!.id.toString());
-      formData.append("buyingPrice", (event.currentTarget.elements.namedItem("buyingPrice") as HTMLInputElement)?.value || "0");
-      formData.append("sellingPrice", (event.currentTarget.elements.namedItem("sellingPrice") as HTMLInputElement)?.value || "0");
+      formData.append(
+        "buyingPrice",
+        (
+          event.currentTarget.elements.namedItem(
+            "buyingPrice",
+          ) as HTMLInputElement
+        )?.value || "0",
+      );
+      formData.append(
+        "sellingPrice",
+        (
+          event.currentTarget.elements.namedItem(
+            "sellingPrice",
+          ) as HTMLInputElement
+        )?.value || "0",
+      );
 
-      const videoUrl = (event.currentTarget.elements.namedItem("videoUrl") as HTMLInputElement)?.value;
+      const videoUrl = (
+        event.currentTarget.elements.namedItem("videoUrl") as HTMLInputElement
+      )?.value;
       if (videoUrl) formData.append("videoUrl", videoUrl);
       if (productDetails) formData.append("description", productDetails);
-      if (forceOrderPriority) formData.append("forceOrderPriority", forceOrderPriority.toString());
-      if (discountPercent) formData.append("discountPercent", discountPercent.toString());
+      if (forceOrderPriority)
+        formData.append("forceOrderPriority", forceOrderPriority.toString());
+      if (discountPercent)
+        formData.append("discountPercent", discountPercent.toString());
 
-      // Send existing image URLs as JSON (preserves order and existing images)
-      // Important: Use the current imageList order (which includes existing images in the dragged order)
+      // Send existing image URLs (order preserved)
       const currentOrderedUrls = imageList
-        .filter(img => !img.imgUrl.startsWith("blob:"))
-        .map(img => ({ imgUrl: img.imgUrl }));
+        .filter((img) => !img.imgUrl.startsWith("blob:"))
+        .map((img) => ({ imgUrl: img.imgUrl }));
       formData.append("existingImages", JSON.stringify(currentOrderedUrls));
 
-      // Append new image files
-      imageFiles.forEach((file) => {
-        formData.append("images", file);
-      });
+      imageFiles.forEach((file) => formData.append("images", file));
 
       await updateProduct(selectedProduct.id, formData);
       toast.success("Product updated successfully");
@@ -391,15 +361,10 @@ export const Product = () => {
     }
   };
 
-  const closeModal = () => {
-    setModalFor(null);
-    setSelectedProduct(null);
-    resetForm();
-  };
-
-  // DataTable column templates (same as before, keep styling)
+  // DataTable column templates
   const imageBody = (rowData: ProductItem) => {
-    if (!rowData.images?.length) return <span className="text-gray-400">—</span>;
+    if (!rowData.images?.length)
+      return <span className="text-gray-400">—</span>;
     return (
       <div className="flex -space-x-2">
         {rowData.images.slice(0, 3).map((img, idx) => (
@@ -425,22 +390,6 @@ export const Product = () => {
     </span>
   );
 
-  const priceBody = (rowData: ProductItem) => (
-    <div>
-      <div className="text-gray-700 dark:text-gray-300">Buy: ${rowData.buyingPrice}</div>
-      <div className="text-green-600 dark:text-green-400">Sell: ${rowData.sellingPrice}</div>
-    </div>
-  );
-
-  const discountBody = (rowData: ProductItem) => {
-    if (!rowData.hasDiscount) return <span className="text-gray-400">—</span>;
-    return (
-      <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-xs font-medium">
-        {rowData.discountPercent}% OFF
-      </span>
-    );
-  };
-
   const forceOrderBody = (rowData: ProductItem) => {
     if (!rowData.isForceOrder) return <span className="text-gray-400">No</span>;
     return (
@@ -448,6 +397,22 @@ export const Product = () => {
         Priority: {rowData.forceOrderPriority}
       </span>
     );
+  };
+
+  const publishedBody = (rowData: ProductItem) => {
+    if (rowData.isPublished) {
+      return (
+        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">
+          <Check className="w-4 h-4" />
+        </span>
+      );
+    } else {
+      return (
+        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
+          <X className="w-4 h-4" />
+        </span>
+      );
+    }
   };
 
   const actionsBody = (rowData: ProductItem) => (
@@ -511,295 +476,126 @@ export const Product = () => {
             stripedRows
             rowClassName={() => "table-row"}
           >
-            <Column field="id" header="ID" sortable headerClassName="column-header" bodyClassName="column-body" />
-            <Column field="barcode" header="Barcode" sortable headerClassName="column-header" bodyClassName="column-body" />
-            <Column field="name" header="Product Name" sortable headerClassName="column-header" bodyClassName="column-body" />
-            <Column header="Images" body={imageBody} headerClassName="column-header" bodyClassName="column-body" />
-            <Column header="Category" body={categoryBody} headerClassName="column-header" bodyClassName="column-body" />
-            <Column header="Price" body={priceBody} headerClassName="column-header" bodyClassName="column-body" />
-            <Column header="Discount" body={discountBody} headerClassName="column-header" bodyClassName="column-body" />
-            <Column header="Force Order" body={forceOrderBody} headerClassName="column-header" bodyClassName="column-body" />
-            <Column header="Actions" body={actionsBody} headerClassName="column-header" bodyClassName="column-body" style={{ width: "120px" }} />
+            <Column
+              field="id"
+              header="ID"
+              sortable
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+
+            <Column
+              field="name"
+              header="Product Name"
+              sortable
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              header="Images"
+              body={imageBody}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              header="Category"
+              body={categoryBody}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+
+            <Column
+              header="Force Order"
+              body={forceOrderBody}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              header="Published"
+              body={publishedBody}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+              style={{ width: "100px" }}
+            />
+            <Column
+              header="Actions"
+              body={actionsBody}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+              style={{ width: "120px" }}
+            />
           </DataTable>
         </div>
 
-        {/* Create Modal */}
+        {/* ===== CREATE MODAL with full wizard ===== */}
         {modalFor === "create" && (
-          <Modal isOpen={true} onClose={closeModal} title="Create New Product" size="lg">
-            <form onSubmit={handleCreateSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputField
-                  label="Product Name *"
-                  name="name"
-                  type="text"
-                  placeholder="Enter product name"
-                  value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
-                  error={formErrors.name}
-                  required
-                />
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Category *</label>
-                  <Dropdown
-                    value={selectedCategory?.id}
-                    onChange={(e) => {
-                      const cat = categories.find((c) => c.id === e.value);
-                      setSelectedCategory(cat || null);
-                    }}
-                    options={categories}
-                    optionLabel="name"
-                    optionValue="id"
-                    placeholder="Select category"
-                    className="w-full"
-                    appendTo="self"
-                  />
-                  {formErrors.categoryId && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.categoryId}</p>}
-                </div>
-                <InputField
-                  label="Barcode Title *"
-                  name="barcodeTitle"
-                  type="text"
-                  placeholder="Enter barcode title"
-                  value={barcodeTitle}
-                  onChange={(e) => setBarcodeTitle(e.target.value)}
-                  error={formErrors.barcodeTitle}
-                  required
-                />
-                <InputField label="Buying Price *" name="buyingPrice" type="number" placeholder="0.00" error={formErrors.buyingPrice} required />
-                <InputField label="Selling Price *" name="sellingPrice" type="number" placeholder="0.00" error={formErrors.sellingPrice} required />
-                <InputField
-                  label="Discount Percent"
-                  name="discountPercent"
-                  type="number"
-                  value={discountPercent}
-                  onChange={(e) => setDiscountPercent(Number(e.target.value))}
-                  placeholder="0 (0 = no discount)"
-                  helperText="Set value > 0 to apply discount"
-                />
-                <InputField
-                  label="Force Order Priority"
-                  name="forceOrderPriority"
-                  type="number"
-                  value={forceOrderPriority}
-                  onChange={(e) => setForceOrderPriority(Number(e.target.value))}
-                  placeholder="0 (0 = disabled)"
-                  helperText="Set value > 0 to enable force order"
-                />
-              </div>
-              <InputField label="Video URL" name="videoUrl" type="text" placeholder="https://example.com/video.mp4" />
-
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Product Details</label>
-                <Editor
-                  value={productDetails}
-                  onTextChange={(e) => setProductDetails(e.htmlValue || "")}
-                  style={{ height: "320px" }}
-                  className="border border-gray-300 dark:border-gray-800 rounded-lg"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Product Images *</label>
-                <div className="mb-4">
-                  <label className="inline-flex items-center justify-center w-full gap-2 p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors border border-blue-200 dark:border-blue-700">
-                    <Upload className="w-4 h-4" />
-                    <span className="text-sm font-medium">Upload Images</span>
-                    <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
-                  </label>
-                  {uploading && <span className="ml-3 text-sm text-gray-500 animate-pulse">Uploading...</span>}
-                  {formErrors.images && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.images}</p>}
-                </div>
-                <div className="p-2 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-200 dark:border-gray-700">
-                  {imageList.length > 0 ? (
-                    <div className="flex flex-wrap gap-4">
-                      {imageList.map((image, index) => (
-                        <DraggableImage
-                          key={index}
-                          image={image}
-                          index={index}
-                          moveImage={moveImage}
-                          removeImage={removeImage}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-[148px] text-gray-400 dark:text-gray-500">
-                      <ImageIcon className="w-12 h-12 mb-2 opacity-50" />
-                      <span className="text-sm">No images uploaded. Click "Upload Images" to add product photos.</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Barcode</label>
-                <div className="relative flex flex-col items-center gap-4 p-6 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800/50 dark:to-gray-900/30 rounded-xl border border-gray-200 dark:border-gray-700">
-                  <div className="bg-white p-4 rounded-lg shadow-sm">
-                    <div className="text-center mb-2">
-                      <p className="text-sm font-medium text-gray-800">{productName || "Product Name"}</p>
-                    </div>
-                    <Barcode value={barcodeValue} format="CODE128" width={2} height={60} fontSize={12} margin={0} displayValue={false} />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={regenerateBarcode}
-                    className="absolute top-3 right-3 flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
-                  >
-                    <RefreshCw className="w-4 h-4" /> Regenerate
-                  </button>
-                </div>
-                <input type="hidden" name="barcode" value={barcodeValue} />
-                {formErrors.barcode && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.barcode}</p>}
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
-                <Button type="button" onClick={closeModal} variant="outline" disabled={submitting}>Cancel</Button>
-                <Button type="submit" variant="primary" loading={submitting}>Create Product</Button>
-              </div>
-            </form>
+          <Modal
+            isOpen={true}
+            onClose={closeModal}
+            title="Create New Product"
+            size="xl"
+          >
+            <div className="max-h-[80vh] overflow-y-auto p-1">
+              <CreateProductWizard />
+            </div>
           </Modal>
         )}
 
-        {/* Edit Modal */}
+        {/* ===== EDIT MODAL (original form) ===== */}
         {modalFor === "edit" && selectedProduct && (
-          <Modal isOpen={true} onClose={closeModal} title="Edit Product" size="lg">
-            <form onSubmit={handleEditSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputField
-                  label="Product Name *"
-                  name="name"
-                  type="text"
-                  defaultValue={selectedProduct.name}
-                  onChange={(e) => setProductName(e.target.value)}
-                  error={formErrors.name}
-                  required
-                />
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Category *</label>
-                  <Dropdown
-                    value={selectedCategory?.id}
-                    onChange={(e) => {
-                      const cat = categories.find((c) => c.id === e.value);
-                      setSelectedCategory(cat || null);
-                    }}
-                    options={categories}
-                    optionLabel="name"
-                    optionValue="id"
-                    placeholder="Select category"
-                    className="w-full"
-                    appendTo="self"
-                  />
-                  {formErrors.categoryId && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.categoryId}</p>}
-                </div>
-                <InputField
-                  label="Barcode Title *"
-                  name="barcodeTitle"
-                  type="text"
-                  defaultValue={selectedProduct.name}
-                  onChange={(e) => setBarcodeTitle(e.target.value)}
-                  error={formErrors.barcodeTitle}
-                  required
-                />
-                <InputField label="Buying Price *" name="buyingPrice" type="number" defaultValue={selectedProduct.buyingPrice} error={formErrors.buyingPrice} required />
-                <InputField label="Selling Price *" name="sellingPrice" type="number" defaultValue={selectedProduct.sellingPrice} error={formErrors.sellingPrice} required />
-                <InputField
-                  label="Discount Percent"
-                  name="discountPercent"
-                  type="number"
-                  value={discountPercent}
-                  onChange={(e) => setDiscountPercent(Number(e.target.value))}
-                  placeholder="0 (0 = no discount)"
-                  helperText="Set value > 0 to apply discount"
-                />
-                <InputField
-                  label="Force Order Priority"
-                  name="forceOrderPriority"
-                  type="number"
-                  value={forceOrderPriority}
-                  onChange={(e) => setForceOrderPriority(Number(e.target.value))}
-                  placeholder="0 (0 = disabled)"
-                  helperText="Set value > 0 to enable force order"
-                />
-              </div>
-              <InputField label="Video URL" name="videoUrl" type="text" defaultValue={selectedProduct.videoUrl || ""} placeholder="https://example.com/video.mp4" />
-
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Product Details</label>
-                <Editor
-                  value={productDetails}
-                  onTextChange={(e) => setProductDetails(e.htmlValue || "")}
-                  style={{ height: "320px" }}
-                  className="border border-gray-300 dark:border-gray-800 rounded-lg"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Product Images *</label>
-                <div className="mb-4">
-                  <label className="inline-flex items-center justify-center w-full gap-2 p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors border border-blue-200 dark:border-blue-700">
-                    <Upload className="w-4 h-4" />
-                    <span className="text-sm font-medium">Upload More Images</span>
-                    <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
-                  </label>
-                  {uploading && <span className="ml-3 text-sm text-gray-500 animate-pulse">Uploading...</span>}
-                  {formErrors.images && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.images}</p>}
-                </div>
-                <div className="p-2 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-200 dark:border-gray-700">
-                  {imageList.length > 0 ? (
-                    <div className="flex flex-wrap gap-4">
-                      {imageList.map((image, index) => (
-                        <DraggableImage
-                          key={index}
-                          image={image}
-                          index={index}
-                          moveImage={moveImage}
-                          removeImage={removeImage}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-[148px] text-gray-400 dark:text-gray-500">
-                      <ImageIcon className="w-12 h-12 mb-2 opacity-50" />
-                      <span className="text-sm">No images uploaded. Click "Upload More Images" to add product photos.</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Barcode</label>
-                <div className="flex flex-col items-center gap-4 p-6 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800/50 dark:to-gray-900/30 rounded-xl border border-gray-200 dark:border-gray-700">
-                  <div className="bg-white p-4 rounded-lg shadow-sm">
-                    <div className="text-center mb-2">
-                      <p className="text-sm font-medium text-gray-800">{selectedProduct.name}</p>
-                    </div>
-                    <Barcode value={barcodeValue} format="CODE128" width={2} height={60} fontSize={12} margin={0} displayValue={true} />
-                  </div>
-                </div>
-                <input type="hidden" name="barcode" value={barcodeValue} />
-                {formErrors.barcode && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{formErrors.barcode}</p>}
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
-                <Button type="button" onClick={closeModal} variant="outline" disabled={submitting}>Cancel</Button>
-                <Button type="submit" variant="primary" loading={submitting}>Save Changes</Button>
-              </div>
-            </form>
+          <Modal
+            isOpen={true}
+            onClose={closeModal}
+            title="Edit Product"
+            size="xl"
+          >
+            <div className="max-h-[80vh] overflow-y-auto p-1">
+              <EditProductWizard
+                productId={selectedProduct.id}
+                onClose={closeModal}
+                onSuccess={() => {
+                  fetchProducts(); // refresh list after edit
+                  closeModal();
+                }}
+              />
+            </div>
           </Modal>
         )}
 
-        {/* Delete Modal */}
+        {/* ===== DELETE MODAL ===== */}
         {modalFor === "delete" && (
-          <Modal isOpen={true} onClose={closeModal} title="Delete Product" size="sm">
+          <Modal
+            isOpen={true}
+            onClose={closeModal}
+            title="Delete Product"
+            size="sm"
+          >
             <div className="space-y-4">
               <p className="text-gray-700 dark:text-gray-300">
                 Are you sure you want to delete the product{" "}
-                <span className="font-semibold text-red-600 dark:text-red-400">"{selectedProduct?.name}"</span>?
+                <span className="font-semibold text-red-600 dark:text-red-400">
+                  "{selectedProduct?.name}"
+                </span>
+                ?
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">This action cannot be undone.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                This action cannot be undone.
+              </p>
               <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
-                <Button onClick={closeModal} variant="outline" disabled={submitting}>Cancel</Button>
-                <Button onClick={handleDelete} variant="danger" loading={submitting}>Delete Product</Button>
+                <Button
+                  onClick={closeModal}
+                  variant="outline"
+                  disabled={submitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleDelete}
+                  variant="danger"
+                  loading={submitting}
+                >
+                  Delete Product
+                </Button>
               </div>
             </div>
           </Modal>
