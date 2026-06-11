@@ -1,6 +1,8 @@
 import {
   Camera,
   CheckCircle,
+  ChevronLeft,
+  ChevronRight,
   Edit,
   GripVertical,
   Plus,
@@ -14,6 +16,7 @@ import { DataTable } from "primereact/datatable";
 import { Dropdown } from "primereact/dropdown";
 import { Editor } from "primereact/editor";
 import React, { useEffect, useState } from "react";
+import Barcode from "react-barcode";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { toast } from "react-hot-toast";
@@ -405,7 +408,6 @@ export const CreateProductWizard = () => {
     if (!productId) return;
     if (submitting) return;
 
-    // For new variant, require at least one attribute
     if (!isEditingMode && Object.keys(currentAttributes).length === 0) {
       toast.error(
         "Please add at least one attribute-value pair for new variant",
@@ -432,7 +434,6 @@ export const CreateProductWizard = () => {
           headers: { "Content-Type": "multipart/form-data" },
         });
         toast.success("Variant added");
-        // After adding a new custom variant, delete the default variant if it exists
         await deleteDefaultVariantIfExists();
       }
       await fetchVariants();
@@ -744,8 +745,7 @@ export const CreateProductWizard = () => {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="max-w-6xl mx-auto p-6 bg-white dark:bg-gray-900 rounded-lg shadow">
-        <h1 className="text-2xl font-bold mb-6">Create New Product</h1>
+      <div className="max-w-6xl mx-auto rounded-md">
         <StepIndicator current={step} />
 
         {step === 1 && (
@@ -802,42 +802,54 @@ export const CreateProductWizard = () => {
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">
-                Thumbnail Image *
+                Thumbnail Image (only 1 allowed) *
               </label>
               <div className="mb-2">
-                <label className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg cursor-pointer">
-                  <Upload className="w-4 h-4 text-blue-600" />
-                  <span className="text-blue-600">Upload Thumbnail</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                </label>
+                <div className="flex flex-col items-center justify-center w-full">
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Upload className="w-8 h-8 mb-2 text-gray-500 dark:text-gray-400" />
+                      <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
+                        <span className="font-semibold">Click to upload</span>{" "}
+                        or drag and drop
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Only one image (thumbnail)
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-3">
-                {imageList.map((img, idx) => (
-                  <DraggableImage
-                    key={idx}
-                    image={img}
-                    index={idx}
-                    moveImage={(drag, hover) => {
-                      const newList = [...imageList];
-                      const dragged = newList[drag];
-                      newList.splice(drag, 1);
-                      newList.splice(hover, 0, dragged);
-                      setImageList(newList);
-                    }}
-                    removeImage={removeProductImage}
-                  />
-                ))}
-              </div>
+              {imageList.length > 0 && (
+                <div className="flex flex-wrap gap-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg mt-2">
+                  {imageList.map((img, idx) => (
+                    <DraggableImage
+                      key={idx}
+                      image={img}
+                      index={idx}
+                      moveImage={(drag, hover) => {
+                        const newList = [...imageList];
+                        const dragged = newList[drag];
+                        newList.splice(drag, 1);
+                        newList.splice(hover, 0, dragged);
+                        setImageList(newList);
+                      }}
+                      removeImage={removeProductImage}
+                    />
+                  ))}
+                </div>
+              )}
               {formErrors.images && (
                 <p className="text-red-500 text-xs">{formErrors.images}</p>
               )}
             </div>
-            <div className="flex justify-end">
+            <div className="modal-sticky-footer">
               <Button onClick={handleStep1Next} loading={submitting}>
                 Save & Next →
               </Button>
@@ -852,13 +864,30 @@ export const CreateProductWizard = () => {
                 💡 Do you have variants such as color, size, etc? Add variant
                 from here.
               </span>
-              <Button variant="primary" onClick={openAddVariantForm}>
-                <Plus className="w-4 h-4 mr-2" /> Add Variant
-              </Button>
+              <div className="flex gap-2">
+                {showVariantForm && (
+                  <Button variant="outline" onClick={closeVariantForm}>
+                    Cancel
+                  </Button>
+                )}
+                {showVariantForm ? (
+                  <Button
+                    variant="primary"
+                    onClick={saveVariant}
+                    loading={submitting}
+                  >
+                    {isEditingMode ? "Update Variant" : "Save Variant"}
+                  </Button>
+                ) : (
+                  <Button variant="primary" onClick={openAddVariantForm}>
+                    <Plus className="w-4 h-4 mr-2" /> Add Variant
+                  </Button>
+                )}
+              </div>
             </div>
 
             {showVariantForm && (
-              <div className="border rounded-lg p-5 bg-gray-50 dark:bg-gray-800/50">
+              <div className="border rounded-md p-5 border-gray-200 dark:border-gray-700">
                 <h3 className="text-lg font-semibold mb-4">
                   {isEditingMode
                     ? isDefaultVariant
@@ -868,12 +897,21 @@ export const CreateProductWizard = () => {
                 </h3>
                 {(!isDefaultVariant || !isEditingMode) && (
                   <>
-                    <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border mb-4">
+                    <div className="p-4 rounded-md">
                       <div className="flex flex-wrap gap-3 items-end">
                         <div className="flex-1">
-                          <label className="block text-xs font-medium">
-                            Attribute Name
-                          </label>
+                          <div className="flex gap-1">
+                            <label className="block text-xs font-medium">
+                              Attribute Name
+                            </label>
+                            <button
+                              onClick={() => setShowAddAttribute(true)}
+                              className="flex gap-1 btn-primary text-[8px]! px-1 py-0.5 rounded items-center cursor-pointer"
+                            >
+                              <Plus className="w-2 h-2" />{" "}
+                              <span className="mt-[.5px]">New</span>
+                            </button>
+                          </div>
                           <Dropdown
                             value={selectedAttrName}
                             options={availableAttributes.map((a) => ({
@@ -908,19 +946,13 @@ export const CreateProductWizard = () => {
                             className="w-full"
                           />
                         </div>
-                        <button
-                          onClick={() => setShowAddAttribute(true)}
-                          className="text-blue-600 text-sm flex items-center gap-1 mt-2"
-                        >
-                          <Plus className="w-4 h-4" /> New Attribute
-                        </button>
                       </div>
                     </div>
                     <div className="mb-4">
                       <label className="block text-sm font-medium mb-2">
                         Current Attributes
                       </label>
-                      <div className="flex flex-wrap gap-2 min-h-[60px] p-3 bg-white rounded-lg border border-dashed">
+                      <div className="flex flex-wrap gap-2 min-h-[60px] p-3 rounded-md border border-dashed border-gray-200 dark:border-gray-700">
                         {Object.entries(currentAttributes).length === 0 ? (
                           <span className="text-gray-400 text-sm">
                             No attributes selected
@@ -929,7 +961,7 @@ export const CreateProductWizard = () => {
                           Object.entries(currentAttributes).map(([k, v]) => (
                             <span
                               key={k}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 rounded-full text-sm"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-200 dark:bg-blue-800 rounded-full text-sm"
                             >
                               {k}: {v}
                               <X
@@ -943,6 +975,8 @@ export const CreateProductWizard = () => {
                     </div>
                   </>
                 )}
+
+                {/* Enhanced Barcode Section */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium mb-2">
                     Barcode (optional)
@@ -962,7 +996,50 @@ export const CreateProductWizard = () => {
                       <RefreshCw className="w-4 h-4" />
                     </button>
                   </div>
+
+                  {/* Barcode visual container */}
+                  {(variantBarcode || (isEditingMode && editingVariantId)) && (
+                    <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/30">
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center text-sm">
+                          {/* <span className="font-medium text-gray-600 dark:text-gray-400">
+                            SKU:
+                          </span>
+                          <span className="text-gray-800 dark:text-gray-200 font-mono">
+                            {isEditingMode && editingVariantId
+                              ? variants.find((v) => v.id === editingVariantId)
+                                  ?.sku || "—"
+                              : "Will be generated after saving"}
+                          </span> */}
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="font-medium text-gray-600 dark:text-gray-400">
+                            Barcode Number:
+                          </span>
+                          <span className="text-gray-800 dark:text-gray-200 font-mono">
+                            {variantBarcode || "—"}
+                          </span>
+                        </div>
+                        {variantBarcode && (
+                          <div className="flex justify-center pt-2">
+                            <div className="bg-white p-2 rounded shadow-sm">
+                              <Barcode
+                                value={variantBarcode}
+                                format="CODE128"
+                                width={1.5}
+                                height={40}
+                                fontSize={10}
+                                margin={0}
+                                displayValue={true}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
+
                 <div className="flex items-center gap-4 mb-4">
                   <span className="font-medium">Is Imported?</span>
                   <label>
@@ -994,29 +1071,36 @@ export const CreateProductWizard = () => {
                     onChange={(e) => setVariantCountry(e.target.value)}
                   />
                 )}
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={closeVariantForm}>
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="primary"
-                    onClick={saveVariant}
-                    loading={submitting}
-                  >
-                    {isEditingMode
-                      ? isDefaultVariant
-                        ? "Update"
-                        : "Update Variant"
-                      : "Add Variant"}
-                  </Button>
-                </div>
               </div>
             )}
 
-            <DataTable value={variants} stripedRows>
-              <Column header="Name" body={(row) => formatVariantName(row)} />
-              <Column field="sku" header="SKU" />
-              <Column field="barcode" header="Barcode" />
+            <DataTable
+              value={variants}
+              stripedRows
+              emptyMessage="No variants found"
+              rowClassName={() => "table-row"}
+            >
+              <Column
+                header="Name"
+                body={(row) => formatVariantName(row)}
+                sortable
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
+                field="sku"
+                header="SKU"
+                sortable
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
+                field="barcode"
+                header="Barcode"
+                sortable
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
               <Column
                 header="Attributes"
                 body={(row) =>
@@ -1024,15 +1108,23 @@ export const CreateProductWizard = () => {
                     .map(([k, v]) => `${k}:${v}`)
                     .join(", ") || "—"
                 }
+                sortable
+                headerClassName="column-header"
+                bodyClassName="column-body"
               />
               <Column
                 header="Imported"
                 body={(row) => (row.isImported ? "Yes" : "No")}
+                sortable
+                headerClassName="column-header"
+                bodyClassName="column-body"
               />
               <Column
                 header="Images"
                 body={variantImagesBody}
                 style={{ width: "200px" }}
+                headerClassName="column-header"
+                bodyClassName="column-body"
               />
               <Column
                 header="Actions"
@@ -1040,29 +1132,32 @@ export const CreateProductWizard = () => {
                   <div className="flex gap-2">
                     <button
                       onClick={() => openEditVariantForm(row)}
-                      className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                      className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                       title="Edit"
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => deleteVariant(row.id)}
-                      className="p-1 text-red-600 hover:bg-red-50 rounded"
+                      className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
                       title="Delete"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 )}
+                style={{ width: "120px" }}
+                headerClassName="column-header"
+                bodyClassName="column-body"
               />
             </DataTable>
 
-            <div className="flex justify-between pt-4 border-t">
+            <div className="modal-sticky-footer gap-4">
               <Button variant="outline" onClick={() => setStep(1)}>
-                ← Back
+                <ChevronLeft className="w-4 h-4" /> Back
               </Button>
               <Button variant="primary" onClick={() => setStep(3)}>
-                Next: Stock & Pricing →
+                Pricing <ChevronRight className="w-4 h-4 mt-1" />
               </Button>
             </div>
           </div>
@@ -1203,22 +1298,22 @@ export const CreateProductWizard = () => {
         {showAddAttribute && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-              <div className="flex border-b mb-4">
+              <div className="flex  mb-6">
                 <button
-                  className={`flex-1 pb-2 text-center ${attributeTab === "addValue" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"}`}
+                  className={` cursor-pointer flex-1 pb-2 text-center ${attributeTab === "addValue" ? "border-b-2 border-blue-500 text-blue-600" : "border-b-2 text-gray-500"} text-sm`}
                   onClick={() => setAttributeTab("addValue")}
                 >
                   Add Value to Existing
                 </button>
                 <button
-                  className={`flex-1 pb-2 text-center ${attributeTab === "newAttr" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"}`}
+                  className={` cursor-pointer flex-1 pb-2 text-center ${attributeTab === "newAttr" ? "border-b-2 border-blue-500 text-blue-600" : " border-b-2 text-gray-500"} text-sm`}
                   onClick={() => setAttributeTab("newAttr")}
                 >
                   Add New Attribute
                 </button>
               </div>
               {attributeTab === "addValue" && (
-                <div>
+                <div className="flex flex-col gap-4 ">
                   <Dropdown
                     value={existingAttrName}
                     options={availableAttributes.map((a) => ({
@@ -1227,7 +1322,7 @@ export const CreateProductWizard = () => {
                     }))}
                     onChange={(e) => setExistingAttrName(e.value)}
                     placeholder="Select attribute"
-                    className="w-full mb-3"
+                    className="w-full mb-3 "
                   />
                   <InputField
                     label="New Value(s) (comma separated)"
@@ -1248,7 +1343,7 @@ export const CreateProductWizard = () => {
                 </div>
               )}
               {attributeTab === "newAttr" && (
-                <div>
+                <div className="flex flex-col gap-4">
                   <InputField
                     label="Attribute Name"
                     value={newAttributeName}

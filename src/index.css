@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&family=Public+Sans:wght@100..900&display=swap'); */
 
@@ -248,23 +248,46 @@ textarea::-webkit-scrollbar-thumb {
   background: #475569;
 }
 
-
+/* FIXED QUILL BLOCKS FOR TAILWIND V4 SINTAX */
 .dark .ql-picker-options {
-  @apply bg-gray-800! border-gray-600!
+  @apply !bg-gray-800 !border-gray-600;
 }
 
-.ql-picker-label, .ql-snow .ql-stroke {
-  @apply text-gray-800 stroke-gray-800
+.ql-picker-label,
+.ql-snow .ql-stroke {
+  @apply text-gray-800 stroke-gray-800;
 }
 
-.dark .ql-picker-label, .dark .ql-snow .ql-stroke {
-  @apply text-gray-200 stroke-gray-200
+.dark .ql-picker-label,
+.dark .ql-snow .ql-stroke {
+  @apply text-gray-200 stroke-gray-200;
 }
 
-.ql-toolbar.ql-snow, .ql-container {
-  @apply border-gray-200!
+.ql-toolbar.ql-snow,
+.ql-container {
+  @apply !border-gray-200;
 }
 
-.dark .ql-toolbar.ql-snow, .dark .ql-container {
-  @apply border-gray-600!
+.dark .ql-toolbar.ql-snow,
+.dark .ql-container {
+  @apply !border-gray-600;
+}
+
+/* PLAIN CSS STYLES */
+.modal-sticky-footer {
+  display: flex;
+  justify-content: flex-end;
+  position: sticky;
+  bottom: 0;
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: #e5e7eb;
+  background-color: #e5e7eb;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.dark .modal-sticky-footer {
+  border-top-color: #374151;
+  background-color: #1f2937;
 }

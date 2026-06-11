@@ -530,6 +530,7 @@ export const Product = () => {
         {/* ===== CREATE MODAL with full wizard ===== */}
         {modalFor === "create" && (
           <Modal
+            closeOnOverlayClick={false}
             isOpen={true}
             onClose={closeModal}
             title="Create New Product"

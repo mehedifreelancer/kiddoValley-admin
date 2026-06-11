@@ -1,6 +1,6 @@
-import React from "react";
-import { Dialog } from "primereact/dialog";
 import { X } from "lucide-react";
+import { Dialog } from "primereact/dialog";
+import React from "react";
 
 export type ModalSize = "xs" | "sm" | "md" | "lg" | "xl" | "full";
 
@@ -86,7 +86,7 @@ const Modal: React.FC<ModalProps> = ({
       modal
       blockScroll
     >
-      <div className={`p-3 bg-white dark:bg-gray-800 scrollbar-hide`}>
+      <div className={`px-2 bg-white dark:bg-gray-800 scrollbar-hide`}>
         {children}
       </div>
     </Dialog>
