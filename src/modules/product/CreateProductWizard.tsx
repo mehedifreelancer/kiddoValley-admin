@@ -162,7 +162,7 @@ export const CreateProductWizard = () => {
   const [formErrors, setFormErrors] = useState<any>({});
   const [originalProduct, setOriginalProduct] = useState<any>(null);
 
-  // Step 2: variants and inline form (now hidden by default)
+  // Step 2: variants and inline form
   const [variants, setVariants] = useState<any[]>([]);
   const [editingVariantId, setEditingVariantId] = useState<number | null>(null);
   const [currentAttributes, setCurrentAttributes] = useState<
@@ -185,16 +185,105 @@ export const CreateProductWizard = () => {
   const [showVariantForm, setShowVariantForm] = useState(false);
   const [isEditingMode, setIsEditingMode] = useState(false);
 
-  // Step 3
-  const [batchFormData, setBatchFormData] = useState<{
+  // Step 3: pending price sets (temporary, not yet saved)
+  const [pendingStocks, setPendingStocks] = useState<{
+    [variantId: number]: Array<{
+      id: string;
+      buyingPrice: number;
+      sellingPrice: number;
+      discount: number;
+    }>;
+  }>({});
+  // Input form for adding a new price set
+  const [newPriceSet, setNewPriceSet] = useState<{
     [variantId: number]: {
       buyingPrice: number;
       sellingPrice: number;
       discount: number;
-      quantity: number;
     };
   }>({});
 
+  // Helper to add a temporary price set row
+  const addTempStock = (variantId: number) => {
+    const formData = newPriceSet[variantId];
+    if (!formData || formData.buyingPrice <= 0 || formData.sellingPrice <= 0) {
+      toast.error("Please fill buying price and MRP");
+      return;
+    }
+    const newId = `temp-${Date.now()}-${Math.random()}`;
+    setPendingStocks((prev) => ({
+      ...prev,
+      [variantId]: [
+        ...(prev[variantId] || []),
+        {
+          id: newId,
+          buyingPrice: formData.buyingPrice,
+          sellingPrice: formData.sellingPrice,
+          discount: formData.discount,
+        },
+      ],
+    }));
+    // Clear the input form for this variant
+    setNewPriceSet((prev) => ({
+      ...prev,
+      [variantId]: { buyingPrice: 0, sellingPrice: 0, discount: 0 },
+    }));
+  };
+
+  // Helper to remove a temporary row
+  const removeTempStock = (variantId: number, tempId: string) => {
+    setPendingStocks((prev) => ({
+      ...prev,
+      [variantId]: (prev[variantId] || []).filter((p) => p.id !== tempId),
+    }));
+  };
+
+  // Update a temporary row field
+  const updateTempStock = (
+    variantId: number,
+    tempId: string,
+    field: "buyingPrice" | "sellingPrice" | "discount",
+    value: number,
+  ) => {
+    setPendingStocks((prev) => ({
+      ...prev,
+      [variantId]: (prev[variantId] || []).map((p) =>
+        p.id === tempId ? { ...p, [field]: value } : p,
+      ),
+    }));
+  };
+
+  // Save all pending stocks to the database
+  const saveAllPendingStocks = async () => {
+    if (Object.keys(pendingStocks).length === 0) return;
+    try {
+      setSubmitting(true);
+      for (const variantIdStr of Object.keys(pendingStocks)) {
+        const variantId = parseInt(variantIdStr);
+        const stocks = pendingStocks[variantId] || [];
+        for (const stock of stocks) {
+          if (stock.buyingPrice > 0 && stock.sellingPrice > 0) {
+            await api.post("/stock/add", {
+              variantId,
+              batchNo: "",
+              buyingOrMakingPrice: stock.buyingPrice,
+              sellingPrice: stock.sellingPrice,
+              discountPercent: stock.discount,
+              quantity: 0,
+            });
+          }
+        }
+      }
+      setPendingStocks({});
+      await fetchVariants();
+    } catch (err) {
+      throw err;
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Step 1 & Step 2 functions (unchanged)
   useEffect(() => {
     const loadCategories = async () => {
       try {
@@ -363,7 +452,6 @@ export const CreateProductWizard = () => {
     }
   };
 
-  // Helper: delete the default variant (empty attributes) if it exists
   const deleteDefaultVariantIfExists = async () => {
     const defaultVariant = variants.find(
       (v) => Object.keys(v.attributes || {}).length === 0,
@@ -553,114 +641,6 @@ export const CreateProductWizard = () => {
     );
   };
 
-  const addStock = async (variantId: number) => {
-    const data = batchFormData[variantId];
-    if (
-      !data ||
-      data.buyingPrice <= 0 ||
-      data.sellingPrice <= 0 ||
-      data.quantity <= 0
-    ) {
-      toast.error("Fill all stock fields correctly");
-      return;
-    }
-    try {
-      setSubmitting(true);
-      await api.post("/stock/add", {
-        variantId,
-        batchNo: "",
-        buyingOrMakingPrice: data.buyingPrice,
-        sellingPrice: data.sellingPrice,
-        discountPercent: data.discount,
-        quantity: data.quantity,
-      });
-      toast.success("Stock added");
-      await fetchVariants();
-      setBatchFormData((prev) => ({
-        ...prev,
-        [variantId]: {
-          buyingPrice: 0,
-          sellingPrice: 0,
-          discount: 0,
-          quantity: 0,
-        },
-      }));
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to add stock");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const addAllPendingStocks = async () => {
-    for (const variant of variants) {
-      const stockData = batchFormData[variant.id];
-      if (
-        stockData &&
-        stockData.quantity > 0 &&
-        stockData.buyingPrice > 0 &&
-        stockData.sellingPrice > 0
-      ) {
-        try {
-          await api.post("/stock/add", {
-            variantId: variant.id,
-            batchNo: "",
-            buyingOrMakingPrice: stockData.buyingPrice,
-            sellingPrice: stockData.sellingPrice,
-            discountPercent: stockData.discount,
-            quantity: stockData.quantity,
-          });
-          setBatchFormData((prev) => ({
-            ...prev,
-            [variant.id]: {
-              buyingPrice: 0,
-              sellingPrice: 0,
-              discount: 0,
-              quantity: 0,
-            },
-          }));
-        } catch (err) {
-          throw new Error(`Failed to add stock for variant ${variant.id}`);
-        }
-      }
-    }
-  };
-
-  const handlePublish = async () => {
-    if (!productId) return;
-    if (submitting) return;
-    try {
-      setSubmitting(true);
-      await addAllPendingStocks();
-      await api.patch(`/products/publish/${productId}`);
-      toast.success("Product registered successfully!");
-      navigate("/products/product-list");
-    } catch (err: any) {
-      toast.error(
-        err.message ||
-          err.response?.data?.message ||
-          "Failed to publish product",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleSaveDraft = async () => {
-    if (!productId) return;
-    if (submitting) return;
-    try {
-      setSubmitting(true);
-      await addAllPendingStocks();
-      toast.success("Product saved to draft successfully!");
-      navigate("/products/product-list");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save draft");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -680,10 +660,8 @@ export const CreateProductWizard = () => {
   };
 
   const formatVariantName = (variant: any) => {
-    const attrEntries = Object.entries(variant.attributes || {});
-    if (attrEntries.length === 0) return productName;
-    const attrStr = attrEntries.map(([k, v]) => `${k}: ${v}`).join(", ");
-    return `${productName} (${attrStr})`;
+    // Only used in Step 2 – we return productName directly
+    return productName;
   };
 
   const handleValueSelect = (value: string) => {
@@ -742,6 +720,41 @@ export const CreateProductWizard = () => {
     isEditingMode &&
     editingVariantId &&
     Object.keys(currentAttributes).length === 0;
+
+  const handleSaveDraft = async () => {
+    if (!productId) return;
+    if (submitting) return;
+    try {
+      setSubmitting(true);
+      await saveAllPendingStocks();
+      toast.success("Product saved to draft successfully!");
+      navigate("/products/product-list");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save draft");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!productId) return;
+    if (submitting) return;
+    try {
+      setSubmitting(true);
+      await saveAllPendingStocks();
+      await api.patch(`/products/publish/${productId}`);
+      toast.success("Product registered successfully!");
+      navigate("/products/product-list");
+    } catch (err: any) {
+      toast.error(
+        err.message ||
+          err.response?.data?.message ||
+          "Failed to publish product",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -997,21 +1010,9 @@ export const CreateProductWizard = () => {
                     </button>
                   </div>
 
-                  {/* Barcode visual container */}
                   {(variantBarcode || (isEditingMode && editingVariantId)) && (
                     <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/30">
                       <div className="space-y-2">
-                        <div className="flex justify-between items-center text-sm">
-                          {/* <span className="font-medium text-gray-600 dark:text-gray-400">
-                            SKU:
-                          </span>
-                          <span className="text-gray-800 dark:text-gray-200 font-mono">
-                            {isEditingMode && editingVariantId
-                              ? variants.find((v) => v.id === editingVariantId)
-                                  ?.sku || "—"
-                              : "Will be generated after saving"}
-                          </span> */}
-                        </div>
                         <div className="flex justify-between items-center text-sm">
                           <span className="font-medium text-gray-600 dark:text-gray-400">
                             Barcode Number:
@@ -1082,7 +1083,7 @@ export const CreateProductWizard = () => {
             >
               <Column
                 header="Name"
-                body={(row) => formatVariantName(row)}
+                body={() => productName}
                 sortable
                 headerClassName="column-header"
                 bodyClassName="column-body"
@@ -1164,116 +1165,240 @@ export const CreateProductWizard = () => {
         )}
 
         {step === 3 && (
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold">Stock & Pricing</h3>
-            {variants.map((variant) => (
-              <div
-                key={variant.id}
-                className="border rounded-lg p-5 bg-gray-50 dark:bg-gray-800/50"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h4 className="font-medium text-lg">
-                      {formatVariantName(variant)}
-                    </h4>
-                    <p className="text-sm text-gray-500">SKU: {variant.sku}</p>
+          <div className="space-y-5">
+            {variants.map((variant) => {
+              const existingStocks = variant.stocks || [];
+              const tempStocks = pendingStocks[variant.id] || [];
+              const allRows = [
+                ...existingStocks.map((s) => ({ ...s, _isTemp: false })),
+                ...tempStocks.map((t) => ({ ...t, _isTemp: true })),
+              ];
+              const formValues = newPriceSet[variant.id] || {
+                buyingPrice: 0,
+                sellingPrice: 0,
+                discount: 0,
+              };
+
+              return (
+                <div
+                  key={variant.id}
+                  className="border rounded-md p-5 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+                >
+                  <div className="mb-3">
+                    <h4 className="font-medium text-base">{productName}</h4>
+                    <p className="text-xs text-gray-500">SKU: {variant.sku}</p>
                     {variant.barcode && (
-                      <p className="text-sm text-gray-500">
+                      <p className="text-xs text-gray-500">
                         Barcode: {variant.barcode}
                       </p>
                     )}
                   </div>
-                </div>
-                {variant.stocks && variant.stocks.length > 0 && (
+
+                  {/* Price sets table - styled like Step 2 DataTable */}
                   <DataTable
-                    value={variant.stocks}
+                    value={allRows}
+                    stripedRows
+                    emptyMessage="No price sets added yet"
+                    rowClassName={() => "table-row"}
                     className="mb-4"
-                    size="small"
                   >
-                    <Column field="batchNo" header="Batch" />
-                    <Column field="buyingOrMakingPrice" header="Buying Price" />
-                    <Column field="sellingPrice" header="Selling Price" />
-                    <Column field="discountPercent" header="Discount %" />
-                    <Column field="currentQty" header="Quantity" />
+                    <Column
+                      header="Buying Price"
+                      body={(row) =>
+                        row._isTemp ? (
+                          <input
+                            type="number"
+                            value={row.buyingPrice}
+                            onChange={(e) =>
+                              updateTempStock(
+                                variant.id,
+                                row.id,
+                                "buyingPrice",
+                                parseFloat(e.target.value) || 0,
+                              )
+                            }
+                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        ) : (
+                          <span className="text-xs">
+                            {row.buyingOrMakingPrice}
+                          </span>
+                        )
+                      }
+                      headerClassName="column-header text-xs"
+                      bodyClassName="column-body text-xs py-1"
+                    />
+                    <Column
+                      header="MRP"
+                      body={(row) =>
+                        row._isTemp ? (
+                          <input
+                            type="number"
+                            value={row.sellingPrice}
+                            onChange={(e) =>
+                              updateTempStock(
+                                variant.id,
+                                row.id,
+                                "sellingPrice",
+                                parseFloat(e.target.value) || 0,
+                              )
+                            }
+                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        ) : (
+                          <span className="text-xs">{row.sellingPrice}</span>
+                        )
+                      }
+                      headerClassName="column-header text-xs"
+                      bodyClassName="column-body text-xs py-1"
+                    />
+                    <Column
+                      header="Discount %"
+                      body={(row) =>
+                        row._isTemp ? (
+                          <input
+                            type="number"
+                            value={row.discount}
+                            onChange={(e) =>
+                              updateTempStock(
+                                variant.id,
+                                row.id,
+                                "discount",
+                                parseFloat(e.target.value) || 0,
+                              )
+                            }
+                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        ) : (
+                          <span className="text-xs">{row.discountPercent}</span>
+                        )
+                      }
+                      headerClassName="column-header text-xs"
+                      bodyClassName="column-body text-xs py-1"
+                    />
+                    <Column
+                      header="Actions"
+                      body={(row) =>
+                        row._isTemp ? (
+                          <button
+                            onClick={() => removeTempStock(variant.id, row.id)}
+                            className="text-red-500 hover:text-red-700"
+                            title="Remove unsaved price set"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        ) : null
+                      }
+                      style={{ width: "50px" }}
+                      headerClassName="column-header text-xs"
+                      bodyClassName="column-body text-xs py-1"
+                    />
                   </DataTable>
-                )}
-                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <h5 className="text-sm font-medium mb-2">
-                    Add new stock batch
-                  </h5>
-                  <div className="grid grid-cols-4 gap-3 items-end">
-                    <InputField
-                      label="Buying Price"
-                      type="number"
-                      value={batchFormData[variant.id]?.buyingPrice || 0}
-                      onChange={(e) =>
-                        setBatchFormData((prev) => ({
-                          ...prev,
-                          [variant.id]: {
-                            ...prev[variant.id],
-                            buyingPrice: Number(e.target.value),
-                          },
-                        }))
-                      }
-                    />
-                    <InputField
-                      label="Selling Price"
-                      type="number"
-                      value={batchFormData[variant.id]?.sellingPrice || 0}
-                      onChange={(e) =>
-                        setBatchFormData((prev) => ({
-                          ...prev,
-                          [variant.id]: {
-                            ...prev[variant.id],
-                            sellingPrice: Number(e.target.value),
-                          },
-                        }))
-                      }
-                    />
-                    <InputField
-                      label="Discount %"
-                      type="number"
-                      value={batchFormData[variant.id]?.discount || 0}
-                      onChange={(e) =>
-                        setBatchFormData((prev) => ({
-                          ...prev,
-                          [variant.id]: {
-                            ...prev[variant.id],
-                            discount: Number(e.target.value),
-                          },
-                        }))
-                      }
-                    />
-                    <InputField
-                      label="Quantity"
-                      type="number"
-                      value={batchFormData[variant.id]?.quantity || 0}
-                      onChange={(e) =>
-                        setBatchFormData((prev) => ({
-                          ...prev,
-                          [variant.id]: {
-                            ...prev[variant.id],
-                            quantity: Number(e.target.value),
-                          },
-                        }))
-                      }
-                    />
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => addStock(variant.id)}
-                      disabled={submitting}
-                      className="col-span-4 mt-2"
-                    >
-                      Add Stock Batch
-                    </Button>
+
+                  {/* Add new price set form - inputs row, then button row */}
+                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Buying Price
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="0"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          value={formValues.buyingPrice}
+                          onChange={(e) =>
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: {
+                                ...prev[variant.id],
+                                buyingPrice: parseFloat(e.target.value) || 0,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          MRP
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="0"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          value={formValues.sellingPrice}
+                          onChange={(e) =>
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: {
+                                ...prev[variant.id],
+                                sellingPrice: parseFloat(e.target.value) || 0,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Discount %
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="0"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          value={formValues.discount}
+                          onChange={(e) =>
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: {
+                                ...prev[variant.id],
+                                discount: parseFloat(e.target.value) || 0,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end mt-3">
+                      <div className="relative group">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => addTempStock(variant.id)}
+                          className="flex items-center gap-1"
+                        >
+                          Add Price Set
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="lucide lucide-info ml-1"
+                          >
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M12 16v-4" />
+                            <path d="M12 8h.01" />
+                          </svg>
+                        </Button>
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-20 w-56 p-2 text-xs text-white bg-gray-800 rounded shadow-lg whitespace-normal">
+                          Add multiple price sets for different purchase costs
+                          or MRPs. Unsaved rows can be removed. All changes are
+                          saved when you click Save Draft or Publish.
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-            <div className="flex justify-between pt-4 border-t">
+              );
+            })}
+            <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
               <Button variant="outline" onClick={() => setStep(2)}>
-                ← Back
+                <ChevronLeft className="w-4 h-4" /> Back
               </Button>
               <div className="flex gap-3">
                 <Button
@@ -1298,22 +1423,22 @@ export const CreateProductWizard = () => {
         {showAddAttribute && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-              <div className="flex  mb-6">
+              <div className="flex mb-6">
                 <button
-                  className={` cursor-pointer flex-1 pb-2 text-center ${attributeTab === "addValue" ? "border-b-2 border-blue-500 text-blue-600" : "border-b-2 text-gray-500"} text-sm`}
+                  className={`cursor-pointer flex-1 pb-2 text-center ${attributeTab === "addValue" ? "border-b-2 border-blue-500 text-blue-600" : "border-b-2 text-gray-500"} text-sm`}
                   onClick={() => setAttributeTab("addValue")}
                 >
                   Add Value to Existing
                 </button>
                 <button
-                  className={` cursor-pointer flex-1 pb-2 text-center ${attributeTab === "newAttr" ? "border-b-2 border-blue-500 text-blue-600" : " border-b-2 text-gray-500"} text-sm`}
+                  className={`cursor-pointer flex-1 pb-2 text-center ${attributeTab === "newAttr" ? "border-b-2 border-blue-500 text-blue-600" : "border-b-2 text-gray-500"} text-sm`}
                   onClick={() => setAttributeTab("newAttr")}
                 >
                   Add New Attribute
                 </button>
               </div>
               {attributeTab === "addValue" && (
-                <div className="flex flex-col gap-4 ">
+                <div className="flex flex-col gap-4">
                   <Dropdown
                     value={existingAttrName}
                     options={availableAttributes.map((a) => ({
@@ -1322,7 +1447,7 @@ export const CreateProductWizard = () => {
                     }))}
                     onChange={(e) => setExistingAttrName(e.value)}
                     placeholder="Select attribute"
-                    className="w-full mb-3 "
+                    className="w-full mb-3"
                   />
                   <InputField
                     label="New Value(s) (comma separated)"
