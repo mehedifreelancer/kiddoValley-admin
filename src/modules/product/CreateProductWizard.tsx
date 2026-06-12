@@ -165,16 +165,12 @@ export const CreateProductWizard = () => {
   // Step 2: variants and inline form
   const [variants, setVariants] = useState<any[]>([]);
   const [editingVariantId, setEditingVariantId] = useState<number | null>(null);
-  const [currentAttributes, setCurrentAttributes] = useState<
-    Record<string, string>
-  >({});
+  const [currentAttributes, setCurrentAttributes] = useState<Record<string, string>>({});
   const [selectedAttrName, setSelectedAttrName] = useState("");
   const [selectedAttrValue, setSelectedAttrValue] = useState("");
   const [availableAttributes, setAvailableAttributes] = useState<any[]>([]);
   const [showAddAttribute, setShowAddAttribute] = useState(false);
-  const [attributeTab, setAttributeTab] = useState<"addValue" | "newAttr">(
-    "addValue",
-  );
+  const [attributeTab, setAttributeTab] = useState<"addValue" | "newAttr">("addValue");
   const [existingAttrName, setExistingAttrName] = useState("");
   const [newValueInput, setNewValueInput] = useState("");
   const [newAttributeName, setNewAttributeName] = useState("");
@@ -192,6 +188,7 @@ export const CreateProductWizard = () => {
       buyingPrice: number;
       sellingPrice: number;
       discount: number;
+      isEditing?: boolean; // track if this row is in edit mode
     }>;
   }>({});
   // Input form for adding a new price set
@@ -220,6 +217,7 @@ export const CreateProductWizard = () => {
           buyingPrice: formData.buyingPrice,
           sellingPrice: formData.sellingPrice,
           discount: formData.discount,
+          isEditing: false,
         },
       ],
     }));
@@ -238,24 +236,54 @@ export const CreateProductWizard = () => {
     }));
   };
 
-  // Update a temporary row field
+  // Enter edit mode for a temporary row
+  const editTempStock = (variantId: number, tempId: string) => {
+    setPendingStocks((prev) => ({
+      ...prev,
+      [variantId]: (prev[variantId] || []).map((p) =>
+        p.id === tempId ? { ...p, isEditing: true } : p
+      ),
+    }));
+  };
+
+  // Save edited temporary row
+  const saveTempStock = (variantId: number, tempId: string) => {
+    setPendingStocks((prev) => ({
+      ...prev,
+      [variantId]: (prev[variantId] || []).map((p) =>
+        p.id === tempId ? { ...p, isEditing: false } : p
+      ),
+    }));
+  };
+
+  // Update a temporary row field while editing
   const updateTempStock = (
     variantId: number,
     tempId: string,
     field: "buyingPrice" | "sellingPrice" | "discount",
-    value: number,
+    value: number
   ) => {
     setPendingStocks((prev) => ({
       ...prev,
       [variantId]: (prev[variantId] || []).map((p) =>
-        p.id === tempId ? { ...p, [field]: value } : p,
+        p.id === tempId ? { ...p, [field]: value } : p
       ),
     }));
   };
 
   // Save all pending stocks to the database
   const saveAllPendingStocks = async () => {
+    // First, check that every variant has at least one price set (existing OR pending)
+    for (const variant of variants) {
+      const existingCount = variant.stocks?.length || 0;
+      const pendingCount = pendingStocks[variant.id]?.length || 0;
+      if (existingCount + pendingCount === 0) {
+        throw new Error(`Variant "${productName}" must have at least one price set.`);
+      }
+    }
+
     if (Object.keys(pendingStocks).length === 0) return;
+
     try {
       setSubmitting(true);
       for (const variantIdStr of Object.keys(pendingStocks)) {
@@ -283,7 +311,7 @@ export const CreateProductWizard = () => {
     }
   };
 
-  // Step 1 & Step 2 functions (unchanged)
+  // Step 1 & Step 2 functions (unchanged – keep your existing code)
   useEffect(() => {
     const loadCategories = async () => {
       try {
@@ -377,20 +405,16 @@ export const CreateProductWizard = () => {
     let hasChanges = false;
     if (productId && originalProduct) {
       if (productName !== originalProduct.name) hasChanges = true;
-      if (forceOrderPriority !== originalProduct.forceOrderPriority)
-        hasChanges = true;
+      if (forceOrderPriority !== originalProduct.forceOrderPriority) hasChanges = true;
       if (videoUrl !== (originalProduct.videoUrl || "")) hasChanges = true;
-      if (productDetails !== (originalProduct.description || ""))
-        hasChanges = true;
-      if (selectedCategory?.id !== originalProduct.categoryId)
-        hasChanges = true;
+      if (productDetails !== (originalProduct.description || "")) hasChanges = true;
+      if (selectedCategory?.id !== originalProduct.categoryId) hasChanges = true;
       if (imageFiles.length > 0) hasChanges = true;
       const currentUrls = imageList.map((img) => img.imgUrl).sort();
       const originalUrls = (originalProduct.images || [])
         .map((img: any) => img.imgUrl)
         .sort();
-      if (JSON.stringify(currentUrls) !== JSON.stringify(originalUrls))
-        hasChanges = true;
+      if (JSON.stringify(currentUrls) !== JSON.stringify(originalUrls)) hasChanges = true;
     }
 
     if (!productId) {
@@ -426,10 +450,7 @@ export const CreateProductWizard = () => {
           if (videoUrl) formData.append("videoUrl", videoUrl);
           if (productDetails) formData.append("description", productDetails);
           if (existingImagesToKeep.length) {
-            formData.append(
-              "existingImages",
-              JSON.stringify(existingImagesToKeep),
-            );
+            formData.append("existingImages", JSON.stringify(existingImagesToKeep));
           } else {
             formData.append("existingImages", JSON.stringify([]));
           }
@@ -497,9 +518,7 @@ export const CreateProductWizard = () => {
     if (submitting) return;
 
     if (!isEditingMode && Object.keys(currentAttributes).length === 0) {
-      toast.error(
-        "Please add at least one attribute-value pair for new variant",
-      );
+      toast.error("Please add at least one attribute-value pair for new variant");
       return;
     }
 
@@ -535,9 +554,7 @@ export const CreateProductWizard = () => {
 
   const deleteVariant = async (id: number) => {
     if (variants.length === 1) {
-      toast.error(
-        "Product must have at least one variant. Cannot delete the last variant.",
-      );
+      toast.error("Product must have at least one variant. Cannot delete the last variant.");
       return;
     }
     if (!confirm("Are you sure you want to delete this variant?")) return;
@@ -553,10 +570,7 @@ export const CreateProductWizard = () => {
     }
   };
 
-  const handleVariantImageUpload = async (
-    variantId: number,
-    files: FileList | null,
-  ) => {
+  const handleVariantImageUpload = async (variantId: number, files: FileList | null) => {
     if (!files || files.length === 0) return;
     const formData = new FormData();
     const variant = variants.find((v) => v.id === variantId);
@@ -632,9 +646,7 @@ export const CreateProductWizard = () => {
             accept="image/*"
             multiple
             className="hidden"
-            onChange={(e) =>
-              handleVariantImageUpload(rowData.id, e.target.files)
-            }
+            onChange={(e) => handleVariantImageUpload(rowData.id, e.target.files)}
           />
         </label>
       </div>
@@ -653,16 +665,11 @@ export const CreateProductWizard = () => {
     setImageList([]);
     setImageFiles([]);
     if (imageList[0]?.id) {
-      setExistingImagesToKeep((prev) =>
-        prev.filter((img) => img.id !== imageList[0].id),
-      );
+      setExistingImagesToKeep((prev) => prev.filter((img) => img.id !== imageList[0].id));
     }
   };
 
-  const formatVariantName = (variant: any) => {
-    // Only used in Step 2 – we return productName directly
-    return productName;
-  };
+  const formatVariantName = (variant: any) => productName;
 
   const handleValueSelect = (value: string) => {
     if (!selectedAttrName || !value) return;
@@ -678,10 +685,7 @@ export const CreateProductWizard = () => {
   const handleAddValueToExisting = async () => {
     if (!existingAttrName || !newValueInput.trim())
       return toast.error("Select attribute and enter value(s)");
-    const newValues = newValueInput
-      .split(",")
-      .map((v) => v.trim())
-      .filter(Boolean);
+    const newValues = newValueInput.split(",").map((v) => v.trim()).filter(Boolean);
     const attr = availableAttributes.find((a) => a.name === existingAttrName);
     if (!attr) return;
     const merged = [...new Set([...attr.values, ...newValues])];
@@ -716,10 +720,19 @@ export const CreateProductWizard = () => {
     }
   }, [step, productId]);
 
-  const isDefaultVariant =
-    isEditingMode &&
-    editingVariantId &&
-    Object.keys(currentAttributes).length === 0;
+  const isDefaultVariant = isEditingMode && editingVariantId && Object.keys(currentAttributes).length === 0;
+
+  // Helper to determine if any variant has no price set (used to disable save buttons)
+  const hasMissingPriceSet = () => {
+    for (const variant of variants) {
+      const existingCount = variant.stocks?.length || 0;
+      const pendingCount = pendingStocks[variant.id]?.length || 0;
+      if (existingCount + pendingCount === 0) {
+        return true;
+      }
+    }
+    return false;
+  };
 
   const handleSaveDraft = async () => {
     if (!productId) return;
@@ -746,14 +759,17 @@ export const CreateProductWizard = () => {
       toast.success("Product registered successfully!");
       navigate("/products/product-list");
     } catch (err: any) {
-      toast.error(
-        err.message ||
-          err.response?.data?.message ||
-          "Failed to publish product",
-      );
+      toast.error(err.message || err.response?.data?.message || "Failed to publish product");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Count total price sets for each variant (used to conditionally show table)
+  const getPriceSetCount = (variant: any) => {
+    const existing = variant.stocks?.length || 0;
+    const pending = pendingStocks[variant.id]?.length || 0;
+    return existing + pending;
   };
 
   return (
@@ -771,25 +787,17 @@ export const CreateProductWizard = () => {
                 error={formErrors.name}
               />
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Category *
-                </label>
+                <label className="block text-sm font-medium mb-1">Category *</label>
                 <Dropdown
                   value={selectedCategory?.id}
                   options={categories}
-                  onChange={(e) =>
-                    setSelectedCategory(
-                      categories.find((c) => c.id === e.value),
-                    )
-                  }
+                  onChange={(e) => setSelectedCategory(categories.find((c) => c.id === e.value))}
                   optionLabel="name"
                   optionValue="id"
                   placeholder="Select category"
                   className="w-full"
                 />
-                {formErrors.category && (
-                  <p className="text-red-500 text-xs">{formErrors.category}</p>
-                )}
+                {formErrors.category && <p className="text-red-500 text-xs">{formErrors.category}</p>}
               </div>
               <InputField
                 label="Force Order Priority (0 = disabled)"
@@ -804,9 +812,7 @@ export const CreateProductWizard = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Description
-              </label>
+              <label className="block text-sm font-medium mb-2">Description</label>
               <Editor
                 value={productDetails}
                 onTextChange={(e) => setProductDetails(e.htmlValue as any)}
@@ -814,28 +820,18 @@ export const CreateProductWizard = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Thumbnail Image (only 1 allowed) *
-              </label>
+              <label className="block text-sm font-medium mb-2">Thumbnail Image (only 1 allowed) *</label>
               <div className="mb-2">
                 <div className="flex flex-col items-center justify-center w-full">
                   <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                       <Upload className="w-8 h-8 mb-2 text-gray-500 dark:text-gray-400" />
                       <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-                        <span className="font-semibold">Click to upload</span>{" "}
-                        or drag and drop
+                        <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Only one image (thumbnail)
-                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Only one image (thumbnail)</p>
                     </div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                   </label>
                 </div>
               </div>
@@ -858,14 +854,10 @@ export const CreateProductWizard = () => {
                   ))}
                 </div>
               )}
-              {formErrors.images && (
-                <p className="text-red-500 text-xs">{formErrors.images}</p>
-              )}
+              {formErrors.images && <p className="text-red-500 text-xs">{formErrors.images}</p>}
             </div>
             <div className="modal-sticky-footer">
-              <Button onClick={handleStep1Next} loading={submitting}>
-                Save & Next →
-              </Button>
+              <Button onClick={handleStep1Next} loading={submitting}>Save & Next →</Button>
             </div>
           </div>
         )}
@@ -874,21 +866,14 @@ export const CreateProductWizard = () => {
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
               <span className="text-sm text-gray-700 dark:text-gray-300">
-                💡 Do you have variants such as color, size, etc? Add variant
-                from here.
+                💡 Do you have variants such as color, size, etc? Add variant from here.
               </span>
               <div className="flex gap-2">
                 {showVariantForm && (
-                  <Button variant="outline" onClick={closeVariantForm}>
-                    Cancel
-                  </Button>
+                  <Button variant="outline" onClick={closeVariantForm}>Cancel</Button>
                 )}
                 {showVariantForm ? (
-                  <Button
-                    variant="primary"
-                    onClick={saveVariant}
-                    loading={submitting}
-                  >
+                  <Button variant="primary" onClick={saveVariant} loading={submitting}>
                     {isEditingMode ? "Update Variant" : "Save Variant"}
                   </Button>
                 ) : (
@@ -902,11 +887,7 @@ export const CreateProductWizard = () => {
             {showVariantForm && (
               <div className="border rounded-md p-5 border-gray-200 dark:border-gray-700">
                 <h3 className="text-lg font-semibold mb-4">
-                  {isEditingMode
-                    ? isDefaultVariant
-                      ? "Edit"
-                      : "Edit Variant"
-                    : "Add New Variant"}
+                  {isEditingMode ? (isDefaultVariant ? "Edit" : "Edit Variant") : "Add New Variant"}
                 </h3>
                 {(!isDefaultVariant || !isEditingMode) && (
                   <>
@@ -914,45 +895,27 @@ export const CreateProductWizard = () => {
                       <div className="flex flex-wrap gap-3 items-end">
                         <div className="flex-1">
                           <div className="flex gap-1">
-                            <label className="block text-xs font-medium">
-                              Attribute Name
-                            </label>
+                            <label className="block text-xs font-medium">Attribute Name</label>
                             <button
                               onClick={() => setShowAddAttribute(true)}
                               className="flex gap-1 btn-primary text-[8px]! px-1 py-0.5 rounded items-center cursor-pointer"
                             >
-                              <Plus className="w-2 h-2" />{" "}
-                              <span className="mt-[.5px]">New</span>
+                              <Plus className="w-2 h-2" /> <span className="mt-[.5px]">New</span>
                             </button>
                           </div>
                           <Dropdown
                             value={selectedAttrName}
-                            options={availableAttributes.map((a) => ({
-                              label: a.name,
-                              value: a.name,
-                            }))}
-                            onChange={(e) => {
-                              setSelectedAttrName(e.value);
-                              setSelectedAttrValue("");
-                            }}
+                            options={availableAttributes.map((a) => ({ label: a.name, value: a.name }))}
+                            onChange={(e) => { setSelectedAttrName(e.value); setSelectedAttrValue(""); }}
                             placeholder="Select attribute"
                             className="w-full"
                           />
                         </div>
                         <div className="flex-1">
-                          <label className="block text-xs font-medium">
-                            Attribute Value
-                          </label>
+                          <label className="block text-xs font-medium">Attribute Value</label>
                           <Dropdown
                             value={selectedAttrValue}
-                            options={
-                              availableAttributes
-                                .find((a) => a.name === selectedAttrName)
-                                ?.values.map((v: string) => ({
-                                  label: v,
-                                  value: v,
-                                })) || []
-                            }
+                            options={availableAttributes.find((a) => a.name === selectedAttrName)?.values.map((v: string) => ({ label: v, value: v })) || []}
                             onChange={(e) => handleValueSelect(e.value)}
                             placeholder="Select value"
                             disabled={!selectedAttrName}
@@ -962,25 +925,15 @@ export const CreateProductWizard = () => {
                       </div>
                     </div>
                     <div className="mb-4">
-                      <label className="block text-sm font-medium mb-2">
-                        Current Attributes
-                      </label>
+                      <label className="block text-sm font-medium mb-2">Current Attributes</label>
                       <div className="flex flex-wrap gap-2 min-h-[60px] p-3 rounded-md border border-dashed border-gray-200 dark:border-gray-700">
                         {Object.entries(currentAttributes).length === 0 ? (
-                          <span className="text-gray-400 text-sm">
-                            No attributes selected
-                          </span>
+                          <span className="text-gray-400 text-sm">No attributes selected</span>
                         ) : (
                           Object.entries(currentAttributes).map(([k, v]) => (
-                            <span
-                              key={k}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-200 dark:bg-blue-800 rounded-full text-sm"
-                            >
+                            <span key={k} className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-200 dark:bg-blue-800 rounded-full text-sm">
                               {k}: {v}
-                              <X
-                                className="w-3.5 h-3.5 cursor-pointer hover:text-red-600"
-                                onClick={() => removeCurrentAttribute(k)}
-                              />
+                              <X className="w-3.5 h-3.5 cursor-pointer hover:text-red-600" onClick={() => removeCurrentAttribute(k)} />
                             </span>
                           ))
                         )}
@@ -989,11 +942,8 @@ export const CreateProductWizard = () => {
                   </>
                 )}
 
-                {/* Enhanced Barcode Section */}
                 <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2">
-                    Barcode (optional)
-                  </label>
+                  <label className="block text-sm font-medium mb-2">Barcode (optional)</label>
                   <div className="flex gap-2">
                     <InputField
                       value={variantBarcode}
@@ -1014,25 +964,13 @@ export const CreateProductWizard = () => {
                     <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/30">
                       <div className="space-y-2">
                         <div className="flex justify-between items-center text-sm">
-                          <span className="font-medium text-gray-600 dark:text-gray-400">
-                            Barcode Number:
-                          </span>
-                          <span className="text-gray-800 dark:text-gray-200 font-mono">
-                            {variantBarcode || "—"}
-                          </span>
+                          <span className="font-medium text-gray-600 dark:text-gray-400">Barcode Number:</span>
+                          <span className="text-gray-800 dark:text-gray-200 font-mono">{variantBarcode || "—"}</span>
                         </div>
                         {variantBarcode && (
                           <div className="flex justify-center pt-2">
                             <div className="bg-white p-2 rounded shadow-sm">
-                              <Barcode
-                                value={variantBarcode}
-                                format="CODE128"
-                                width={1.5}
-                                height={40}
-                                fontSize={10}
-                                margin={0}
-                                displayValue={true}
-                              />
+                              <Barcode value={variantBarcode} format="CODE128" width={1.5} height={40} fontSize={10} margin={0} displayValue={true} />
                             </div>
                           </div>
                         )}
@@ -1044,105 +982,39 @@ export const CreateProductWizard = () => {
                 <div className="flex items-center gap-4 mb-4">
                   <span className="font-medium">Is Imported?</span>
                   <label>
-                    <input
-                      type="radio"
-                      name="variantImported"
-                      checked={!variantIsImported}
-                      onChange={() => {
-                        setVariantIsImported(false);
-                        setVariantCountry("");
-                      }}
-                    />{" "}
-                    No
+                    <input type="radio" name="variantImported" checked={!variantIsImported} onChange={() => { setVariantIsImported(false); setVariantCountry(""); }} /> No
                   </label>
                   <label>
-                    <input
-                      type="radio"
-                      name="variantImported"
-                      checked={variantIsImported}
-                      onChange={() => setVariantIsImported(true)}
-                    />{" "}
-                    Yes
+                    <input type="radio" name="variantImported" checked={variantIsImported} onChange={() => setVariantIsImported(true)} /> Yes
                   </label>
                 </div>
                 {variantIsImported && (
-                  <InputField
-                    label="Country of Origin"
-                    value={variantCountry}
-                    onChange={(e) => setVariantCountry(e.target.value)}
-                  />
+                  <InputField label="Country of Origin" value={variantCountry} onChange={(e) => setVariantCountry(e.target.value)} />
                 )}
               </div>
             )}
 
-            <DataTable
-              value={variants}
-              stripedRows
-              emptyMessage="No variants found"
-              rowClassName={() => "table-row"}
-            >
-              <Column
-                header="Name"
-                body={() => productName}
-                sortable
-                headerClassName="column-header"
-                bodyClassName="column-body"
-              />
-              <Column
-                field="sku"
-                header="SKU"
-                sortable
-                headerClassName="column-header"
-                bodyClassName="column-body"
-              />
-              <Column
-                field="barcode"
-                header="Barcode"
-                sortable
-                headerClassName="column-header"
-                bodyClassName="column-body"
-              />
+            <DataTable value={variants} stripedRows emptyMessage="No variants found" rowClassName={() => "table-row"}>
+              <Column header="Name" body={() => productName} sortable headerClassName="column-header" bodyClassName="column-body" />
+              <Column field="sku" header="SKU" sortable headerClassName="column-header" bodyClassName="column-body" />
+              <Column field="barcode" header="Barcode" sortable headerClassName="column-header" bodyClassName="column-body" />
               <Column
                 header="Attributes"
-                body={(row) =>
-                  Object.entries(row.attributes || {})
-                    .map(([k, v]) => `${k}:${v}`)
-                    .join(", ") || "—"
-                }
+                body={(row) => Object.entries(row.attributes || {}).map(([k, v]) => `${k}:${v}`).join(", ") || "—"}
                 sortable
                 headerClassName="column-header"
                 bodyClassName="column-body"
               />
-              <Column
-                header="Imported"
-                body={(row) => (row.isImported ? "Yes" : "No")}
-                sortable
-                headerClassName="column-header"
-                bodyClassName="column-body"
-              />
-              <Column
-                header="Images"
-                body={variantImagesBody}
-                style={{ width: "200px" }}
-                headerClassName="column-header"
-                bodyClassName="column-body"
-              />
+              <Column header="Imported" body={(row) => (row.isImported ? "Yes" : "No")} sortable headerClassName="column-header" bodyClassName="column-body" />
+              <Column header="Images" body={variantImagesBody} style={{ width: "200px" }} headerClassName="column-header" bodyClassName="column-body" />
               <Column
                 header="Actions"
                 body={(row) => (
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => openEditVariantForm(row)}
-                      className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                      title="Edit"
-                    >
+                    <button onClick={() => openEditVariantForm(row)} className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Edit">
                       <Edit className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => deleteVariant(row.id)}
-                      className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                      title="Delete"
-                    >
+                    <button onClick={() => deleteVariant(row.id)} className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -1154,12 +1026,8 @@ export const CreateProductWizard = () => {
             </DataTable>
 
             <div className="modal-sticky-footer gap-4">
-              <Button variant="outline" onClick={() => setStep(1)}>
-                <ChevronLeft className="w-4 h-4" /> Back
-              </Button>
-              <Button variant="primary" onClick={() => setStep(3)}>
-                Pricing <ChevronRight className="w-4 h-4 mt-1" />
-              </Button>
+              <Button variant="outline" onClick={() => setStep(1)}><ChevronLeft className="w-4 h-4" /> Back</Button>
+              <Button variant="primary" onClick={() => setStep(3)}>Pricing <ChevronRight className="w-4 h-4 mt-1" /></Button>
             </div>
           </div>
         )}
@@ -1170,197 +1038,215 @@ export const CreateProductWizard = () => {
               const existingStocks = variant.stocks || [];
               const tempStocks = pendingStocks[variant.id] || [];
               const allRows = [
-                ...existingStocks.map((s) => ({ ...s, _isTemp: false })),
+                ...existingStocks.map((s) => ({ ...s, _isTemp: false, id: s.id })),
                 ...tempStocks.map((t) => ({ ...t, _isTemp: true })),
               ];
-              const formValues = newPriceSet[variant.id] || {
-                buyingPrice: 0,
-                sellingPrice: 0,
-                discount: 0,
-              };
+              const formValues = newPriceSet[variant.id] || { buyingPrice: 0, sellingPrice: 0, discount: 0 };
+              const hasPriceSets = getPriceSetCount(variant) > 0;
 
               return (
-                <div
-                  key={variant.id}
-                  className="border rounded-md p-5 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
-                >
+                <div key={variant.id} className="border rounded-md p-5 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                   <div className="mb-3">
                     <h4 className="font-medium text-base">{productName}</h4>
                     <p className="text-xs text-gray-500">SKU: {variant.sku}</p>
-                    {variant.barcode && (
-                      <p className="text-xs text-gray-500">
-                        Barcode: {variant.barcode}
-                      </p>
-                    )}
+                    {variant.barcode && <p className="text-xs text-gray-500">Barcode: {variant.barcode}</p>}
                   </div>
 
-                  {/* Price sets table - styled like Step 2 DataTable */}
-                  <DataTable
-                    value={allRows}
-                    stripedRows
-                    emptyMessage="No price sets added yet"
-                    rowClassName={() => "table-row"}
-                    className="mb-4"
-                  >
-                    <Column
-                      header="Buying Price"
-                      body={(row) =>
-                        row._isTemp ? (
-                          <input
-                            type="number"
-                            value={row.buyingPrice}
-                            onChange={(e) =>
-                              updateTempStock(
-                                variant.id,
-                                row.id,
-                                "buyingPrice",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
-                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                        ) : (
-                          <span className="text-xs">
-                            {row.buyingOrMakingPrice}
-                          </span>
-                        )
-                      }
-                      headerClassName="column-header text-xs"
-                      bodyClassName="column-body text-xs py-1"
-                    />
-                    <Column
-                      header="MRP"
-                      body={(row) =>
-                        row._isTemp ? (
-                          <input
-                            type="number"
-                            value={row.sellingPrice}
-                            onChange={(e) =>
-                              updateTempStock(
-                                variant.id,
-                                row.id,
-                                "sellingPrice",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
-                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                        ) : (
-                          <span className="text-xs">{row.sellingPrice}</span>
-                        )
-                      }
-                      headerClassName="column-header text-xs"
-                      bodyClassName="column-body text-xs py-1"
-                    />
-                    <Column
-                      header="Discount %"
-                      body={(row) =>
-                        row._isTemp ? (
-                          <input
-                            type="number"
-                            value={row.discount}
-                            onChange={(e) =>
-                              updateTempStock(
-                                variant.id,
-                                row.id,
-                                "discount",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
-                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                        ) : (
-                          <span className="text-xs">{row.discountPercent}</span>
-                        )
-                      }
-                      headerClassName="column-header text-xs"
-                      bodyClassName="column-body text-xs py-1"
-                    />
-                    <Column
-                      header="Actions"
-                      body={(row) =>
-                        row._isTemp ? (
-                          <button
-                            onClick={() => removeTempStock(variant.id, row.id)}
-                            className="text-red-500 hover:text-red-700"
-                            title="Remove unsaved price set"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        ) : null
-                      }
-                      style={{ width: "50px" }}
-                      headerClassName="column-header text-xs"
-                      bodyClassName="column-body text-xs py-1"
-                    />
-                  </DataTable>
+                  {hasPriceSets ? (
+                    <DataTable
+                      value={allRows}
+                      stripedRows
+                      emptyMessage="No price sets added yet"
+                      rowClassName={() => "table-row"}
+                      className="mb-4"
+                    >
+                      <Column
+                        header="Buying Price"
+                        body={(row) =>
+                          row._isTemp && row.isEditing ? (
+                            <input
+                              type="number"
+                              value={row.buyingPrice}
+                              onChange={(e) =>
+                                updateTempStock(variant.id, row.id, "buyingPrice", parseFloat(e.target.value) || 0)
+                              }
+                              className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          ) : (
+                            <span className="text-xs">{row.buyingOrMakingPrice || row.buyingPrice}</span>
+                          )
+                        }
+                        headerClassName="column-header text-xs"
+                        bodyClassName="column-body text-xs py-1"
+                      />
+                      <Column
+                        header="MRP"
+                        body={(row) =>
+                          row._isTemp && row.isEditing ? (
+                            <input
+                              type="number"
+                              value={row.sellingPrice}
+                              onChange={(e) =>
+                                updateTempStock(variant.id, row.id, "sellingPrice", parseFloat(e.target.value) || 0)
+                              }
+                              className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          ) : (
+                            <span className="text-xs">{row.sellingPrice}</span>
+                          )
+                        }
+                        headerClassName="column-header text-xs"
+                        bodyClassName="column-body text-xs py-1"
+                      />
+                      <Column
+                        header="Discount %"
+                        body={(row) =>
+                          row._isTemp && row.isEditing ? (
+                            <input
+                              type="number"
+                              value={row.discount}
+                              onChange={(e) =>
+                                updateTempStock(variant.id, row.id, "discount", parseFloat(e.target.value) || 0)
+                              }
+                              className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          ) : (
+                            <span className="text-xs">{row.discountPercent || row.discount}</span>
+                          )
+                        }
+                        headerClassName="column-header text-xs"
+                        bodyClassName="column-body text-xs py-1"
+                      />
+                      <Column
+                        header="Actions"
+                        body={(row) => {
+                          if (row._isTemp) {
+                            return (
+                              <div className="flex gap-2">
+                                {row.isEditing ? (
+                                  <button
+                                    onClick={() => saveTempStock(variant.id, row.id)}
+                                    className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                    title="Save"
+                                  >
+                                    <CheckCircle className="w-4 h-4" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => editTempStock(variant.id, row.id)}
+                                    className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                    title="Edit"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => removeTempStock(variant.id, row.id)}
+                                  className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                  title="Remove"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                        style={{ width: "100px" }}
+                        headerClassName="column-header text-xs"
+                        bodyClassName="column-body text-xs py-1"
+                      />
+                    </DataTable>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500 text-sm border border-dashed rounded-md mb-4">
+                      No price sets added yet. Use the form below to add your first price set.
+                    </div>
+                  )}
 
-                  {/* Add new price set form - inputs row, then button row */}
+                  {/* Add new price set form */}
                   <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Buying Price
-                        </label>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Buying Price</label>
                         <input
                           type="number"
                           placeholder="0"
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          value={formValues.buyingPrice}
+                          value={formValues.buyingPrice === 0 ? "" : formValues.buyingPrice}
+                          onFocus={(e) => {
+                            if (e.target.value === "0") e.target.value = "";
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === "") {
+                              setNewPriceSet((prev) => ({
+                                ...prev,
+                                [variant.id]: { ...prev[variant.id], buyingPrice: 0 },
+                              }));
+                            }
+                          }}
                           onChange={(e) =>
                             setNewPriceSet((prev) => ({
                               ...prev,
-                              [variant.id]: {
-                                ...prev[variant.id],
-                                buyingPrice: parseFloat(e.target.value) || 0,
-                              },
+                              [variant.id]: { ...prev[variant.id], buyingPrice: parseFloat(e.target.value) || 0 },
                             }))
                           }
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          MRP
-                        </label>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">MRP</label>
                         <input
                           type="number"
                           placeholder="0"
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          value={formValues.sellingPrice}
+                          value={formValues.sellingPrice === 0 ? "" : formValues.sellingPrice}
+                          onFocus={(e) => {
+                            if (e.target.value === "0") e.target.value = "";
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === "") {
+                              setNewPriceSet((prev) => ({
+                                ...prev,
+                                [variant.id]: { ...prev[variant.id], sellingPrice: 0 },
+                              }));
+                            }
+                          }}
                           onChange={(e) =>
                             setNewPriceSet((prev) => ({
                               ...prev,
-                              [variant.id]: {
-                                ...prev[variant.id],
-                                sellingPrice: parseFloat(e.target.value) || 0,
-                              },
+                              [variant.id]: { ...prev[variant.id], sellingPrice: parseFloat(e.target.value) || 0 },
                             }))
                           }
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Discount %
-                        </label>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Discount %</label>
                         <input
                           type="number"
                           placeholder="0"
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          value={formValues.discount}
+                          value={formValues.discount === 0 ? "" : formValues.discount}
+                          onFocus={(e) => {
+                            if (e.target.value === "0") e.target.value = "";
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === "") {
+                              setNewPriceSet((prev) => ({
+                                ...prev,
+                                [variant.id]: { ...prev[variant.id], discount: 0 },
+                              }));
+                            }
+                          }}
                           onChange={(e) =>
                             setNewPriceSet((prev) => ({
                               ...prev,
-                              [variant.id]: {
-                                ...prev[variant.id],
-                                discount: parseFloat(e.target.value) || 0,
-                              },
+                              [variant.id]: { ...prev[variant.id], discount: parseFloat(e.target.value) || 0 },
                             }))
                           }
                         />
                       </div>
                     </div>
                     <div className="flex justify-end mt-3">
-                      <div className="relative group">
+                      <div className="relative inline-block">
                         <Button
                           variant="primary"
                           size="sm"
@@ -1386,9 +1272,7 @@ export const CreateProductWizard = () => {
                           </svg>
                         </Button>
                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-20 w-56 p-2 text-xs text-white bg-gray-800 rounded shadow-lg whitespace-normal">
-                          Add multiple price sets for different purchase costs
-                          or MRPs. Unsaved rows can be removed. All changes are
-                          saved when you click Save Draft or Publish.
+                          Add multiple price sets for different purchase costs or MRPs. Unsaved rows can be removed. All changes are saved when you click Save Draft or Publish.
                         </div>
                       </div>
                     </div>
@@ -1397,14 +1281,14 @@ export const CreateProductWizard = () => {
               );
             })}
             <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-              <Button variant="outline" onClick={() => setStep(2)}>
-                <ChevronLeft className="w-4 h-4" /> Back
-              </Button>
+              <Button variant="outline" onClick={() => setStep(2)}><ChevronLeft className="w-4 h-4" /> Back</Button>
               <div className="flex gap-3">
                 <Button
                   variant="secondary"
                   onClick={handleSaveDraft}
                   loading={submitting}
+                  disabled={hasMissingPriceSet()}
+                  title={hasMissingPriceSet() ? "All variants must have at least one price set" : ""}
                 >
                   Save Draft
                 </Button>
@@ -1412,6 +1296,8 @@ export const CreateProductWizard = () => {
                   variant="success"
                   onClick={handlePublish}
                   loading={submitting}
+                  disabled={hasMissingPriceSet()}
+                  title={hasMissingPriceSet() ? "All variants must have at least one price set" : ""}
                 >
                   Save & Publish
                 </Button>
@@ -1441,10 +1327,7 @@ export const CreateProductWizard = () => {
                 <div className="flex flex-col gap-4">
                   <Dropdown
                     value={existingAttrName}
-                    options={availableAttributes.map((a) => ({
-                      label: a.name,
-                      value: a.name,
-                    }))}
+                    options={availableAttributes.map((a) => ({ label: a.name, value: a.name }))}
                     onChange={(e) => setExistingAttrName(e.value)}
                     placeholder="Select attribute"
                     className="w-full mb-3"
@@ -1455,40 +1338,18 @@ export const CreateProductWizard = () => {
                     onChange={(e) => setNewValueInput(e.target.value)}
                   />
                   <div className="flex justify-end gap-3 mt-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowAddAttribute(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button onClick={handleAddValueToExisting}>
-                      Add Value
-                    </Button>
+                    <Button variant="outline" onClick={() => setShowAddAttribute(false)}>Cancel</Button>
+                    <Button onClick={handleAddValueToExisting}>Add Value</Button>
                   </div>
                 </div>
               )}
               {attributeTab === "newAttr" && (
                 <div className="flex flex-col gap-4">
-                  <InputField
-                    label="Attribute Name"
-                    value={newAttributeName}
-                    onChange={(e) => setNewAttributeName(e.target.value)}
-                  />
-                  <InputField
-                    label="Values (comma separated)"
-                    value={newAttributeValues}
-                    onChange={(e) => setNewAttributeValues(e.target.value)}
-                  />
+                  <InputField label="Attribute Name" value={newAttributeName} onChange={(e) => setNewAttributeName(e.target.value)} />
+                  <InputField label="Values (comma separated)" value={newAttributeValues} onChange={(e) => setNewAttributeValues(e.target.value)} />
                   <div className="flex justify-end gap-3 mt-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowAddAttribute(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button onClick={handleAddNewAttribute}>
-                      Add Attribute
-                    </Button>
+                    <Button variant="outline" onClick={() => setShowAddAttribute(false)}>Cancel</Button>
+                    <Button onClick={handleAddNewAttribute}>Add Attribute</Button>
                   </div>
                 </div>
               )}
