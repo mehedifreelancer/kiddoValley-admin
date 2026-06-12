@@ -17,7 +17,6 @@ import { Editor } from "primereact/editor";
 import React, { useEffect, useState } from "react";
 import Barcode from "react-barcode";
 import { toast } from "react-hot-toast";
-import { useNavigate } from "react-router";
 import api from "../../apiConfig";
 import Button from "../../components/ui/Button";
 import InputField from "../../components/ui/InputField";
@@ -44,14 +43,15 @@ function generateEAN13(): string {
 }
 
 const StepIndicator = ({ current }: { current: number }) => (
-  <div className="z-1 sticky top-[-5px] flex items-center justify-between  bg-white dark:bg-gray-800 py-2 shadow-sm mb-5">
+  <div className="z-1 sticky top-[-5px] flex items-center justify-between bg-white dark:bg-gray-800 py-2 shadow-sm mb-5">
     {/* Step 1 */}
     <div className="flex-1 text-center">
       <div
-        className={`inline-flex items-center justify-center w-8 h-8 rounded-full  ${current === 1
-          ? "bg-blue-500 text-white border-2 border-blue-500"
-          : "bg-green-500 text-white border-2 border-green-500"
-          }`}
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
+          current === 1
+            ? "bg-blue-500 text-white border-2 border-blue-500"
+            : "bg-green-500 text-white border-2 border-green-500"
+        }`}
       >
         {current === 1 ? 1 : <CheckCircle className="w-5 h-5" />}
       </div>
@@ -60,19 +60,21 @@ const StepIndicator = ({ current }: { current: number }) => (
 
     {/* Connector 1 → 2 - solid line */}
     <div
-      className={`flex-1 border-t-2 ${current > 1 ? "border-green-500" : "border-gray-300 dark:border-gray-600"
-        }`}
+      className={`flex-1 border-t-2 ${
+        current > 1 ? "border-green-500" : "border-gray-300 dark:border-gray-600"
+      }`}
     />
 
     {/* Step 2 */}
     <div className="flex-1 text-center">
       <div
-        className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${current === 2
-          ? "bg-blue-500 text-white border-blue-500"
-          : current > 2
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+          current === 2
+            ? "bg-blue-500 text-white border-blue-500"
+            : current > 2
             ? "bg-green-500 text-white border-green-500"
             : "bg-gray-200 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600"
-          }`}
+        }`}
       >
         {current === 2 ? 2 : current > 2 ? <CheckCircle className="w-5 h-5" /> : 2}
       </div>
@@ -81,17 +83,19 @@ const StepIndicator = ({ current }: { current: number }) => (
 
     {/* Connector 2 → 3 - solid line */}
     <div
-      className={`flex-1 border-t-2 ${current > 2 ? "border-green-500" : "border-gray-300 dark:border-gray-600"
-        }`}
+      className={`flex-1 border-t-2 ${
+        current > 2 ? "border-green-500" : "border-gray-300 dark:border-gray-600"
+      }`}
     />
 
     {/* Step 3 */}
     <div className="flex-1 text-center">
       <div
-        className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${current === 3
-          ? "bg-blue-500 text-white border-blue-500"
-          : "bg-gray-200 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600"
-          }`}
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+          current === 3
+            ? "bg-blue-500 text-white border-blue-500"
+            : "bg-gray-200 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600"
+        }`}
       >
         3
       </div>
@@ -100,8 +104,12 @@ const StepIndicator = ({ current }: { current: number }) => (
   </div>
 );
 
-export const CreateProductWizard = () => {
-  const navigate = useNavigate();
+interface CreateProductWizardProps {
+  onClose: () => void;
+  onProductSaved: () => void;
+}
+
+export const CreateProductWizard = ({ onClose, onProductSaved }: CreateProductWizardProps) => {
   const [step, setStep] = useState(1);
   const [productId, setProductId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -156,11 +164,30 @@ export const CreateProductWizard = () => {
     };
   }>({});
 
-  // Helper to add a temporary price set row
+  // Helper: check if buying price is unique for a variant (exclude optional tempId)
+  const isBuyingPriceUnique = (
+    variantId: number,
+    buyingPrice: number,
+    excludeTempId?: string
+  ): boolean => {
+    const variant = variants.find(v => v.id === variantId);
+    const existingPrices = variant?.stocks?.map(s => s.buyingOrMakingPrice) || [];
+    const pendingPrices = (pendingStocks[variantId] || [])
+      .filter(p => p.id !== excludeTempId)
+      .map(p => p.buyingPrice);
+    const allPrices = [...existingPrices, ...pendingPrices];
+    return !allPrices.includes(buyingPrice);
+  };
+
+  // Add a temporary price set row (with uniqueness check)
   const addTempStock = (variantId: number) => {
     const formData = newPriceSet[variantId];
     if (!formData || formData.buyingPrice <= 0 || formData.sellingPrice <= 0) {
-      toast.error("Please fill buying price and MRP");
+      toast.error("Please fill buying price and MRP (both must be > 0)");
+      return;
+    }
+    if (!isBuyingPriceUnique(variantId, formData.buyingPrice)) {
+      toast.error("This buying price already exists for this variant. Please enter a different buying price.");
       return;
     }
     const newId = `temp-${Date.now()}-${Math.random()}`;
@@ -200,6 +227,12 @@ export const CreateProductWizard = () => {
   };
 
   const saveTempStock = (variantId: number, tempId: string) => {
+    const tempRow = pendingStocks[variantId]?.find(p => p.id === tempId);
+    if (!tempRow) return;
+    if (!isBuyingPriceUnique(variantId, tempRow.buyingPrice, tempId)) {
+      toast.error("This buying price already exists for this variant. Please enter a different buying price.");
+      return;
+    }
     setPendingStocks((prev) => ({
       ...prev,
       [variantId]: (prev[variantId] || []).map((p) =>
@@ -258,6 +291,7 @@ export const CreateProductWizard = () => {
     }
   };
 
+  // ---- rest of the component (unchanged) ----
   useEffect(() => {
     const loadCategories = async () => {
       try {
@@ -687,7 +721,8 @@ export const CreateProductWizard = () => {
       setSubmitting(true);
       await saveAllPendingStocks();
       toast.success("Product saved to draft successfully!");
-      navigate("/products/product-list");
+      onProductSaved(); // refresh parent list
+      onClose();        // close modal
     } catch (err: any) {
       toast.error(err.message || "Failed to save draft");
     } finally {
@@ -703,7 +738,8 @@ export const CreateProductWizard = () => {
       await saveAllPendingStocks();
       await api.patch(`/products/publish/${productId}`);
       toast.success("Product registered successfully!");
-      navigate("/products/product-list");
+      onProductSaved(); // refresh parent list
+      onClose();        // close modal
     } catch (err: any) {
       toast.error(err.message || err.response?.data?.message || "Failed to publish product");
     } finally {
@@ -1047,20 +1083,28 @@ export const CreateProductWizard = () => {
                     />
                     <Column
                       header="Discount %"
-                      body={(row) =>
-                        row._isTemp && row.isEditing ? (
+                      body={(row) => {
+                        const discountValue = row._isTemp ? row.discount : (row.discountPercent ?? row.discount);
+                        if (discountValue === 0 || discountValue === null || discountValue === undefined) {
+                          return (
+                            <div className="flex justify-center">
+                              <X className="w-4 h-4 text-red-500" />
+                            </div>
+                          );
+                        }
+                        return row._isTemp && row.isEditing ? (
                           <input
                             type="number"
-                            value={row.discount}
+                            value={discountValue}
                             onChange={(e) => updateTempStock(variant.id, row.id, "discount", parseFloat(e.target.value) || 0)}
                             className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
                         ) : (
-                          <span className="text-xs">{row.discountPercent || row.discount}</span>
-                        )
-                      }
+                          <span className="text-xs">{discountValue}%</span>
+                        );
+                      }}
                       headerClassName="column-header text-xs"
-                      bodyClassName="column-body text-xs py-1"
+                      bodyClassName="column-body text-xs py-1 text-center"
                     />
                     <Column
                       header="Actions"
@@ -1115,13 +1159,10 @@ export const CreateProductWizard = () => {
                       <input
                         type="number"
                         min="0"
-                        placeholder="0"
                         step="any"
                         className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         value={formValues.buyingPrice === 0 ? "" : formValues.buyingPrice}
-                        onFocus={(e) => {
-                          if (e.target.value === "0") e.target.value = "";
-                        }}
+                        onFocus={(e) => { if (e.target.value === "0") e.target.value = ""; }}
                         onBlur={(e) => {
                           const val = e.target.value;
                           if (val === "") {
@@ -1153,12 +1194,9 @@ export const CreateProductWizard = () => {
                         type="number"
                         min="0"
                         step="any"
-                        placeholder="0"
                         className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         value={formValues.sellingPrice === 0 ? "" : formValues.sellingPrice}
-                        onFocus={(e) => {
-                          if (e.target.value === "0") e.target.value = "";
-                        }}
+                        onFocus={(e) => { if (e.target.value === "0") e.target.value = ""; }}
                         onBlur={(e) => {
                           const val = e.target.value;
                           if (val === "") {
@@ -1190,13 +1228,9 @@ export const CreateProductWizard = () => {
                         type="number"
                         min="0"
                         step="any"
-                        placeholder="0"
-
                         className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         value={formValues.discount === 0 ? "" : formValues.discount}
-                        onFocus={(e) => {
-                          if (e.target.value === "0") e.target.value = "";
-                        }}
+                        onFocus={(e) => { if (e.target.value === "0") e.target.value = ""; }}
                         onBlur={(e) => {
                           const val = e.target.value;
                           if (val === "") {

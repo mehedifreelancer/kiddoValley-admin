@@ -537,7 +537,12 @@ export const Product = () => {
             size="xl"
           >
             <div className="max-h-[80vh] overflow-y-auto p-1">
-              <CreateProductWizard />
+              <CreateProductWizard
+                onClose={closeModal}
+                onProductSaved={() => {
+                  fetchProducts();
+                }}
+              />
             </div>
           </Modal>
         )}
