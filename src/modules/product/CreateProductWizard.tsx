@@ -4,7 +4,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Edit,
-  GripVertical,
   Plus,
   RefreshCw,
   Trash2,
@@ -17,8 +16,6 @@ import { Dropdown } from "primereact/dropdown";
 import { Editor } from "primereact/editor";
 import React, { useEffect, useState } from "react";
 import Barcode from "react-barcode";
-import { DndProvider, useDrag, useDrop } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
 import { toast } from "react-hot-toast";
 import { useNavigate } from "react-router";
 import api from "../../apiConfig";
@@ -46,94 +43,59 @@ function generateEAN13(): string {
   return withoutCheck + check;
 }
 
-const ItemType = "IMAGE";
-interface DraggableImageProps {
-  image: any;
-  index: number;
-  moveImage: (dragIndex: number, hoverIndex: number) => void;
-  removeImage: (index: number) => void;
-}
-const DraggableImage: React.FC<DraggableImageProps> = ({
-  image,
-  index,
-  moveImage,
-  removeImage,
-}) => {
-  const ref = React.useRef<HTMLDivElement>(null);
-  const [{ isDragging }, drag] = useDrag({
-    type: ItemType,
-    item: { index },
-    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
-  });
-  const [, drop] = useDrop({
-    accept: ItemType,
-    hover: (item: { index: number }) => {
-      if (!ref.current) return;
-      const dragIndex = item.index;
-      const hoverIndex = index;
-      if (dragIndex === hoverIndex) return;
-      moveImage(dragIndex, hoverIndex);
-      item.index = hoverIndex;
-    },
-  });
-  drag(drop(ref));
-  return (
-    <div
-      ref={ref}
-      className={`relative group cursor-move ${isDragging ? "opacity-50" : ""}`}
-    >
-      <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 transition-all">
-        <img
-          src={image.imgUrl}
-          alt="preview"
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-          <GripVertical className="w-5 h-5 text-white cursor-grab" />
-        </div>
-        <button
-          type="button"
-          onClick={() => removeImage(index)}
-          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-        >
-          <X className="w-3 h-3" />
-        </button>
-      </div>
-      <div className="text-center mt-1 text-xs text-gray-500 truncate w-24">
-        {index + 1}
-      </div>
-    </div>
-  );
-};
-
 const StepIndicator = ({ current }: { current: number }) => (
-  <div className="flex items-center justify-between mb-8">
+  <div className="flex items-center justify-between my-8">
+    {/* Step 1 */}
     <div className="flex-1 text-center">
       <div
         className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-          current === 1 ? "bg-blue-500 text-white" : "bg-green-500 text-white"
+          current === 1
+            ? "bg-blue-500 text-white border-2 border-blue-500"
+            : "bg-green-500 text-white border-2 border-green-500"
         }`}
       >
         {current === 1 ? 1 : <CheckCircle className="w-5 h-5" />}
       </div>
       <div className="text-sm mt-1">Basic Info</div>
     </div>
+
+    {/* Connector 1 → 2 - solid line */}
+    <div
+      className={`flex-1 border-t-2 ${
+        current > 1 ? "border-green-500" : "border-gray-300 dark:border-gray-600"
+      }`}
+    />
+
+    {/* Step 2 */}
     <div className="flex-1 text-center">
       <div
-        className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-          current === 2 ? "bg-blue-500 text-white" : "bg-green-500 text-white"
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+          current === 2
+            ? "bg-blue-500 text-white border-blue-500"
+            : current > 2
+            ? "bg-green-500 text-white border-green-500"
+            : "bg-gray-200 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600"
         }`}
       >
-        {current === 2 ? 2 : <CheckCircle className="w-5 h-5" />}
+        {current === 2 ? 2 : current > 2 ? <CheckCircle className="w-5 h-5" /> : 2}
       </div>
       <div className="text-sm mt-1">Variants</div>
     </div>
+
+    {/* Connector 2 → 3 - solid line */}
+    <div
+      className={`flex-1 border-t-2 ${
+        current > 2 ? "border-green-500" : "border-gray-300 dark:border-gray-600"
+      }`}
+    />
+
+    {/* Step 3 */}
     <div className="flex-1 text-center">
       <div
-        className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${
           current === 3
-            ? "bg-blue-500 text-white"
-            : "bg-gray-200 dark:bg-gray-700 text-gray-500"
+            ? "bg-blue-500 text-white border-blue-500"
+            : "bg-gray-200 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600"
         }`}
       >
         3
@@ -156,9 +118,9 @@ export const CreateProductWizard = () => {
   const [forceOrderPriority, setForceOrderPriority] = useState(0);
   const [videoUrl, setVideoUrl] = useState("");
   const [productDetails, setProductDetails] = useState("");
-  const [imageList, setImageList] = useState<any[]>([]);
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [existingImagesToKeep, setExistingImagesToKeep] = useState<any[]>([]);
+  const [thumbnailImage, setThumbnailImage] = useState<any>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [existingThumbnailId, setExistingThumbnailId] = useState<number | null>(null);
   const [formErrors, setFormErrors] = useState<any>({});
   const [originalProduct, setOriginalProduct] = useState<any>(null);
 
@@ -188,10 +150,9 @@ export const CreateProductWizard = () => {
       buyingPrice: number;
       sellingPrice: number;
       discount: number;
-      isEditing?: boolean; // track if this row is in edit mode
+      isEditing?: boolean;
     }>;
   }>({});
-  // Input form for adding a new price set
   const [newPriceSet, setNewPriceSet] = useState<{
     [variantId: number]: {
       buyingPrice: number;
@@ -221,14 +182,12 @@ export const CreateProductWizard = () => {
         },
       ],
     }));
-    // Clear the input form for this variant
     setNewPriceSet((prev) => ({
       ...prev,
       [variantId]: { buyingPrice: 0, sellingPrice: 0, discount: 0 },
     }));
   };
 
-  // Helper to remove a temporary row
   const removeTempStock = (variantId: number, tempId: string) => {
     setPendingStocks((prev) => ({
       ...prev,
@@ -236,7 +195,6 @@ export const CreateProductWizard = () => {
     }));
   };
 
-  // Enter edit mode for a temporary row
   const editTempStock = (variantId: number, tempId: string) => {
     setPendingStocks((prev) => ({
       ...prev,
@@ -246,7 +204,6 @@ export const CreateProductWizard = () => {
     }));
   };
 
-  // Save edited temporary row
   const saveTempStock = (variantId: number, tempId: string) => {
     setPendingStocks((prev) => ({
       ...prev,
@@ -256,7 +213,6 @@ export const CreateProductWizard = () => {
     }));
   };
 
-  // Update a temporary row field while editing
   const updateTempStock = (
     variantId: number,
     tempId: string,
@@ -271,9 +227,7 @@ export const CreateProductWizard = () => {
     }));
   };
 
-  // Save all pending stocks to the database
   const saveAllPendingStocks = async () => {
-    // First, check that every variant has at least one price set (existing OR pending)
     for (const variant of variants) {
       const existingCount = variant.stocks?.length || 0;
       const pendingCount = pendingStocks[variant.id]?.length || 0;
@@ -281,9 +235,7 @@ export const CreateProductWizard = () => {
         throw new Error(`Variant "${productName}" must have at least one price set.`);
       }
     }
-
     if (Object.keys(pendingStocks).length === 0) return;
-
     try {
       setSubmitting(true);
       for (const variantIdStr of Object.keys(pendingStocks)) {
@@ -311,7 +263,6 @@ export const CreateProductWizard = () => {
     }
   };
 
-  // Step 1 & Step 2 functions (unchanged – keep your existing code)
   useEffect(() => {
     const loadCategories = async () => {
       try {
@@ -347,10 +298,10 @@ export const CreateProductWizard = () => {
           setSelectedCategory(
             categories.find((c) => c.id === product.categoryId) || null,
           );
-          const existingImgs = product.images || [];
-          setExistingImagesToKeep(existingImgs);
-          setImageList(existingImgs);
-          setImageFiles([]);
+          const existingImg = product.images?.[0] || null;
+          setThumbnailImage(existingImg);
+          setExistingThumbnailId(existingImg?.id || null);
+          setThumbnailFile(null);
         } catch (err) {
           console.error(err);
         }
@@ -398,7 +349,7 @@ export const CreateProductWizard = () => {
     const errors: any = {};
     if (!productName.trim()) errors.name = "Product name required";
     if (!selectedCategory) errors.category = "Category required";
-    if (imageList.length === 0) errors.images = "Thumbnail image is required";
+    if (!thumbnailImage && !thumbnailFile) errors.images = "Thumbnail image is required";
     setFormErrors(errors);
     if (Object.keys(errors).length) return;
 
@@ -409,12 +360,10 @@ export const CreateProductWizard = () => {
       if (videoUrl !== (originalProduct.videoUrl || "")) hasChanges = true;
       if (productDetails !== (originalProduct.description || "")) hasChanges = true;
       if (selectedCategory?.id !== originalProduct.categoryId) hasChanges = true;
-      if (imageFiles.length > 0) hasChanges = true;
-      const currentUrls = imageList.map((img) => img.imgUrl).sort();
-      const originalUrls = (originalProduct.images || [])
-        .map((img: any) => img.imgUrl)
-        .sort();
-      if (JSON.stringify(currentUrls) !== JSON.stringify(originalUrls)) hasChanges = true;
+      if (thumbnailFile) hasChanges = true;
+      const currentThumbUrl = thumbnailImage?.imgUrl;
+      const originalThumbUrl = originalProduct.images?.[0]?.imgUrl;
+      if (currentThumbUrl !== originalThumbUrl) hasChanges = true;
     }
 
     if (!productId) {
@@ -426,7 +375,7 @@ export const CreateProductWizard = () => {
         formData.append("forceOrderPriority", String(forceOrderPriority));
         if (videoUrl) formData.append("videoUrl", videoUrl);
         if (productDetails) formData.append("description", productDetails);
-        imageFiles.forEach((file) => formData.append("images", file));
+        if (thumbnailFile) formData.append("images", thumbnailFile);
         const newProduct = await createProduct(formData);
         setProductId(newProduct.id);
         setOriginalProduct(newProduct);
@@ -449,19 +398,17 @@ export const CreateProductWizard = () => {
           formData.append("forceOrderPriority", String(forceOrderPriority));
           if (videoUrl) formData.append("videoUrl", videoUrl);
           if (productDetails) formData.append("description", productDetails);
-          if (existingImagesToKeep.length) {
-            formData.append("existingImages", JSON.stringify(existingImagesToKeep));
-          } else {
-            formData.append("existingImages", JSON.stringify([]));
-          }
-          imageFiles.forEach((file) => formData.append("images", file));
+          const existingImages = thumbnailImage ? [thumbnailImage] : [];
+          formData.append("existingImages", JSON.stringify(existingImages));
+          if (thumbnailFile) formData.append("images", thumbnailFile);
           await updateProduct(productId, formData);
           toast.success("Product updated");
           const updatedProduct = await getProductById(productId);
           setOriginalProduct(updatedProduct);
-          setExistingImagesToKeep(updatedProduct.images || []);
-          setImageList(updatedProduct.images || []);
-          setImageFiles([]);
+          const updatedImg = updatedProduct.images?.[0] || null;
+          setThumbnailImage(updatedImg);
+          setExistingThumbnailId(updatedImg?.id || null);
+          setThumbnailFile(null);
         } catch (err: any) {
           toast.error(err.message || "Failed to update product");
         } finally {
@@ -594,9 +541,7 @@ export const CreateProductWizard = () => {
   const removeVariantImage = async (variantId: number, imageUrl: string) => {
     const variant = variants.find((v) => v.id === variantId);
     if (!variant) return;
-    const remainingImages = (variant.images || []).filter(
-      (img: any) => img.imgUrl !== imageUrl,
-    );
+    const remainingImages = (variant.images || []).filter((img: any) => img.imgUrl !== imageUrl);
     const formData = new FormData();
     formData.append("existingImages", JSON.stringify(remainingImages));
     try {
@@ -623,11 +568,16 @@ export const CreateProductWizard = () => {
               <img
                 src={img.imgUrl}
                 alt=""
-                className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 object-cover"
+                className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => window.open(img.imgUrl, '_blank')}
+                title="Click to view full image"
               />
               <button
-                onClick={() => removeVariantImage(rowData.id, img.imgUrl)}
-                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hidden group-hover:block"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeVariantImage(rowData.id, img.imgUrl);
+                }}
+                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hidden group-hover:block hover:bg-red-600"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -653,19 +603,21 @@ export const CreateProductWizard = () => {
     );
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    const file = files[0];
-    const mockUrl = URL.createObjectURL(file);
-    setImageList([{ imgUrl: mockUrl }]);
-    setImageFiles([file]);
+  const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      const mockUrl = URL.createObjectURL(file);
+      setThumbnailImage({ imgUrl: mockUrl, isNew: true });
+      setThumbnailFile(file);
+    }
   };
-  const removeProductImage = () => {
-    setImageList([]);
-    setImageFiles([]);
-    if (imageList[0]?.id) {
-      setExistingImagesToKeep((prev) => prev.filter((img) => img.id !== imageList[0].id));
+
+  const removeThumbnail = () => {
+    setThumbnailImage(null);
+    setThumbnailFile(null);
+    if (existingThumbnailId) {
+      // Will be removed via existingImages array in update
     }
   };
 
@@ -722,7 +674,6 @@ export const CreateProductWizard = () => {
 
   const isDefaultVariant = isEditingMode && editingVariantId && Object.keys(currentAttributes).length === 0;
 
-  // Helper to determine if any variant has no price set (used to disable save buttons)
   const hasMissingPriceSet = () => {
     for (const variant of variants) {
       const existingCount = variant.stocks?.length || 0;
@@ -765,7 +716,6 @@ export const CreateProductWizard = () => {
     }
   };
 
-  // Count total price sets for each variant (used to conditionally show table)
   const getPriceSetCount = (variant: any) => {
     const existing = variant.stocks?.length || 0;
     const pending = pendingStocks[variant.id]?.length || 0;
@@ -773,591 +723,584 @@ export const CreateProductWizard = () => {
   };
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="max-w-6xl mx-auto rounded-md">
-        <StepIndicator current={step} />
+    <div className="max-w-6xl mx-auto rounded-md">
+      <StepIndicator current={step} />
 
-        {step === 1 && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField
-                label="Product Name *"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                error={formErrors.name}
-              />
-              <div>
-                <label className="block text-sm font-medium mb-1">Category *</label>
-                <Dropdown
-                  value={selectedCategory?.id}
-                  options={categories}
-                  onChange={(e) => setSelectedCategory(categories.find((c) => c.id === e.value))}
-                  optionLabel="name"
-                  optionValue="id"
-                  placeholder="Select category"
-                  className="w-full"
-                />
-                {formErrors.category && <p className="text-red-500 text-xs">{formErrors.category}</p>}
-              </div>
-              <InputField
-                label="Force Order Priority (0 = disabled)"
-                type="number"
-                value={forceOrderPriority}
-                onChange={(e) => setForceOrderPriority(Number(e.target.value))}
-              />
-              <InputField
-                label="Video URL"
-                value={videoUrl}
-                onChange={(e) => setVideoUrl(e.target.value)}
-              />
-            </div>
+      {step === 1 && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InputField
+              label="Product Name *"
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              error={formErrors.name}
+            />
             <div>
-              <label className="block text-sm font-medium mb-2">Description</label>
-              <Editor
-                value={productDetails}
-                onTextChange={(e) => setProductDetails(e.htmlValue as any)}
-                style={{ height: "200px" }}
+              <label className="block text-sm font-medium mb-1">Category *</label>
+              <Dropdown
+                value={selectedCategory?.id}
+                options={categories}
+                onChange={(e) => setSelectedCategory(categories.find((c) => c.id === e.value))}
+                optionLabel="name"
+                optionValue="id"
+                placeholder="Select category"
+                className="w-full"
               />
+              {formErrors.category && <p className="text-red-500 text-xs">{formErrors.category}</p>}
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Thumbnail Image (only 1 allowed) *</label>
-              <div className="mb-2">
-                <div className="flex flex-col items-center justify-center w-full">
-                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <Upload className="w-8 h-8 mb-2 text-gray-500 dark:text-gray-400" />
-                      <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-                        <span className="font-semibold">Click to upload</span> or drag and drop
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Only one image (thumbnail)</p>
-                    </div>
-                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                  </label>
+            <InputField
+              label="Force Order Priority (0 = disabled)"
+              type="number"
+              value={forceOrderPriority}
+              onChange={(e) => setForceOrderPriority(Number(e.target.value))}
+            />
+            <InputField
+              label="Video URL"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Description</label>
+            <Editor
+              value={productDetails}
+              onTextChange={(e) => setProductDetails(e.htmlValue as any)}
+              style={{ height: "200px" }}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Thumbnail Image *</label>
+            <div className="relative w-full h-32 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors overflow-hidden">
+              {thumbnailImage ? (
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <img
+                    src={thumbnailImage.imgUrl}
+                    alt="Thumbnail"
+                    className="max-w-full max-h-full object-contain cursor-pointer"
+                    onClick={() => window.open(thumbnailImage.imgUrl, '_blank')}
+                    title="Click to view full image"
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeThumbnail();
+                    }}
+                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 z-10"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-              </div>
-              {imageList.length > 0 && (
-                <div className="flex flex-wrap gap-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg mt-2">
-                  {imageList.map((img, idx) => (
-                    <DraggableImage
-                      key={idx}
-                      image={img}
-                      index={idx}
-                      moveImage={(drag, hover) => {
-                        const newList = [...imageList];
-                        const dragged = newList[drag];
-                        newList.splice(drag, 1);
-                        newList.splice(hover, 0, dragged);
-                        setImageList(newList);
-                      }}
-                      removeImage={removeProductImage}
-                    />
-                  ))}
+              ) : (
+                <div
+                  className="flex flex-col items-center justify-center w-full h-full cursor-pointer"
+                  onClick={() => document.getElementById('thumbnail-upload')?.click()}
+                >
+                  <Upload className="w-8 h-8 mb-2 text-gray-500 dark:text-gray-400" />
+                  <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
+                    <span className="font-semibold">Click to upload</span> or drag and drop
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Only one image (thumbnail)</p>
                 </div>
               )}
-              {formErrors.images && <p className="text-red-500 text-xs">{formErrors.images}</p>}
+              <input
+                id="thumbnail-upload"
+                type="file"
+                accept="image/*"
+                onChange={handleThumbnailUpload}
+                className="hidden"
+              />
             </div>
-            <div className="modal-sticky-footer">
-              <Button onClick={handleStep1Next} loading={submitting}>Save & Next →</Button>
+            {formErrors.images && <p className="text-red-500 text-xs mt-1">{formErrors.images}</p>}
+          </div>
+          <div className="modal-sticky-footer">
+            <Button onClick={handleStep1Next} loading={submitting}>Save & Next →</Button>
+          </div>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="space-y-6">
+          <div className="z-1 sticky top-[-1px] flex justify-between items-center bg-gray-200 dark:bg-gray-800  p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+            <span className="text-sm text-gray-700 dark:text-gray-300">
+              💡 Do you have variants such as color, size, etc? Add variant from here.
+            </span>
+            <div className="flex gap-2">
+              {showVariantForm && (
+                <Button variant="outline" onClick={closeVariantForm}>Cancel</Button>
+              )}
+              {showVariantForm ? (
+                <Button variant="primary" onClick={saveVariant} loading={submitting}>
+                  {isEditingMode ? "Update Variant" : "Save Variant"}
+                </Button>
+              ) : (
+                <Button variant="primary" onClick={openAddVariantForm}>
+                  <Plus className="w-4 h-4 mr-2" /> Add Variant
+                </Button>
+              )}
             </div>
           </div>
-        )}
 
-        {step === 2 && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-              <span className="text-sm text-gray-700 dark:text-gray-300">
-                💡 Do you have variants such as color, size, etc? Add variant from here.
-              </span>
-              <div className="flex gap-2">
-                {showVariantForm && (
-                  <Button variant="outline" onClick={closeVariantForm}>Cancel</Button>
-                )}
-                {showVariantForm ? (
-                  <Button variant="primary" onClick={saveVariant} loading={submitting}>
-                    {isEditingMode ? "Update Variant" : "Save Variant"}
-                  </Button>
-                ) : (
-                  <Button variant="primary" onClick={openAddVariantForm}>
-                    <Plus className="w-4 h-4 mr-2" /> Add Variant
-                  </Button>
+          {showVariantForm && (
+            <div className="border rounded-md p-5 border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold mb-4">
+                {isEditingMode ? (isDefaultVariant ? "Edit" : "Edit Variant") : "Add New Variant"}
+              </h3>
+              {(!isDefaultVariant || !isEditingMode) && (
+                <>
+                  <div className="p-4 rounded-md">
+                    <div className="flex flex-wrap gap-3 items-end">
+                      <div className="flex-1">
+                        <div className="flex gap-1">
+                          <label className="block text-xs font-medium">Attribute Name</label>
+                          <button
+                            onClick={() => setShowAddAttribute(true)}
+                            className="flex gap-1 btn-primary text-[8px]! px-1 py-0.5 rounded items-center cursor-pointer"
+                          >
+                            <Plus className="w-2 h-2" /> <span className="mt-[.5px]">New</span>
+                          </button>
+                        </div>
+                        <Dropdown
+                          value={selectedAttrName}
+                          options={availableAttributes.map((a) => ({ label: a.name, value: a.name }))}
+                          onChange={(e) => { setSelectedAttrName(e.value); setSelectedAttrValue(""); }}
+                          placeholder="Select attribute"
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium">Attribute Value</label>
+                        <Dropdown
+                          value={selectedAttrValue}
+                          options={availableAttributes.find((a) => a.name === selectedAttrName)?.values.map((v: string) => ({ label: v, value: v })) || []}
+                          onChange={(e) => handleValueSelect(e.value)}
+                          placeholder="Select value"
+                          disabled={!selectedAttrName}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-2">Current Attributes</label>
+                    <div className="flex flex-wrap gap-2 min-h-[60px] p-3 rounded-md border border-dashed border-gray-200 dark:border-gray-700">
+                      {Object.entries(currentAttributes).length === 0 ? (
+                        <span className="text-gray-400 text-sm">No attributes selected</span>
+                      ) : (
+                        Object.entries(currentAttributes).map(([k, v]) => (
+                          <span key={k} className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-200 dark:bg-blue-800 rounded-full text-sm">
+                            {k}: {v}
+                            <X className="w-3.5 h-3.5 cursor-pointer hover:text-red-600" onClick={() => removeCurrentAttribute(k)} />
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">Barcode (optional)</label>
+                <div className="flex gap-2">
+                  <InputField
+                    value={variantBarcode}
+                    onChange={(e) => setVariantBarcode(e.target.value)}
+                    placeholder="Scan or enter barcode"
+                    className="flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setVariantBarcode(generateEAN13())}
+                    className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+                {(variantBarcode || (isEditingMode && editingVariantId)) && (
+                  <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/30">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="font-medium text-gray-600 dark:text-gray-400">Barcode Number:</span>
+                        <span className="text-gray-800 dark:text-gray-200 font-mono">{variantBarcode || "—"}</span>
+                      </div>
+                      {variantBarcode && (
+                        <div className="flex justify-center pt-2">
+                          <div className="bg-white p-2 rounded shadow-sm">
+                            <Barcode value={variantBarcode} format="CODE128" width={1.5} height={40} fontSize={10} margin={0} displayValue={true} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
+
+              <div className="flex items-center gap-4 mb-4">
+                <span className="font-medium">Is Imported?</span>
+                <label>
+                  <input type="radio" name="variantImported" checked={!variantIsImported} onChange={() => { setVariantIsImported(false); setVariantCountry(""); }} /> No
+                </label>
+                <label>
+                  <input type="radio" name="variantImported" checked={variantIsImported} onChange={() => setVariantIsImported(true)} /> Yes
+                </label>
+              </div>
+              {variantIsImported && (
+                <InputField label="Country of Origin" value={variantCountry} onChange={(e) => setVariantCountry(e.target.value)} />
+              )}
             </div>
+          )}
 
-            {showVariantForm && (
-              <div className="border rounded-md p-5 border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold mb-4">
-                  {isEditingMode ? (isDefaultVariant ? "Edit" : "Edit Variant") : "Add New Variant"}
-                </h3>
-                {(!isDefaultVariant || !isEditingMode) && (
-                  <>
-                    <div className="p-4 rounded-md">
-                      <div className="flex flex-wrap gap-3 items-end">
-                        <div className="flex-1">
-                          <div className="flex gap-1">
-                            <label className="block text-xs font-medium">Attribute Name</label>
-                            <button
-                              onClick={() => setShowAddAttribute(true)}
-                              className="flex gap-1 btn-primary text-[8px]! px-1 py-0.5 rounded items-center cursor-pointer"
-                            >
-                              <Plus className="w-2 h-2" /> <span className="mt-[.5px]">New</span>
-                            </button>
-                          </div>
-                          <Dropdown
-                            value={selectedAttrName}
-                            options={availableAttributes.map((a) => ({ label: a.name, value: a.name }))}
-                            onChange={(e) => { setSelectedAttrName(e.value); setSelectedAttrValue(""); }}
-                            placeholder="Select attribute"
-                            className="w-full"
+          <DataTable value={variants} stripedRows emptyMessage="No variants found" rowClassName={() => "table-row"}>
+            <Column header="Name" body={() => productName} sortable headerClassName="column-header" bodyClassName="column-body" />
+            <Column field="sku" header="SKU" sortable headerClassName="column-header" bodyClassName="column-body" />
+            <Column field="barcode" header="Barcode" sortable headerClassName="column-header" bodyClassName="column-body" />
+            <Column
+              header="Attributes"
+              body={(row) => Object.entries(row.attributes || {}).map(([k, v]) => `${k}:${v}`).join(", ") || "—"}
+              sortable
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column header="Imported" body={(row) => (row.isImported ? "Yes" : "No")} sortable headerClassName="column-header" bodyClassName="column-body" />
+            <Column header="Images" body={variantImagesBody} style={{ width: "200px" }} headerClassName="column-header" bodyClassName="column-body" />
+            <Column
+              header="Actions"
+              body={(row) => (
+                <div className="flex gap-2">
+                  <button onClick={() => openEditVariantForm(row)} className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Edit">
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => deleteVariant(row.id)} className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              style={{ width: "120px" }}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+          </DataTable>
+
+          <div className="modal-sticky-footer gap-4">
+            <Button variant="outline" onClick={() => setStep(1)}><ChevronLeft className="w-4 h-4" /> Back</Button>
+            <Button variant="primary" onClick={() => setStep(3)}>Pricing <ChevronRight className="w-4 h-4 mt-1" /></Button>
+          </div>
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="space-y-5">
+          {variants.map((variant) => {
+            const existingStocks = variant.stocks || [];
+            const tempStocks = pendingStocks[variant.id] || [];
+            const allRows = [
+              ...existingStocks.map((s) => ({ ...s, _isTemp: false, id: s.id })),
+              ...tempStocks.map((t) => ({ ...t, _isTemp: true })),
+            ];
+            const formValues = newPriceSet[variant.id] || { buyingPrice: 0, sellingPrice: 0, discount: 0 };
+            const hasPriceSets = getPriceSetCount(variant) > 0;
+
+            return (
+              <div key={variant.id} className="border rounded-md p-5 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                <div className="mb-3">
+                  <h4 className="font-medium text-base">{productName}</h4>
+                  <p className="text-xs text-gray-500">SKU: {variant.sku}</p>
+                  {variant.barcode && <p className="text-xs text-gray-500">Barcode: {variant.barcode}</p>}
+                </div>
+
+                {hasPriceSets ? (
+                  <DataTable
+                    value={allRows}
+                    stripedRows
+                    emptyMessage="No price sets added yet"
+                    rowClassName={() => "table-row"}
+                    className="mb-4"
+                  >
+                    <Column
+                      header="Buying Price"
+                      body={(row) =>
+                        row._isTemp && row.isEditing ? (
+                          <input
+                            type="number"
+                            value={row.buyingPrice}
+                            onChange={(e) => updateTempStock(variant.id, row.id, "buyingPrice", parseFloat(e.target.value) || 0)}
+                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
-                        </div>
-                        <div className="flex-1">
-                          <label className="block text-xs font-medium">Attribute Value</label>
-                          <Dropdown
-                            value={selectedAttrValue}
-                            options={availableAttributes.find((a) => a.name === selectedAttrName)?.values.map((v: string) => ({ label: v, value: v })) || []}
-                            onChange={(e) => handleValueSelect(e.value)}
-                            placeholder="Select value"
-                            disabled={!selectedAttrName}
-                            className="w-full"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium mb-2">Current Attributes</label>
-                      <div className="flex flex-wrap gap-2 min-h-[60px] p-3 rounded-md border border-dashed border-gray-200 dark:border-gray-700">
-                        {Object.entries(currentAttributes).length === 0 ? (
-                          <span className="text-gray-400 text-sm">No attributes selected</span>
                         ) : (
-                          Object.entries(currentAttributes).map(([k, v]) => (
-                            <span key={k} className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-200 dark:bg-blue-800 rounded-full text-sm">
-                              {k}: {v}
-                              <X className="w-3.5 h-3.5 cursor-pointer hover:text-red-600" onClick={() => removeCurrentAttribute(k)} />
-                            </span>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-2">Barcode (optional)</label>
-                  <div className="flex gap-2">
-                    <InputField
-                      value={variantBarcode}
-                      onChange={(e) => setVariantBarcode(e.target.value)}
-                      placeholder="Scan or enter barcode"
-                      className="flex-1"
+                          <span className="text-xs">{row.buyingOrMakingPrice || row.buyingPrice}</span>
+                        )
+                      }
+                      headerClassName="column-header text-xs"
+                      bodyClassName="column-body text-xs py-1"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setVariantBarcode(generateEAN13())}
-                      className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {(variantBarcode || (isEditingMode && editingVariantId)) && (
-                    <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/30">
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="font-medium text-gray-600 dark:text-gray-400">Barcode Number:</span>
-                          <span className="text-gray-800 dark:text-gray-200 font-mono">{variantBarcode || "—"}</span>
-                        </div>
-                        {variantBarcode && (
-                          <div className="flex justify-center pt-2">
-                            <div className="bg-white p-2 rounded shadow-sm">
-                              <Barcode value={variantBarcode} format="CODE128" width={1.5} height={40} fontSize={10} margin={0} displayValue={true} />
+                    <Column
+                      header="MRP"
+                      body={(row) =>
+                        row._isTemp && row.isEditing ? (
+                          <input
+                            type="number"
+                            value={row.sellingPrice}
+                            onChange={(e) => updateTempStock(variant.id, row.id, "sellingPrice", parseFloat(e.target.value) || 0)}
+                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        ) : (
+                          <span className="text-xs">{row.sellingPrice}</span>
+                        )
+                      }
+                      headerClassName="column-header text-xs"
+                      bodyClassName="column-body text-xs py-1"
+                    />
+                    <Column
+                      header="Discount %"
+                      body={(row) =>
+                        row._isTemp && row.isEditing ? (
+                          <input
+                            type="number"
+                            value={row.discount}
+                            onChange={(e) => updateTempStock(variant.id, row.id, "discount", parseFloat(e.target.value) || 0)}
+                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        ) : (
+                          <span className="text-xs">{row.discountPercent || row.discount}</span>
+                        )
+                      }
+                      headerClassName="column-header text-xs"
+                      bodyClassName="column-body text-xs py-1"
+                    />
+                    <Column
+                      header="Actions"
+                      body={(row) => {
+                        if (row._isTemp) {
+                          return (
+                            <div className="flex gap-2">
+                              {row.isEditing ? (
+                                <button
+                                  onClick={() => saveTempStock(variant.id, row.id)}
+                                  className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                  title="Save"
+                                >
+                                  <CheckCircle className="w-4 h-4" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => editTempStock(variant.id, row.id)}
+                                  className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                  title="Edit"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => removeTempStock(variant.id, row.id)}
+                                className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                title="Remove"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
-                          </div>
-                        )}
+                          );
+                        }
+                        return null;
+                      }}
+                      style={{ width: "100px" }}
+                      headerClassName="column-header text-xs"
+                      bodyClassName="column-body text-xs py-1"
+                    />
+                  </DataTable>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 text-sm border border-dashed rounded-md mb-4">
+                    No price sets added yet. Use the form below to add your first price set.
+                  </div>
+                )}
+
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Buying Price</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={formValues.buyingPrice === 0 ? "" : formValues.buyingPrice}
+                        onFocus={(e) => { if (e.target.value === "0") e.target.value = ""; }}
+                        onBlur={(e) => {
+                          if (e.target.value === "") {
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: { ...prev[variant.id], buyingPrice: 0 },
+                            }));
+                          }
+                        }}
+                        onChange={(e) =>
+                          setNewPriceSet((prev) => ({
+                            ...prev,
+                            [variant.id]: { ...prev[variant.id], buyingPrice: parseFloat(e.target.value) || 0 },
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">MRP</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={formValues.sellingPrice === 0 ? "" : formValues.sellingPrice}
+                        onFocus={(e) => { if (e.target.value === "0") e.target.value = ""; }}
+                        onBlur={(e) => {
+                          if (e.target.value === "") {
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: { ...prev[variant.id], sellingPrice: 0 },
+                            }));
+                          }
+                        }}
+                        onChange={(e) =>
+                          setNewPriceSet((prev) => ({
+                            ...prev,
+                            [variant.id]: { ...prev[variant.id], sellingPrice: parseFloat(e.target.value) || 0 },
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Discount %</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={formValues.discount === 0 ? "" : formValues.discount}
+                        onFocus={(e) => { if (e.target.value === "0") e.target.value = ""; }}
+                        onBlur={(e) => {
+                          if (e.target.value === "") {
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: { ...prev[variant.id], discount: 0 },
+                            }));
+                          }
+                        }}
+                        onChange={(e) =>
+                          setNewPriceSet((prev) => ({
+                            ...prev,
+                            [variant.id]: { ...prev[variant.id], discount: parseFloat(e.target.value) || 0 },
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end mt-3">
+                    <div className="relative inline-block group">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => addTempStock(variant.id)}
+                        className="flex items-center gap-1"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="lucide lucide-info"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M12 16v-4" />
+                          <path d="M12 8h.01" />
+                        </svg>
+                        Add Price Set
+                      </Button>
+                      <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-20 w-56 p-2 text-xs text-white bg-gray-800 rounded shadow-lg whitespace-normal">
+                        Add multiple price sets for different purchase costs or MRPs. Unsaved rows can be removed. All changes are saved when you click Save Draft or Publish.
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
+              </div>
+            );
+          })}
+          <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-700 modal-sticky-footer">
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setStep(2)}><ChevronLeft className="w-4 h-4" /> Back</Button>
 
-                <div className="flex items-center gap-4 mb-4">
-                  <span className="font-medium">Is Imported?</span>
-                  <label>
-                    <input type="radio" name="variantImported" checked={!variantIsImported} onChange={() => { setVariantIsImported(false); setVariantCountry(""); }} /> No
-                  </label>
-                  <label>
-                    <input type="radio" name="variantImported" checked={variantIsImported} onChange={() => setVariantIsImported(true)} /> Yes
-                  </label>
+              <Button
+                variant="secondary"
+                onClick={handleSaveDraft}
+                loading={submitting}
+                disabled={hasMissingPriceSet()}
+                title={hasMissingPriceSet() ? "All variants must have at least one price set" : ""}
+              >
+                Save Draft
+              </Button>
+              <Button
+                variant="success"
+                onClick={handlePublish}
+                loading={submitting}
+                disabled={hasMissingPriceSet()}
+                title={hasMissingPriceSet() ? "All variants must have at least one price set" : ""}
+              >
+                Save & Publish
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddAttribute && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <div className="flex mb-6">
+              <button
+                className={`cursor-pointer flex-1 pb-2 text-center ${attributeTab === "addValue" ? "border-b-2 border-blue-500 text-blue-600" : "border-b-2 text-gray-500"} text-sm`}
+                onClick={() => setAttributeTab("addValue")}
+              >
+                Add Value to Existing
+              </button>
+              <button
+                className={`cursor-pointer flex-1 pb-2 text-center ${attributeTab === "newAttr" ? "border-b-2 border-blue-500 text-blue-600" : "border-b-2 text-gray-500"} text-sm`}
+                onClick={() => setAttributeTab("newAttr")}
+              >
+                Add New Attribute
+              </button>
+            </div>
+            {attributeTab === "addValue" && (
+              <div className="flex flex-col gap-4">
+                <Dropdown
+                  value={existingAttrName}
+                  options={availableAttributes.map((a) => ({ label: a.name, value: a.name }))}
+                  onChange={(e) => setExistingAttrName(e.value)}
+                  placeholder="Select attribute"
+                  className="w-full mb-3"
+                />
+                <InputField
+                  label="New Value(s) (comma separated)"
+                  value={newValueInput}
+                  onChange={(e) => setNewValueInput(e.target.value)}
+                />
+                <div className="flex justify-end gap-3 mt-4">
+                  <Button variant="outline" onClick={() => setShowAddAttribute(false)}>Cancel</Button>
+                  <Button onClick={handleAddValueToExisting}>Add Value</Button>
                 </div>
-                {variantIsImported && (
-                  <InputField label="Country of Origin" value={variantCountry} onChange={(e) => setVariantCountry(e.target.value)} />
-                )}
               </div>
             )}
-
-            <DataTable value={variants} stripedRows emptyMessage="No variants found" rowClassName={() => "table-row"}>
-              <Column header="Name" body={() => productName} sortable headerClassName="column-header" bodyClassName="column-body" />
-              <Column field="sku" header="SKU" sortable headerClassName="column-header" bodyClassName="column-body" />
-              <Column field="barcode" header="Barcode" sortable headerClassName="column-header" bodyClassName="column-body" />
-              <Column
-                header="Attributes"
-                body={(row) => Object.entries(row.attributes || {}).map(([k, v]) => `${k}:${v}`).join(", ") || "—"}
-                sortable
-                headerClassName="column-header"
-                bodyClassName="column-body"
-              />
-              <Column header="Imported" body={(row) => (row.isImported ? "Yes" : "No")} sortable headerClassName="column-header" bodyClassName="column-body" />
-              <Column header="Images" body={variantImagesBody} style={{ width: "200px" }} headerClassName="column-header" bodyClassName="column-body" />
-              <Column
-                header="Actions"
-                body={(row) => (
-                  <div className="flex gap-2">
-                    <button onClick={() => openEditVariantForm(row)} className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Edit">
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => deleteVariant(row.id)} className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-                style={{ width: "120px" }}
-                headerClassName="column-header"
-                bodyClassName="column-body"
-              />
-            </DataTable>
-
-            <div className="modal-sticky-footer gap-4">
-              <Button variant="outline" onClick={() => setStep(1)}><ChevronLeft className="w-4 h-4" /> Back</Button>
-              <Button variant="primary" onClick={() => setStep(3)}>Pricing <ChevronRight className="w-4 h-4 mt-1" /></Button>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="space-y-5">
-            {variants.map((variant) => {
-              const existingStocks = variant.stocks || [];
-              const tempStocks = pendingStocks[variant.id] || [];
-              const allRows = [
-                ...existingStocks.map((s) => ({ ...s, _isTemp: false, id: s.id })),
-                ...tempStocks.map((t) => ({ ...t, _isTemp: true })),
-              ];
-              const formValues = newPriceSet[variant.id] || { buyingPrice: 0, sellingPrice: 0, discount: 0 };
-              const hasPriceSets = getPriceSetCount(variant) > 0;
-
-              return (
-                <div key={variant.id} className="border rounded-md p-5 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                  <div className="mb-3">
-                    <h4 className="font-medium text-base">{productName}</h4>
-                    <p className="text-xs text-gray-500">SKU: {variant.sku}</p>
-                    {variant.barcode && <p className="text-xs text-gray-500">Barcode: {variant.barcode}</p>}
-                  </div>
-
-                  {hasPriceSets ? (
-                    <DataTable
-                      value={allRows}
-                      stripedRows
-                      emptyMessage="No price sets added yet"
-                      rowClassName={() => "table-row"}
-                      className="mb-4"
-                    >
-                      <Column
-                        header="Buying Price"
-                        body={(row) =>
-                          row._isTemp && row.isEditing ? (
-                            <input
-                              type="number"
-                              value={row.buyingPrice}
-                              onChange={(e) =>
-                                updateTempStock(variant.id, row.id, "buyingPrice", parseFloat(e.target.value) || 0)
-                              }
-                              className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          ) : (
-                            <span className="text-xs">{row.buyingOrMakingPrice || row.buyingPrice}</span>
-                          )
-                        }
-                        headerClassName="column-header text-xs"
-                        bodyClassName="column-body text-xs py-1"
-                      />
-                      <Column
-                        header="MRP"
-                        body={(row) =>
-                          row._isTemp && row.isEditing ? (
-                            <input
-                              type="number"
-                              value={row.sellingPrice}
-                              onChange={(e) =>
-                                updateTempStock(variant.id, row.id, "sellingPrice", parseFloat(e.target.value) || 0)
-                              }
-                              className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          ) : (
-                            <span className="text-xs">{row.sellingPrice}</span>
-                          )
-                        }
-                        headerClassName="column-header text-xs"
-                        bodyClassName="column-body text-xs py-1"
-                      />
-                      <Column
-                        header="Discount %"
-                        body={(row) =>
-                          row._isTemp && row.isEditing ? (
-                            <input
-                              type="number"
-                              value={row.discount}
-                              onChange={(e) =>
-                                updateTempStock(variant.id, row.id, "discount", parseFloat(e.target.value) || 0)
-                              }
-                              className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          ) : (
-                            <span className="text-xs">{row.discountPercent || row.discount}</span>
-                          )
-                        }
-                        headerClassName="column-header text-xs"
-                        bodyClassName="column-body text-xs py-1"
-                      />
-                      <Column
-                        header="Actions"
-                        body={(row) => {
-                          if (row._isTemp) {
-                            return (
-                              <div className="flex gap-2">
-                                {row.isEditing ? (
-                                  <button
-                                    onClick={() => saveTempStock(variant.id, row.id)}
-                                    className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
-                                    title="Save"
-                                  >
-                                    <CheckCircle className="w-4 h-4" />
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => editTempStock(variant.id, row.id)}
-                                    className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                    title="Edit"
-                                  >
-                                    <Edit className="w-4 h-4" />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => removeTempStock(variant.id, row.id)}
-                                  className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                                  title="Remove"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                        style={{ width: "100px" }}
-                        headerClassName="column-header text-xs"
-                        bodyClassName="column-body text-xs py-1"
-                      />
-                    </DataTable>
-                  ) : (
-                    <div className="text-center py-8 text-gray-500 text-sm border border-dashed rounded-md mb-4">
-                      No price sets added yet. Use the form below to add your first price set.
-                    </div>
-                  )}
-
-                  {/* Add new price set form */}
-                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Buying Price</label>
-                        <input
-                          type="number"
-                          placeholder="0"
-                          className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          value={formValues.buyingPrice === 0 ? "" : formValues.buyingPrice}
-                          onFocus={(e) => {
-                            if (e.target.value === "0") e.target.value = "";
-                          }}
-                          onBlur={(e) => {
-                            if (e.target.value === "") {
-                              setNewPriceSet((prev) => ({
-                                ...prev,
-                                [variant.id]: { ...prev[variant.id], buyingPrice: 0 },
-                              }));
-                            }
-                          }}
-                          onChange={(e) =>
-                            setNewPriceSet((prev) => ({
-                              ...prev,
-                              [variant.id]: { ...prev[variant.id], buyingPrice: parseFloat(e.target.value) || 0 },
-                            }))
-                          }
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">MRP</label>
-                        <input
-                          type="number"
-                          placeholder="0"
-                          className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          value={formValues.sellingPrice === 0 ? "" : formValues.sellingPrice}
-                          onFocus={(e) => {
-                            if (e.target.value === "0") e.target.value = "";
-                          }}
-                          onBlur={(e) => {
-                            if (e.target.value === "") {
-                              setNewPriceSet((prev) => ({
-                                ...prev,
-                                [variant.id]: { ...prev[variant.id], sellingPrice: 0 },
-                              }));
-                            }
-                          }}
-                          onChange={(e) =>
-                            setNewPriceSet((prev) => ({
-                              ...prev,
-                              [variant.id]: { ...prev[variant.id], sellingPrice: parseFloat(e.target.value) || 0 },
-                            }))
-                          }
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Discount %</label>
-                        <input
-                          type="number"
-                          placeholder="0"
-                          className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          value={formValues.discount === 0 ? "" : formValues.discount}
-                          onFocus={(e) => {
-                            if (e.target.value === "0") e.target.value = "";
-                          }}
-                          onBlur={(e) => {
-                            if (e.target.value === "") {
-                              setNewPriceSet((prev) => ({
-                                ...prev,
-                                [variant.id]: { ...prev[variant.id], discount: 0 },
-                              }));
-                            }
-                          }}
-                          onChange={(e) =>
-                            setNewPriceSet((prev) => ({
-                              ...prev,
-                              [variant.id]: { ...prev[variant.id], discount: parseFloat(e.target.value) || 0 },
-                            }))
-                          }
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end mt-3">
-                      <div className="relative inline-block">
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => addTempStock(variant.id)}
-                          className="flex items-center gap-1"
-                        >
-                          Add Price Set
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="lucide lucide-info ml-1"
-                          >
-                            <circle cx="12" cy="12" r="10" />
-                            <path d="M12 16v-4" />
-                            <path d="M12 8h.01" />
-                          </svg>
-                        </Button>
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-20 w-56 p-2 text-xs text-white bg-gray-800 rounded shadow-lg whitespace-normal">
-                          Add multiple price sets for different purchase costs or MRPs. Unsaved rows can be removed. All changes are saved when you click Save Draft or Publish.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+            {attributeTab === "newAttr" && (
+              <div className="flex flex-col gap-4">
+                <InputField label="Attribute Name" value={newAttributeName} onChange={(e) => setNewAttributeName(e.target.value)} />
+                <InputField label="Values (comma separated)" value={newAttributeValues} onChange={(e) => setNewAttributeValues(e.target.value)} />
+                <div className="flex justify-end gap-3 mt-4">
+                  <Button variant="outline" onClick={() => setShowAddAttribute(false)}>Cancel</Button>
+                  <Button onClick={handleAddNewAttribute}>Add Attribute</Button>
                 </div>
-              );
-            })}
-            <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-              <Button variant="outline" onClick={() => setStep(2)}><ChevronLeft className="w-4 h-4" /> Back</Button>
-              <div className="flex gap-3">
-                <Button
-                  variant="secondary"
-                  onClick={handleSaveDraft}
-                  loading={submitting}
-                  disabled={hasMissingPriceSet()}
-                  title={hasMissingPriceSet() ? "All variants must have at least one price set" : ""}
-                >
-                  Save Draft
-                </Button>
-                <Button
-                  variant="success"
-                  onClick={handlePublish}
-                  loading={submitting}
-                  disabled={hasMissingPriceSet()}
-                  title={hasMissingPriceSet() ? "All variants must have at least one price set" : ""}
-                >
-                  Save & Publish
-                </Button>
               </div>
-            </div>
+            )}
           </div>
-        )}
-
-        {showAddAttribute && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-              <div className="flex mb-6">
-                <button
-                  className={`cursor-pointer flex-1 pb-2 text-center ${attributeTab === "addValue" ? "border-b-2 border-blue-500 text-blue-600" : "border-b-2 text-gray-500"} text-sm`}
-                  onClick={() => setAttributeTab("addValue")}
-                >
-                  Add Value to Existing
-                </button>
-                <button
-                  className={`cursor-pointer flex-1 pb-2 text-center ${attributeTab === "newAttr" ? "border-b-2 border-blue-500 text-blue-600" : "border-b-2 text-gray-500"} text-sm`}
-                  onClick={() => setAttributeTab("newAttr")}
-                >
-                  Add New Attribute
-                </button>
-              </div>
-              {attributeTab === "addValue" && (
-                <div className="flex flex-col gap-4">
-                  <Dropdown
-                    value={existingAttrName}
-                    options={availableAttributes.map((a) => ({ label: a.name, value: a.name }))}
-                    onChange={(e) => setExistingAttrName(e.value)}
-                    placeholder="Select attribute"
-                    className="w-full mb-3"
-                  />
-                  <InputField
-                    label="New Value(s) (comma separated)"
-                    value={newValueInput}
-                    onChange={(e) => setNewValueInput(e.target.value)}
-                  />
-                  <div className="flex justify-end gap-3 mt-4">
-                    <Button variant="outline" onClick={() => setShowAddAttribute(false)}>Cancel</Button>
-                    <Button onClick={handleAddValueToExisting}>Add Value</Button>
-                  </div>
-                </div>
-              )}
-              {attributeTab === "newAttr" && (
-                <div className="flex flex-col gap-4">
-                  <InputField label="Attribute Name" value={newAttributeName} onChange={(e) => setNewAttributeName(e.target.value)} />
-                  <InputField label="Values (comma separated)" value={newAttributeValues} onChange={(e) => setNewAttributeValues(e.target.value)} />
-                  <div className="flex justify-end gap-3 mt-4">
-                    <Button variant="outline" onClick={() => setShowAddAttribute(false)}>Cancel</Button>
-                    <Button onClick={handleAddNewAttribute}>Add Attribute</Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </DndProvider>
+        </div>
+      )}
+    </div>
   );
 };
 

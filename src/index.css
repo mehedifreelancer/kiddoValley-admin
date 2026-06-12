@@ -278,13 +278,14 @@ textarea::-webkit-scrollbar-thumb {
   display: flex;
   justify-content: flex-end;
   position: sticky;
-  bottom: 0;
+  bottom: -5px;
   border-top-width: 1px;
   border-top-style: solid;
   border-top-color: #e5e7eb;
   background-color: #e5e7eb;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
+  z-index: 99;
 }
 
 .dark .modal-sticky-footer {
