@@ -48,11 +48,10 @@ const StepIndicator = ({ current }: { current: number }) => (
     {/* Step 1 */}
     <div className="flex-1 text-center">
       <div
-        className={`inline-flex items-center justify-center w-8 h-8 rounded-full  ${
-          current === 1
-            ? "bg-blue-500 text-white border-2 border-blue-500"
-            : "bg-green-500 text-white border-2 border-green-500"
-        }`}
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full  ${current === 1
+          ? "bg-blue-500 text-white border-2 border-blue-500"
+          : "bg-green-500 text-white border-2 border-green-500"
+          }`}
       >
         {current === 1 ? 1 : <CheckCircle className="w-5 h-5" />}
       </div>
@@ -61,21 +60,19 @@ const StepIndicator = ({ current }: { current: number }) => (
 
     {/* Connector 1 → 2 - solid line */}
     <div
-      className={`flex-1 border-t-2 ${
-        current > 1 ? "border-green-500" : "border-gray-300 dark:border-gray-600"
-      }`}
+      className={`flex-1 border-t-2 ${current > 1 ? "border-green-500" : "border-gray-300 dark:border-gray-600"
+        }`}
     />
 
     {/* Step 2 */}
     <div className="flex-1 text-center">
       <div
-        className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-          current === 2
-            ? "bg-blue-500 text-white border-blue-500"
-            : current > 2
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${current === 2
+          ? "bg-blue-500 text-white border-blue-500"
+          : current > 2
             ? "bg-green-500 text-white border-green-500"
             : "bg-gray-200 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600"
-        }`}
+          }`}
       >
         {current === 2 ? 2 : current > 2 ? <CheckCircle className="w-5 h-5" /> : 2}
       </div>
@@ -84,19 +81,17 @@ const StepIndicator = ({ current }: { current: number }) => (
 
     {/* Connector 2 → 3 - solid line */}
     <div
-      className={`flex-1 border-t-2 ${
-        current > 2 ? "border-green-500" : "border-gray-300 dark:border-gray-600"
-      }`}
+      className={`flex-1 border-t-2 ${current > 2 ? "border-green-500" : "border-gray-300 dark:border-gray-600"
+        }`}
     />
 
     {/* Step 3 */}
     <div className="flex-1 text-center">
       <div
-        className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-          current === 3
-            ? "bg-blue-500 text-white border-blue-500"
-            : "bg-gray-200 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600"
-        }`}
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${current === 3
+          ? "bg-blue-500 text-white border-blue-500"
+          : "bg-gray-200 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600"
+          }`}
       >
         3
       </div>
@@ -1116,75 +1111,115 @@ export const CreateProductWizard = () => {
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                   <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Buying Price</label>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Buying Price *</label>
                       <input
                         type="number"
+                        min="0"
                         placeholder="0"
+                        step="any"
                         className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         value={formValues.buyingPrice === 0 ? "" : formValues.buyingPrice}
-                        onFocus={(e) => { if (e.target.value === "0") e.target.value = ""; }}
+                        onFocus={(e) => {
+                          if (e.target.value === "0") e.target.value = "";
+                        }}
                         onBlur={(e) => {
-                          if (e.target.value === "") {
+                          const val = e.target.value;
+                          if (val === "") {
                             setNewPriceSet((prev) => ({
                               ...prev,
                               [variant.id]: { ...prev[variant.id], buyingPrice: 0 },
                             }));
+                          } else {
+                            const num = parseFloat(val);
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: { ...prev[variant.id], buyingPrice: isNaN(num) ? 0 : num },
+                            }));
                           }
                         }}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const num = parseFloat(val);
                           setNewPriceSet((prev) => ({
                             ...prev,
-                            [variant.id]: { ...prev[variant.id], buyingPrice: parseFloat(e.target.value) || 0 },
-                          }))
-                        }
+                            [variant.id]: { ...prev[variant.id], buyingPrice: isNaN(num) ? 0 : num },
+                          }));
+                        }}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">MRP</label>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">MRP *</label>
                       <input
                         type="number"
+                        min="0"
+                        step="any"
                         placeholder="0"
                         className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         value={formValues.sellingPrice === 0 ? "" : formValues.sellingPrice}
-                        onFocus={(e) => { if (e.target.value === "0") e.target.value = ""; }}
+                        onFocus={(e) => {
+                          if (e.target.value === "0") e.target.value = "";
+                        }}
                         onBlur={(e) => {
-                          if (e.target.value === "") {
+                          const val = e.target.value;
+                          if (val === "") {
                             setNewPriceSet((prev) => ({
                               ...prev,
                               [variant.id]: { ...prev[variant.id], sellingPrice: 0 },
                             }));
+                          } else {
+                            const num = parseFloat(val);
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: { ...prev[variant.id], sellingPrice: isNaN(num) ? 0 : num },
+                            }));
                           }
                         }}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const num = parseFloat(val);
                           setNewPriceSet((prev) => ({
                             ...prev,
-                            [variant.id]: { ...prev[variant.id], sellingPrice: parseFloat(e.target.value) || 0 },
-                          }))
-                        }
+                            [variant.id]: { ...prev[variant.id], sellingPrice: isNaN(num) ? 0 : num },
+                          }));
+                        }}
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Discount %</label>
                       <input
                         type="number"
+                        min="0"
+                        step="any"
                         placeholder="0"
+
                         className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         value={formValues.discount === 0 ? "" : formValues.discount}
-                        onFocus={(e) => { if (e.target.value === "0") e.target.value = ""; }}
+                        onFocus={(e) => {
+                          if (e.target.value === "0") e.target.value = "";
+                        }}
                         onBlur={(e) => {
-                          if (e.target.value === "") {
+                          const val = e.target.value;
+                          if (val === "") {
                             setNewPriceSet((prev) => ({
                               ...prev,
                               [variant.id]: { ...prev[variant.id], discount: 0 },
                             }));
+                          } else {
+                            const num = parseFloat(val);
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: { ...prev[variant.id], discount: isNaN(num) ? 0 : num },
+                            }));
                           }
                         }}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const num = parseFloat(val);
                           setNewPriceSet((prev) => ({
                             ...prev,
-                            [variant.id]: { ...prev[variant.id], discount: parseFloat(e.target.value) || 0 },
-                          }))
-                        }
+                            [variant.id]: { ...prev[variant.id], discount: isNaN(num) ? 0 : num },
+                          }));
+                        }}
                       />
                     </div>
                   </div>
