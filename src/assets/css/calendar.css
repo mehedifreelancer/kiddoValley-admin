@@ -1,0 +1,238 @@
+/* src/assets/css/calendar.css */
+@reference "tailwindcss";
+
+/* Light mode variables (default) */
+:root {
+  --calendar-bg: #ffffff;
+  --calendar-text: #111827;
+  --calendar-border: #d1d5db;
+  --calendar-hover: #f3f4f6;
+  --calendar-input-bg: #ffffff;
+  --calendar-popup-bg: #ffffff;
+  --calendar-icon: #6b7280;
+  --calendar-icon-hover: #3b82f6;
+}
+
+/* Dark mode variables */
+.dark {
+  --calendar-bg: #1f2937;
+  --calendar-text: #f9fafb;
+  --calendar-border: #4b5563;
+  --calendar-hover: #374151;
+  --calendar-input-bg: #1f2937;
+  --calendar-popup-bg: #1f2937;
+  --calendar-icon: #9ca3af;
+  --calendar-icon-hover: #60a5fa;
+}
+
+/* Main calendar input */
+.p-calendar {
+  @apply w-full;
+}
+
+.p-calendar .p-inputtext {
+  width: 100%;
+  background-color: var(--calendar-input-bg);
+  border: 1px solid var(--calendar-border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--calendar-text);
+  transition: all 0.2s;
+}
+
+.p-calendar .p-inputtext:hover:not(:disabled) {
+  border-color: #9ca3af;
+}
+
+/* Dark mode hover - explicitly defined */
+.dark .p-calendar .p-inputtext:hover:not(:disabled) {
+  border-color: #6b7280;
+}
+
+.p-calendar .p-inputtext:focus {
+  @apply outline-none ring-2 ring-blue-500/20 border-blue-500;
+}
+
+/* Dark mode focus */
+.dark .p-calendar .p-inputtext:focus {
+  @apply ring-blue-400/20 border-blue-400;
+}
+
+/* Calendar icon */
+.p-calendar .p-datepicker-trigger {
+  @apply bg-transparent border-0 transition-colors;
+  color: var(--calendar-icon);
+  position: absolute;
+  right: 0;
+  padding-right: 5px;
+  top: 6px;
+}
+
+.p-calendar .p-datepicker-trigger:hover {
+  color: var(--calendar-icon-hover);
+}
+
+/* Datepicker panel */
+.p-datepicker {
+  background-color: var(--calendar-popup-bg);
+  border: 1px solid var(--calendar-border);
+  @apply rounded-lg shadow-xl p-3 mt-1;
+}
+
+/* Header */
+.p-datepicker-header {
+  @apply flex items-center justify-between pb-3 mb-2;
+  border-bottom: 1px solid var(--calendar-border);
+}
+
+.p-datepicker-title {
+  color: var(--calendar-text);
+  @apply text-sm font-semibold;
+}
+
+.p-datepicker-prev,
+.p-datepicker-next {
+  @apply w-6 h-6 flex items-center justify-center rounded-md transition-colors;
+  color: var(--calendar-icon);
+}
+
+.p-datepicker-prev:hover,
+.p-datepicker-next:hover {
+  background-color: var(--calendar-hover);
+  color: var(--calendar-icon-hover);
+}
+
+/* Day labels */
+.p-datepicker-calendar th {
+  @apply text-xs font-medium pb-2;
+  color: var(--calendar-icon);
+}
+
+/* Day cells */
+.p-datepicker-calendar td {
+  @apply p-0.5;
+}
+
+.p-datepicker-calendar td>span {
+  @apply w-8 h-8 flex items-center justify-center rounded-md text-sm cursor-pointer transition-all duration-200;
+  color: var(--calendar-text);
+}
+
+.p-datepicker-calendar td>span:hover:not(.p-disabled) {
+  background-color: var(--calendar-hover);
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+}
+
+/* Selected day */
+.p-datepicker-calendar td>span.p-highlight {
+  @apply bg-blue-600 text-white;
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+}
+
+/* Dark mode selected day */
+.dark .p-datepicker-calendar td>span.p-highlight {
+  @apply bg-blue-600 text-white;
+}
+
+/* Today */
+.p-datepicker-calendar td>span.p-datepicker-today {
+  background-color: var(--calendar-hover);
+  @apply font-semibold;
+}
+
+/* Disabled days */
+.p-datepicker-calendar td>span.p-disabled {
+  @apply opacity-50 cursor-not-allowed;
+  color: var(--calendar-icon);
+}
+
+/* Range selection */
+.p-datepicker-calendar td>span.p-range-start,
+.p-datepicker-calendar td>span.p-range-end {
+  @apply bg-blue-600 text-white;
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+}
+
+.p-datepicker-calendar td>span.p-in-range {
+  background-color: var(--calendar-hover);
+  color: var(--calendar-text);
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+}
+
+/* Dark mode in-range */
+.dark .p-datepicker-calendar td>span.p-in-range {
+  background-color: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+}
+
+/* Time picker */
+.p-timepicker {
+  @apply flex items-center justify-center gap-2 mt-3 pt-3;
+  border-top: 1px solid var(--calendar-border);
+}
+
+.p-hour-picker input,
+.p-minute-picker input,
+.p-second-picker input,
+.p-ampm-picker input {
+  @apply w-16 text-center bg-transparent border rounded-md px-2 py-1 text-sm transition-all;
+  border-color: var(--calendar-border);
+  color: var(--calendar-text);
+}
+
+.p-hour-picker input:focus,
+.p-minute-picker input:focus,
+.p-second-picker input:focus,
+.p-ampm-picker input:focus {
+  @apply outline-none ring-2 ring-blue-500/20 border-blue-500;
+}
+
+/* Button bar */
+.p-datepicker-buttonbar {
+  @apply flex items-center justify-end gap-2 mt-3 pt-3;
+  border-top: 1px solid var(--calendar-border);
+}
+
+.p-datepicker-buttonbar .p-button-text {
+  @apply px-3 py-1.5 text-sm font-medium rounded-md transition-colors;
+  color: var(--calendar-text);
+}
+
+.p-datepicker-buttonbar .p-button-text:hover {
+  background-color: var(--calendar-hover);
+}
+
+.p-datepicker-buttonbar .p-button {
+  @apply px-3 py-1.5 text-sm font-medium text-white rounded-md transition-colors;
+  background-color: #3b82f6;
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+}
+
+.p-datepicker-buttonbar .p-button:hover {
+  background-color: #2563eb;
+}
+
+/* Year/Month view */
+.p-datepicker-yearpicker,
+.p-datepicker-monthpicker {
+  @apply grid grid-cols-4 gap-1 p-2;
+}
+
+.p-datepicker-yearpicker span,
+.p-datepicker-monthpicker span {
+  @apply p-2 text-sm text-center rounded-md cursor-pointer transition-all duration-200;
+  color: var(--calendar-text);
+}
+
+.p-datepicker-yearpicker span:hover:not(.p-disabled),
+.p-datepicker-monthpicker span:hover:not(.p-disabled) {
+  background-color: var(--calendar-hover);
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+}
+
+.p-datepicker-yearpicker span.p-highlight,
+.p-datepicker-monthpicker span.p-highlight {
+  @apply bg-blue-600 text-white;
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+}

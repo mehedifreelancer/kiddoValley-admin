@@ -1,16 +1,15 @@
+import ReactDOM from "react-dom/client";
+import { RouterProvider } from "react-router/dom";
+import "./index.css";
+import "./assets/css/calendar.css";
+import "./assets/css/table.css";
+import "./assets/css/dropdown.css";
+
+import { router } from "./routes";
 
 
-// Import PrimeReact CSS
-import "primereact/resources/themes/lara-light-blue/theme.css";  // Choose your theme
-import "primereact/resources/primereact.min.css";
-import { createRoot } from "react-dom/client";
-import { StrictMode } from "react";
-import App from "./App";
-import "./index.css"
+const root = document.getElementById("root");
 
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+ReactDOM.createRoot(root).render(
+  <RouterProvider router={router} />,
+);

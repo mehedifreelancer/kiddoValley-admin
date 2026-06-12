@@ -1,0 +1,1121 @@
+// modules/master-data/product/EditProductWizard.tsx
+import {
+  CheckCircle,
+  Edit,
+  GripVertical,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
+import { Column } from "primereact/column";
+import { DataTable } from "primereact/datatable";
+import { Dropdown } from "primereact/dropdown";
+import { Editor } from "primereact/editor";
+import React, { useEffect, useState } from "react";
+import { DndProvider, useDrag, useDrop } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
+import { toast } from "react-hot-toast";
+import { useNavigate } from "react-router";
+
+import api from "../../apiConfig";
+import Button from "../../components/ui/Button";
+import InputField from "../../components/ui/InputField";
+import { getCategories } from "../master-data/category/category.service";
+import { getProductById, updateProduct } from "./product.service";
+
+// ---------- Helper functions (same as in CreateProductWizard) ----------
+function generateEAN13(): string {
+  const prefix = "890";
+  const random = Math.floor(Math.random() * 1000000000)
+    .toString()
+    .padStart(9, "0");
+  const withoutCheck = prefix + random;
+  let sum = 0;
+  for (let i = 0; i < withoutCheck.length; i++) {
+    const digit = parseInt(withoutCheck[i]);
+    sum += i % 2 === 0 ? digit : digit * 3;
+  }
+  const check = (10 - (sum % 10)) % 10;
+  return withoutCheck + check;
+}
+
+const slugify = (text: string): string =>
+  text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+// Drag & Drop Image Component (same as in create wizard)
+const ItemType = "IMAGE";
+interface DraggableImageProps {
+  image: any;
+  index: number;
+  moveImage: (dragIndex: number, hoverIndex: number) => void;
+  removeImage: (index: number) => void;
+}
+const DraggableImage: React.FC<DraggableImageProps> = ({
+  image,
+  index,
+  moveImage,
+  removeImage,
+}) => {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [{ isDragging }, drag] = useDrag({
+    type: ItemType,
+    item: { index },
+    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
+  });
+  const [, drop] = useDrop({
+    accept: ItemType,
+    hover: (item: { index: number }) => {
+      if (!ref.current) return;
+      const dragIndex = item.index;
+      const hoverIndex = index;
+      if (dragIndex === hoverIndex) return;
+      moveImage(dragIndex, hoverIndex);
+      item.index = hoverIndex;
+    },
+  });
+  drag(drop(ref));
+  return (
+    <div
+      ref={ref}
+      className={`relative group cursor-move ${isDragging ? "opacity-50" : ""}`}
+    >
+      <div className="relative w-24 h-24 rounded-lg overflow-hidden  border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 transition-all">
+        <img
+          src={image.imgUrl}
+          alt="preview"
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+          <GripVertical className="w-5 h-5 text-white cursor-grab" />
+        </div>
+        <button
+          type="button"
+          onClick={() => removeImage(index)}
+          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+      <div className="text-center mt-1 text-xs text-gray-500 truncate w-24">
+        {index + 1}
+      </div>
+    </div>
+  );
+};
+
+// Step Indicator
+const StepIndicator = ({ current }: { current: number }) => (
+  <div className="flex items-center justify-between mb-8">
+    <div className="flex-1 text-center">
+      <div
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
+          current === 1 ? "bg-blue-500 text-white" : "bg-green-500 text-white"
+        }`}
+      >
+        {current === 1 ? 1 : <CheckCircle className="w-5 h-5" />}
+      </div>
+      <div className="text-sm mt-1">Basic Info</div>
+    </div>
+    <div className="flex-1 text-center">
+      <div
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
+          current === 2 ? "bg-blue-500 text-white" : "bg-green-500 text-white"
+        }`}
+      >
+        {current === 2 ? 2 : <CheckCircle className="w-5 h-5" />}
+      </div>
+      <div className="text-sm mt-1">Variants</div>
+    </div>
+    <div className="flex-1 text-center">
+      <div
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
+          current === 3
+            ? "bg-blue-500 text-white"
+            : "bg-gray-200 dark:bg-gray-700 text-gray-500"
+        }`}
+      >
+        3
+      </div>
+      <div className="text-sm mt-1">Stock & Pricing</div>
+    </div>
+  </div>
+);
+
+// ---------- Main Edit Wizard Component ----------
+interface EditProductWizardProps {
+  productId: number;
+  onClose: () => void;
+  onSuccess?: () => void;
+}
+
+export const EditProductWizard: React.FC<EditProductWizardProps> = ({
+  productId,
+  onClose,
+  onSuccess,
+}) => {
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isEditingVariant, setIsEditingVariant] = useState(false);
+
+  // ---------- Step 1 state (product) ----------
+  const [categories, setCategories] = useState<any[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<any>(null);
+  const [productName, setProductName] = useState("");
+  const [forceOrderPriority, setForceOrderPriority] = useState(0);
+  const [videoUrl, setVideoUrl] = useState("");
+  const [productDetails, setProductDetails] = useState("");
+  const [imageList, setImageList] = useState<any[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [existingImagesToKeep, setExistingImagesToKeep] = useState<any[]>([]);
+  const [formErrors, setFormErrors] = useState<any>({});
+
+  // ---------- Step 2: variants ----------
+  const [variants, setVariants] = useState<any[]>([]);
+  const [editingVariantId, setEditingVariantId] = useState<number | null>(null);
+  const [currentAttributes, setCurrentAttributes] = useState<
+    Record<string, string>
+  >({});
+  const [selectedAttrName, setSelectedAttrName] = useState("");
+  const [selectedAttrValue, setSelectedAttrValue] = useState("");
+  const [availableAttributes, setAvailableAttributes] = useState<any[]>([]);
+  const [showAddAttribute, setShowAddAttribute] = useState(false);
+  const [attributeTab, setAttributeTab] = useState<"addValue" | "newAttr">(
+    "addValue",
+  );
+  const [existingAttrName, setExistingAttrName] = useState("");
+  const [newValueInput, setNewValueInput] = useState("");
+  const [newAttributeName, setNewAttributeName] = useState("");
+  const [newAttributeValues, setNewAttributeValues] = useState("");
+  const [variantImages, setVariantImages] = useState<any[]>([]);
+  const [variantImageFiles, setVariantImageFiles] = useState<File[]>([]);
+  const [variantIsImported, setVariantIsImported] = useState(false);
+  const [variantCountry, setVariantCountry] = useState("");
+  const [variantBarcode, setVariantBarcode] = useState("");
+
+  // ---------- Step 3: stock batches ----------
+  const [batchFormData, setBatchFormData] = useState<{
+    [variantId: number]: {
+      buyingPrice: number;
+      sellingPrice: number;
+      discount: number;
+      quantity: number;
+    };
+  }>({});
+
+  // Load categories and attributes
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const res = await getCategories(1, 1000);
+        if (res.success) setCategories(res.data);
+        else toast.error("Failed to load categories");
+      } catch {
+        toast.error("Error loading categories");
+      }
+    };
+    loadCategories();
+    const fetchAttributes = async () => {
+      try {
+        const res = await api.get("/attributes");
+        setAvailableAttributes(res.data.data);
+      } catch {
+        toast.error("Failed to load attributes");
+      }
+    };
+    fetchAttributes();
+  }, []);
+
+  // Load product and variants
+  useEffect(() => {
+    const loadProductData = async () => {
+      try {
+        setLoading(true);
+        const product = await getProductById(productId);
+        setProductName(product.name);
+        setForceOrderPriority(product.forceOrderPriority);
+        setVideoUrl(product.videoUrl || "");
+        setProductDetails(product.description || "");
+        setSelectedCategory(
+          categories.find((c) => c.id === product.categoryId) || null,
+        );
+        const existingImgs = product.images || [];
+        setExistingImagesToKeep(existingImgs);
+        setImageList(existingImgs);
+        setImageFiles([]);
+
+        // Load variants
+        const res = await api.get(`/variant/product/${productId}`);
+        const variantData = res.data.data || [];
+        setVariants(variantData);
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to load product data");
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (categories.length > 0) {
+      loadProductData();
+    }
+  }, [productId, categories]);
+
+  // ---------- Step 1: Update product (basic info + images) ----------
+  const handleStep1Next = async () => {
+    if (submitting) return;
+
+    const errors: any = {};
+    if (!productName.trim()) errors.name = "Product name required";
+    if (!selectedCategory) errors.category = "Category required";
+    if (imageList.length === 0) errors.images = "At least one image required";
+    setFormErrors(errors);
+    if (Object.keys(errors).length) return;
+
+    try {
+      setSubmitting(true);
+      const formData = new FormData();
+      formData.append("name", productName);
+      formData.append("categoryId", selectedCategory.id);
+      formData.append("forceOrderPriority", String(forceOrderPriority));
+      if (videoUrl) formData.append("videoUrl", videoUrl);
+      if (productDetails) formData.append("description", productDetails);
+      if (existingImagesToKeep.length) {
+        formData.append("existingImages", JSON.stringify(existingImagesToKeep));
+      } else {
+        formData.append("existingImages", JSON.stringify([]));
+      }
+      imageFiles.forEach((file) => formData.append("images", file));
+
+      await updateProduct(productId, formData);
+      toast.success("Product basic info updated");
+      setStep(2);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update product");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ---------- Variant management (same as create wizard but with DELETE) ----------
+  const resetVariantForm = () => {
+    setCurrentAttributes({});
+    setVariantImages([]);
+    setVariantImageFiles([]);
+    setVariantIsImported(false);
+    setVariantCountry("");
+    setVariantBarcode("");
+    setEditingVariantId(null);
+    setIsEditingVariant(false);
+  };
+
+  const editVariant = async (variant: any) => {
+    if (isEditingVariant) {
+      toast.error("Finish current edit before editing another");
+      return;
+    }
+    try {
+      const res = await api.get(`/variant/${variant.id}`);
+      const freshVariant = res.data.data;
+      setEditingVariantId(freshVariant.id);
+      setCurrentAttributes(freshVariant.attributes || {});
+      setVariantImages(freshVariant.images || []);
+      setVariantImageFiles([]);
+      setVariantIsImported(freshVariant.isImported || false);
+      setVariantCountry(freshVariant.countryOfOrigin || "");
+      setVariantBarcode(freshVariant.barcode || "");
+      setIsEditingVariant(true);
+    } catch (err) {
+      toast.error("Failed to load variant data");
+    }
+  };
+
+  const deleteVariant = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this variant?")) return;
+    try {
+      await api.delete(`/variant/${id}`);
+      toast.success("Variant deleted");
+      // Refresh variants list
+      const res = await api.get(`/variant/product/${productId}`);
+      setVariants(res.data.data || []);
+      if (editingVariantId === id) resetVariantForm();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to delete variant");
+    }
+  };
+
+  const saveVariant = async () => {
+    if (submitting) return;
+    if (Object.keys(currentAttributes).length === 0) {
+      toast.error("Please add at least one attribute-value pair");
+      return;
+    }
+
+    if (editingVariantId) {
+      // Update variant
+      const formData = new FormData();
+      formData.append("attributes", JSON.stringify(currentAttributes));
+      formData.append("isImported", String(variantIsImported));
+      if (variantCountry) formData.append("countryOfOrigin", variantCountry);
+      formData.append("barcode", variantBarcode);
+      const existingImgUrls = variantImages
+        .filter((img) => !img.imgUrl.startsWith("blob:"))
+        .map((img) => ({ imgUrl: img.imgUrl }));
+      formData.append("existingImages", JSON.stringify(existingImgUrls));
+      variantImageFiles.forEach((file) => formData.append("images", file));
+
+      try {
+        setSubmitting(true);
+        await api.put(`/variant/${editingVariantId}`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        toast.success("Variant updated");
+        const res = await api.get(`/variant/product/${productId}`);
+        setVariants(res.data.data || []);
+        resetVariantForm();
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || "Failed to update variant");
+      } finally {
+        setSubmitting(false);
+      }
+    } else {
+      // Create new variant
+      const formData = new FormData();
+      formData.append("productId", String(productId));
+      formData.append("attributes", JSON.stringify(currentAttributes));
+      formData.append("isImported", String(variantIsImported));
+      if (variantCountry) formData.append("countryOfOrigin", variantCountry);
+      formData.append("barcode", variantBarcode);
+      variantImageFiles.forEach((file) => formData.append("images", file));
+
+      try {
+        setSubmitting(true);
+        await api.post("/variant/create", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        toast.success("Variant added");
+        const res = await api.get(`/variant/product/${productId}`);
+        setVariants(res.data.data || []);
+        resetVariantForm();
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || "Failed to add variant");
+      } finally {
+        setSubmitting(false);
+      }
+    }
+  };
+
+  // ---------- Stock batch addition ----------
+  const addStock = async (variantId: number) => {
+    const data = batchFormData[variantId];
+    if (
+      !data ||
+      data.buyingPrice <= 0 ||
+      data.sellingPrice <= 0 ||
+      data.quantity <= 0
+    ) {
+      toast.error("Fill all stock fields correctly");
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await api.post("/stock/add", {
+        variantId,
+        batchNo: "",
+        buyingOrMakingPrice: data.buyingPrice,
+        sellingPrice: data.sellingPrice,
+        discountPercent: data.discount,
+        quantity: data.quantity,
+      });
+      toast.success("Stock added");
+      // Refresh variants to show updated stock list
+      const res = await api.get(`/variant/product/${productId}`);
+      setVariants(res.data.data || []);
+      setBatchFormData((prev) => ({
+        ...prev,
+        [variantId]: {
+          buyingPrice: 0,
+          sellingPrice: 0,
+          discount: 0,
+          quantity: 0,
+        },
+      }));
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to add stock");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Final save & close
+  const handleSaveAndClose = async () => {
+    // No need to publish – just close and refresh parent
+    onClose();
+    if (onSuccess) onSuccess();
+    else navigate("/products/product-list");
+  };
+
+  // Image handlers (product level)
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    for (const file of files) {
+      const mockUrl = URL.createObjectURL(file);
+      setImageList((prev) => [...prev, { imgUrl: mockUrl }]);
+      setImageFiles((prev) => [...prev, file]);
+    }
+  };
+  const removeProductImage = (index: number) => {
+    setImageList((prev) => prev.filter((_, i) => i !== index));
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    const removed = imageList[index];
+    if (removed && removed.id) {
+      setExistingImagesToKeep((prev) =>
+        prev.filter((img) => img.id !== removed.id),
+      );
+    }
+  };
+
+  const handleVariantImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    for (const file of files) {
+      const mockUrl = URL.createObjectURL(file);
+      setVariantImages((prev) => [...prev, { imgUrl: mockUrl }]);
+      setVariantImageFiles((prev) => [...prev, file]);
+    }
+  };
+  const removeVariantImage = (idx: number) => {
+    setVariantImages((prev) => prev.filter((_, i) => i !== idx));
+    setVariantImageFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleValueSelect = (value: string) => {
+    if (!selectedAttrName || !value) return;
+    setCurrentAttributes((prev) => ({ ...prev, [selectedAttrName]: value }));
+    setSelectedAttrName("");
+    setSelectedAttrValue("");
+  };
+  const removeCurrentAttribute = (key: string) => {
+    const newAttrs = { ...currentAttributes };
+    delete newAttrs[key];
+    setCurrentAttributes(newAttrs);
+  };
+
+  const handleAddValueToExisting = async () => {
+    if (!existingAttrName || !newValueInput.trim())
+      return toast.error("Select attribute and enter value(s)");
+    const newValues = newValueInput
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+    const attr = availableAttributes.find((a) => a.name === existingAttrName);
+    if (!attr) return;
+    const merged = [...new Set([...attr.values, ...newValues])];
+    try {
+      await api.put(`/attributes/${attr.id}`, { values: merged });
+      const res = await api.get("/attributes");
+      setAvailableAttributes(res.data.data);
+      toast.success("Value added");
+      setShowAddAttribute(false);
+    } catch {
+      toast.error("Failed");
+    }
+  };
+
+  const handleAddNewAttribute = async () => {
+    if (!newAttributeName || !newAttributeValues)
+      return toast.error("Provide name and values");
+    const values = newAttributeValues.split(",").map((v) => v.trim());
+    try {
+      await api.post("/attributes", { name: newAttributeName, values });
+      const res = await api.get("/attributes");
+      setAvailableAttributes(res.data.data);
+      toast.success("Attribute created");
+      setShowAddAttribute(false);
+    } catch {
+      toast.error("Failed");
+    }
+  };
+
+  const formatVariantName = (variant: any) => {
+    const attrEntries = Object.entries(variant.attributes || {});
+    if (attrEntries.length === 0) return productName;
+    const attrStr = attrEntries.map(([k, v]) => `${k}: ${v}`).join(", ");
+    return `${productName} (${attrStr})`;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">Loading product data...</div>
+    );
+  }
+
+  return (
+    <DndProvider backend={HTML5Backend}>
+      <div className="max-w-6xl mx-auto p-6 rounded-lg shadow">
+        <StepIndicator current={step} />
+
+        {/* STEP 1 – Edit basic info */}
+        {step === 1 && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <InputField
+                label="Product Name *"
+                value={productName}
+                onChange={(e) => setProductName(e.target.value)}
+                error={formErrors.name}
+              />
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Category *
+                </label>
+                <Dropdown
+                  value={selectedCategory?.id}
+                  options={categories}
+                  onChange={(e) =>
+                    setSelectedCategory(
+                      categories.find((c) => c.id === e.value),
+                    )
+                  }
+                  optionLabel="name"
+                  optionValue="id"
+                  placeholder="Select category"
+                  className="w-full"
+                />
+                {formErrors.category && (
+                  <p className="text-red-500 text-xs">{formErrors.category}</p>
+                )}
+              </div>
+              <InputField
+                label="Force Order Priority (0 = disabled)"
+                type="number"
+                value={forceOrderPriority}
+                onChange={(e) => setForceOrderPriority(Number(e.target.value))}
+              />
+              <InputField
+                label="Video URL"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Description
+              </label>
+              <Editor
+                value={productDetails}
+                onTextChange={(e) => setProductDetails(e.htmlValue as any)}
+                style={{ height: "200px" }}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Product Images *
+              </label>
+              <div className="mb-2">
+                <label className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg cursor-pointer">
+                  <Upload className="w-4 h-4 text-blue-600" />
+                  <span className="text-blue-600">Upload Images</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {imageList.map((img, idx) => (
+                  <DraggableImage
+                    key={idx}
+                    image={img}
+                    index={idx}
+                    moveImage={(drag, hover) => {
+                      const newList = [...imageList];
+                      const dragged = newList[drag];
+                      newList.splice(drag, 1);
+                      newList.splice(hover, 0, dragged);
+                      setImageList(newList);
+                    }}
+                    removeImage={removeProductImage}
+                  />
+                ))}
+              </div>
+              {formErrors.images && (
+                <p className="text-red-500 text-xs">{formErrors.images}</p>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleStep1Next} loading={submitting}>
+                Save & Next →
+              </Button>
+            </div>
+          </div>
+        )}
+        {/* STEP 2 – Variants (edit, add, delete) */}
+        {step === 2 && (
+          <div className="space-y-6">
+            <div className="border border-gray-200 dark:border-gray-700 rounded-md    p-5 ">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold mb-4">
+                  {editingVariantId ? "Edit Variant" : "Add New Variant"}
+                </h3>
+                <button
+                  onClick={() => setShowAddAttribute(true)}
+                  className="text-blue-600 text-sm flex items-center gap-1 "
+                >
+                  <Plus className="w-4 h-4" /> New Attribute
+                </button>
+              </div>
+              <div className=" p-4 rounded-md border border-gray-200 dark:border-gray-700 mb-4">
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium">
+                      Attribute Name
+                    </label>
+                    <Dropdown
+                      value={selectedAttrName}
+                      options={availableAttributes.map((a) => ({
+                        label: a.name,
+                        value: a.name,
+                      }))}
+                      onChange={(e) => {
+                        setSelectedAttrName(e.value);
+                        setSelectedAttrValue("");
+                      }}
+                      placeholder="Select attribute"
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium">
+                      Attribute Value
+                    </label>
+                    <Dropdown
+                      value={selectedAttrValue}
+                      options={
+                        availableAttributes
+                          .find((a) => a.name === selectedAttrName)
+                          ?.values.map((v: string) => ({
+                            label: v,
+                            value: v,
+                          })) || []
+                      }
+                      onChange={(e) => handleValueSelect(e.value)}
+                      placeholder="Select value"
+                      disabled={!selectedAttrName}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">
+                  Current Attributes
+                </label>
+                <div className="flex flex-wrap gap-2 min-h-[60px] p-3  rounded-lg border border-gray-200 dark:border-gray-700">
+                  {Object.entries(currentAttributes).length === 0 ? (
+                    <span className="text-gray-400 text-sm">
+                      No attributes selected
+                    </span>
+                  ) : (
+                    Object.entries(currentAttributes).map(([k, v]) => (
+                      <span
+                        key={k}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-200 dark:bg-gray-700 rounded-full text-sm"
+                      >
+                        {k}: {v}
+                        <X
+                          className="w-3.5 h-3.5 cursor-pointer hover:text-red-600"
+                          onClick={() => removeCurrentAttribute(k)}
+                        />
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">
+                  Variant Images (max 3)
+                </label>
+                <div className="flex flex-wrap gap-3 w-full border border-gray-200 dark:border-gray-700 rounded-md p-3">
+                  {variantImages.map((img, idx) => (
+                    <div
+                      key={idx}
+                      className="relative w-20 h-20 rounded overflow-hidden border"
+                    >
+                      <img
+                        src={img.imgUrl}
+                        alt="preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        onClick={() => removeVariantImage(idx)}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {variantImages.length < 3 && (
+                    <label className="w-20 h-20 flex border border-gray-200 dark:border-gray-700 rounded flex items-center justify-center cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                      <Upload className="w-6 h-6 text-gray-400" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleVariantImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+              <div className="mb-4 flex justify-between  w-full items-end">
+                <div className="w-1/2">
+                  <label className=" text-sm font-medium mb-2">
+                    Barcode (optional)
+                  </label>
+                  <div className="flex gap-2">
+                    <InputField
+                      value={variantBarcode}
+                      onChange={(e) => setVariantBarcode(e.target.value)}
+                      placeholder="Scan or enter barcode"
+                      className="flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setVariantBarcode(generateEAN13())}
+                      className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer "
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="w-1/2">
+                  <div className="flex items-center justify-end gap-4 ">
+                    <span className="font-medium">Is Imported?</span>
+                    <label>
+                      <input
+                        type="radio"
+                        name="variantImported"
+                        checked={!variantIsImported}
+                        onChange={() => {
+                          setVariantIsImported(false);
+                          setVariantCountry("");
+                        }}
+                      />{" "}
+                      No
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="variantImported"
+                        checked={variantIsImported}
+                        onChange={() => setVariantIsImported(true)}
+                      />{" "}
+                      Yes
+                    </label>
+                  </div>
+                  {variantIsImported && (
+                    <InputField
+                      label="Country of Origin"
+                      value={variantCountry}
+                      onChange={(e) => setVariantCountry(e.target.value)}
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                {editingVariantId && (
+                  <Button variant="outline" onClick={resetVariantForm}>
+                    Cancel Edit
+                  </Button>
+                )}
+                <Button
+                  variant="primary"
+                  onClick={saveVariant}
+                  disabled={Object.keys(currentAttributes).length === 0}
+                  loading={submitting}
+                >
+                  {editingVariantId ? "Update Variant" : "Add Variant"}
+                </Button>
+              </div>
+            </div>
+
+            {variants.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-lg mb-3">Variants List</h3>
+                <DataTable value={variants} stripedRows>
+                  <Column field="sku" header="SKU" />
+                  <Column field="barcode" header="Barcode" />
+                  <Column
+                    header="Attributes"
+                    body={(row) =>
+                      Object.entries(row.attributes || {})
+                        .map(([k, v]) => `${k}:${v}`)
+                        .join(", ") || "—"
+                    }
+                  />
+                  <Column
+                    header="Imported"
+                    body={(row) => (row.isImported ? "Yes" : "No")}
+                  />
+                  <Column
+                    header="Actions"
+                    body={(row) => (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => editVariant(row)}
+                          disabled={isEditingVariant}
+                          className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          title="Edit"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteVariant(row.id)}
+                          disabled={isEditingVariant}
+                          className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  />
+                </DataTable>
+              </div>
+            )}
+
+            <div className="flex justify-between pt-4 border-t">
+              <Button variant="outline" onClick={() => setStep(1)}>
+                ← Back
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => setStep(3)}
+                disabled={variants.length === 0}
+              >
+                Next: Stock & Pricing →
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3 – Stock batches (add new) */}
+        {step === 3 && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold">Stock & Pricing</h3>
+            {variants.map((variant) => (
+              <div
+                key={variant.id}
+                className="border rounded-lg p-5 bg-gray-50 dark:bg-gray-800/50"
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h4 className="font-medium text-lg">
+                      {formatVariantName(variant)}
+                    </h4>
+                    <p className="text-sm text-gray-500">SKU: {variant.sku}</p>
+                    {variant.barcode && (
+                      <p className="text-sm text-gray-500">
+                        Barcode: {variant.barcode}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {variant.stocks && variant.stocks.length > 0 && (
+                  <DataTable
+                    value={variant.stocks}
+                    className="mb-4"
+                    size="small"
+                  >
+                    <Column field="batchNo" header="Batch" />
+                    <Column field="buyingOrMakingPrice" header="Buying Price" />
+                    <Column field="sellingPrice" header="Selling Price" />
+                    <Column field="discountPercent" header="Discount %" />
+                    <Column field="currentQty" header="Quantity" />
+                  </DataTable>
+                )}
+
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <h5 className="text-sm font-medium mb-2">
+                    Add new stock batch
+                  </h5>
+                  <div className="grid grid-cols-4 gap-3 items-end">
+                    <InputField
+                      label="Buying Price"
+                      type="number"
+                      value={batchFormData[variant.id]?.buyingPrice || 0}
+                      onChange={(e) =>
+                        setBatchFormData((prev) => ({
+                          ...prev,
+                          [variant.id]: {
+                            ...prev[variant.id],
+                            buyingPrice: Number(e.target.value),
+                          },
+                        }))
+                      }
+                    />
+                    <InputField
+                      label="Selling Price"
+                      type="number"
+                      value={batchFormData[variant.id]?.sellingPrice || 0}
+                      onChange={(e) =>
+                        setBatchFormData((prev) => ({
+                          ...prev,
+                          [variant.id]: {
+                            ...prev[variant.id],
+                            sellingPrice: Number(e.target.value),
+                          },
+                        }))
+                      }
+                    />
+                    <InputField
+                      label="Discount %"
+                      type="number"
+                      value={batchFormData[variant.id]?.discount || 0}
+                      onChange={(e) =>
+                        setBatchFormData((prev) => ({
+                          ...prev,
+                          [variant.id]: {
+                            ...prev[variant.id],
+                            discount: Number(e.target.value),
+                          },
+                        }))
+                      }
+                    />
+                    <InputField
+                      label="Quantity"
+                      type="number"
+                      value={batchFormData[variant.id]?.quantity || 0}
+                      onChange={(e) =>
+                        setBatchFormData((prev) => ({
+                          ...prev,
+                          [variant.id]: {
+                            ...prev[variant.id],
+                            quantity: Number(e.target.value),
+                          },
+                        }))
+                      }
+                    />
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => addStock(variant.id)}
+                      disabled={submitting}
+                      className="col-span-4 mt-2"
+                    >
+                      Add Stock Batch
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div className="flex justify-between pt-4 border-t">
+              <Button variant="outline" onClick={() => setStep(2)}>
+                ← Back
+              </Button>
+              <div className="flex gap-3">
+                <Button
+                  variant="success"
+                  onClick={handleSaveAndClose}
+                  loading={submitting}
+                >
+                  Save All Changes & Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Attribute Modal (same as create) */}
+        {showAddAttribute && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+              <div className="flex border-b mb-4">
+                <button
+                  className={`flex-1 pb-2 text-center ${attributeTab === "addValue" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"}`}
+                  onClick={() => setAttributeTab("addValue")}
+                >
+                  Add Value to Existing
+                </button>
+                <button
+                  className={`flex-1 pb-2 text-center ${attributeTab === "newAttr" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"}`}
+                  onClick={() => setAttributeTab("newAttr")}
+                >
+                  Add New Attribute
+                </button>
+              </div>
+              {attributeTab === "addValue" && (
+                <div>
+                  <Dropdown
+                    value={existingAttrName}
+                    options={availableAttributes.map((a) => ({
+                      label: a.name,
+                      value: a.name,
+                    }))}
+                    onChange={(e) => setExistingAttrName(e.value)}
+                    placeholder="Select attribute"
+                    className="w-full mb-3"
+                  />
+                  <InputField
+                    label="New Value(s) (comma separated)"
+                    value={newValueInput}
+                    onChange={(e) => setNewValueInput(e.target.value)}
+                  />
+                  <div className="flex justify-end gap-3 mt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowAddAttribute(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddValueToExisting}>
+                      Add Value
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {attributeTab === "newAttr" && (
+                <div>
+                  <InputField
+                    label="Attribute Name"
+                    value={newAttributeName}
+                    onChange={(e) => setNewAttributeName(e.target.value)}
+                  />
+                  <InputField
+                    label="Values (comma separated)"
+                    value={newAttributeValues}
+                    onChange={(e) => setNewAttributeValues(e.target.value)}
+                  />
+                  <div className="flex justify-end gap-3 mt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowAddAttribute(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddNewAttribute}>
+                      Add Attribute
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </DndProvider>
+  );
+};
+
+export default EditProductWizard;

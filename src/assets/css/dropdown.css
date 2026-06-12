@@ -1,0 +1,143 @@
+@reference "tailwindcss";
+
+/* ===== DROPDOWN PANEL STYLES ===== */
+
+/* Light Mode - Dropdown Items Wrapper */
+.p-dropdown-items-wrapper {
+  @apply mt-1 bg-white border border-gray-300 shadow-sm rounded-sm overflow-hidden;
+}
+
+.p-dropdown-items {
+  @apply m-0 p-0 list-none;
+}
+
+.p-dropdown-item {
+  @apply px-4 py-2 text-sm text-gray-700 cursor-pointer transition-colors duration-200;
+}
+
+.p-dropdown-item:hover {
+  @apply bg-gray-100;
+}
+
+.p-dropdown-item.p-highlight {
+  @apply bg-blue-50 text-blue-700;
+}
+
+/* Dark Mode - Dropdown Items Wrapper */
+.dark .p-dropdown-items-wrapper {
+  @apply bg-gray-800 border border-gray-700 shadow-sm rounded-sm overflow-hidden;
+}
+
+.dark .p-dropdown-items {
+  @apply m-0 p-0 list-none;
+}
+
+.dark .p-dropdown-item {
+  @apply px-4 py-2 text-sm text-gray-200 cursor-pointer transition-colors duration-200;
+}
+
+.dark .p-dropdown-item:hover {
+  @apply bg-gray-700;
+}
+
+.dark .p-dropdown-item.p-highlight {
+  @apply bg-blue-900/30 text-blue-300;
+}
+
+/* ===== DROPDOWN INPUT STYLES ===== */
+
+/* Light Mode - Default (Bottom Border) */
+.p-dropdown.p-inputwrapper {
+  @apply w-full bg-transparent border-0 border-b border-gray-300 px-0 py-2 text-sm text-gray-900 focus:outline-none focus:ring-0 transition-all duration-200 relative;
+}
+
+/* Dark Mode - Default (Bottom Border) */
+.dark .p-dropdown.p-inputwrapper {
+  @apply w-full bg-transparent border-0 border-b border-gray-600 px-0 py-2 text-sm text-gray-200 focus:outline-none focus:ring-0 transition-all duration-200 relative;
+}
+
+/* Focus Animation for Bottom Border - Thin Blue Border */
+.p-dropdown.p-inputwrapper:focus-within {
+  @apply border-blue-500;
+}
+
+.dark .p-dropdown.p-inputwrapper:focus-within {
+  @apply border-blue-400;
+}
+
+.p-dropdown.p-inputwrapper:focus-within::after {
+  content: '';
+  @apply absolute bottom-0 left-0 right-0  bg-blue-500 origin-left;
+  transform: scaleX(0);
+  animation: scaleX 0.2s ease-in-out forwards;
+}
+
+.dark .p-dropdown.p-inputwrapper:focus-within::after {
+  @apply bg-blue-400;
+}
+
+/* Keyframes for animation */
+@keyframes scaleX {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* ===== FULL BORDER STYLES ===== */
+
+/* Light Mode - Full Border (1px border) */
+.p-dropdown.p-inputwrapper-full {
+  @apply w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-0 transition-all duration-200 relative;
+}
+
+/* Dark Mode - Full Border (1px border) */
+.dark .p-dropdown.p-inputwrapper-full {
+  @apply w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-0 transition-all duration-200 relative;
+}
+
+/* Focus Animation for Full Border - Thin Blue Ring */
+.p-dropdown.p-inputwrapper-full:focus-within {
+  @apply border-blue-500;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2);
+}
+
+.dark .p-dropdown.p-inputwrapper-full:focus-within {
+  @apply border-blue-400;
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.2);
+}
+
+/* ===== DROPDOWN TRIGGER ICON ===== */
+
+/* Light Mode - Trigger Icon */
+.p-dropdown-trigger {
+  @apply absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none;
+}
+
+/* Dark Mode - Trigger Icon */
+.dark .p-dropdown-trigger {
+  @apply text-gray-400;
+}
+
+/* ===== DROPDOWN LABEL ===== */
+
+/* Light Mode - Label */
+.p-dropdown-label {
+  @apply flex items-center justify-between w-full cursor-pointer;
+}
+
+/* Dark Mode - Label */
+.dark .p-dropdown-label {
+  @apply text-white;
+}
+
+/* Placeholder Text */
+.p-dropdown-label.p-placeholder {
+  @apply text-gray-400;
+}
+
+.dark .p-dropdown-label.p-placeholder {
+  @apply text-gray-500;
+}

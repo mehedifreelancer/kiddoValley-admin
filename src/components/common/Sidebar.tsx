@@ -1,236 +1,24 @@
+// components/common/Sidebar.tsx
 import React, { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Home,
-  ChevronDown,
-  Settings,
-  Users,
-  FileText,
-  Layout,
-  Star,
-  Calendar,
-  Mail,
-  MessageSquare,
-  Database,
-  Lock,
-  BarChart3,
-  Circle,
-  UserCircle,
-  Shield,
-  Edit3,
-  Eye,
-  Image,
-  Video,
-  Folder,
-  Inbox,
-  Tag,
-  Pin,
-  CheckSquare,
-} from "lucide-react";
-
-// Define types for our menu items
-interface MenuItem {
-  id: string;
-  label: string;
-  icon: React.ReactNode;
-  children?: MenuItem[];
-}
+import { ChevronDown, Pin, Store } from "lucide-react";
+import { useGlobal } from "../../context/GlobalContext";
+import type { MenuItem } from "../../types/sidebar/sidebar.types";
+import { sidebarMenuData } from "../../data/SidebarMenuData";
 
 const Sidebar: React.FC = () => {
-  const [isPinned, setIsPinned] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isSidebarPinned, setSidebarPinned } = useGlobal();
   const [isHovered, setIsHovered] = useState(false);
-  const [expandedItems, setExpandedItems] = useState<string[]>([]);
-  const [activeItem, setActiveItem] = useState<string>("dashboard");
+  const [expandedItems, setExpandedItems] = useState<string[]>([
+    "web-settings",
+  ]);
 
-  // Menu data structure with 3 levels using Lucide icons
-  const menuItems: MenuItem[] = [
-    {
-      id: "dashboard",
-      label: "Dashboard",
-      icon: <Home className="w-5 h-5" />,
-      children: [
-        {
-          id: "analytics",
-          label: "Analytics",
-          icon: <BarChart3 className="w-5 h-5" />,
-          children: [
-            {
-              id: "reports",
-              label: "Reports",
-              icon: <FileText className="w-5 h-5" />,
-            },
-            {
-              id: "statistics",
-              label: "Statistics",
-              icon: <Layout className="w-5 h-5" />,
-            },
-          ],
-        },
-        {
-          id: "projects",
-          label: "Projects",
-          icon: <Database className="w-5 h-5" />,
-          children: [
-            {
-              id: "active",
-              label: "Active",
-              icon: <Star className="w-5 h-5" />,
-            },
-            {
-              id: "archived",
-              label: "Archived",
-              icon: <Lock className="w-5 h-5" />,
-            },
-          ],
-        },
-      ],
-    },
-    {
-      id: "users",
-      label: "User Management",
-      icon: <Users className="w-5 h-5" />,
-      children: [
-        {
-          id: "user-list",
-          label: "Users",
-          icon: <UserCircle className="w-5 h-5" />,
-          children: [
-            {
-              id: "active-users",
-              label: "Active",
-              icon: <Circle className="w-5 h-5" />,
-            },
-            {
-              id: "pending-users",
-              label: "Pending",
-              icon: <Circle className="w-5 h-5" />,
-            },
-            {
-              id: "blocked-users",
-              label: "Blocked",
-              icon: <Circle className="w-5 h-5" />,
-            },
-          ],
-        },
-        {
-          id: "roles",
-          label: "Roles & Permissions",
-          icon: <Shield className="w-5 h-5" />,
-          children: [
-            {
-              id: "admin",
-              label: "Admin",
-              icon: <Circle className="w-5 h-5" />,
-            },
-            {
-              id: "editor",
-              label: "Editor",
-              icon: <Edit3 className="w-5 h-5" />,
-            },
-            {
-              id: "viewer",
-              label: "Viewer",
-              icon: <Eye className="w-5 h-5" />,
-            },
-          ],
-        },
-      ],
-    },
-    {
-      id: "content",
-      label: "Content",
-      icon: <FileText className="w-5 h-5" />,
-      children: [
-        {
-          id: "posts",
-          label: "Posts",
-          icon: <FileText className="w-5 h-5" />,
-          children: [
-            {
-              id: "all-posts",
-              label: "All Posts",
-              icon: <Circle className="w-5 h-5" />,
-            },
-            {
-              id: "categories",
-              label: "Categories",
-              icon: <Tag className="w-5 h-5" />,
-            },
-            { id: "tags", label: "Tags", icon: <Tag className="w-5 h-5" /> },
-          ],
-        },
-        {
-          id: "media",
-          label: "Media",
-          icon: <Image className="w-5 h-5" />,
-          children: [
-            {
-              id: "images",
-              label: "Images",
-              icon: <Image className="w-5 h-5" />,
-            },
-            {
-              id: "videos",
-              label: "Videos",
-              icon: <Video className="w-5 h-5" />,
-            },
-            {
-              id: "files",
-              label: "Files",
-              icon: <Folder className="w-5 h-5" />,
-            },
-          ],
-        },
-      ],
-    },
-    {
-      id: "communication",
-      label: "Communication",
-      icon: <Mail className="w-5 h-5" />,
-      children: [
-        {
-          id: "messages",
-          label: "Messages",
-          icon: <MessageSquare className="w-5 h-5" />,
-          children: [
-            {
-              id: "inbox",
-              label: "Inbox",
-              icon: <Inbox className="w-5 h-5" />,
-            },
-            { id: "sent", label: "Sent", icon: <Mail className="w-5 h-5" /> },
-            {
-              id: "drafts",
-              label: "Drafts",
-              icon: <FileText className="w-5 h-5" />,
-            },
-          ],
-        },
-        {
-          id: "calendar",
-          label: "Calendar",
-          icon: <Calendar className="w-5 h-5" />,
-          children: [
-            {
-              id: "events",
-              label: "Events",
-              icon: <Star className="w-5 h-5" />,
-            },
-            {
-              id: "meetings",
-              label: "Meetings",
-              icon: <Users className="w-5 h-5" />,
-            },
-            {
-              id: "tasks",
-              label: "Tasks",
-              icon: <CheckSquare className="w-5 h-5" />,
-            },
-          ],
-        },
-      ],
-    },
-  ];
+  // Fixed widths
+  const EXPANDED_WIDTH = 220;
+  const COLLAPSED_WIDTH = 72;
 
   const toggleExpand = (itemId: string) => {
     setExpandedItems((prev) =>
@@ -240,52 +28,56 @@ const Sidebar: React.FC = () => {
     );
   };
 
-  const handleItemClick = (itemId: string, hasChildren: boolean) => {
-    if (hasChildren) {
-      toggleExpand(itemId);
-    } else {
-      setActiveItem(itemId);
-      console.log("Navigating to:", itemId);
+  const handleItemClick = (item: MenuItem) => {
+    if (item.children && item.children.length > 0) {
+      toggleExpand(item.id);
+    } else if (item.path) {
+      navigate(item.path);
     }
+  };
+
+  const isActivePath = (item: MenuItem): boolean => {
+    if (item.path) {
+      return location.pathname === item.path;
+    }
+    if (item.children) {
+      return item.children.some((child) => child.path === location.pathname);
+    }
+    return false;
   };
 
   const renderMenuItem = (item: MenuItem, level: number = 0) => {
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded = expandedItems.includes(item.id);
-    const isSidebarExpanded = isPinned || isHovered;
-    const isActive = activeItem === item.id;
+    const isSidebarExpanded = isSidebarPinned || isHovered;
+    const isActive = isActivePath(item);
 
-    // Adjusted padding for better alignment
-    const paddingLeft = level * 16 + (level === 0 ? 16 : 24);
+    const paddingLeft = level === 0 ? 16 : level * 12 + 16;
 
     return (
       <div key={item.id} className="w-full">
         <motion.div
-          className={`flex items-center w-full px-3 py-2.5 cursor-pointer transition-colors duration-200 ${
+          className={`flex items-center w-full py-3.5 cursor-pointer transition-colors duration-200 relative ${
             !isSidebarExpanded ? "justify-center" : ""
           } ${
             isActive
-              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-              : "hover:bg-gray-100 dark:hover:bg-gray-800"
+              ? "bg-sky-700/80 dark:bg-sky-700/70 text-white border-r-2 border-sky-500/50 dark:border-sky-500/50"
+              : "hover:bg-gray-100 dark:hover:bg-gray-800/50 text-gray-700 dark:text-gray-300"
           }`}
           style={{
             paddingLeft: isSidebarExpanded ? `${paddingLeft}px` : "12px",
             paddingRight: isSidebarExpanded ? "12px" : "12px",
           }}
-          onClick={() => handleItemClick(item.id, hasChildren)}
-          whileHover={{ x: isSidebarExpanded ? 4 : 0 }}
+          onClick={() => handleItemClick(item)}
+          whileHover={{ x: isSidebarExpanded ? 2 : 0 }}
           whileTap={{ scale: 0.98 }}
         >
-          <span
-            className={
-              isActive
-                ? "text-blue-600 dark:text-blue-400"
-                : "text-gray-600 dark:text-gray-300"
-            }
-          >
+          {/* Icon */}
+          <span className={` ${isActive ? "text-white" : ""}`}>
             {item.icon}
           </span>
 
+          {/* Label */}
           <AnimatePresence mode="wait">
             {isSidebarExpanded && (
               <motion.span
@@ -294,33 +86,36 @@ const Sidebar: React.FC = () => {
                 animate={{ opacity: 1, width: "auto" }}
                 exit={{ opacity: 0, width: 0 }}
                 transition={{ duration: 0.2 }}
-                className={`ml-3 text-sm font-medium whitespace-nowrap overflow-hidden ${
-                  isActive
-                    ? "text-blue-700 dark:text-blue-300"
-                    : "text-gray-700 dark:text-gray-200"
-                }`}
+                className="ml-3 text-sm font-medium whitespace-nowrap overflow-hidden flex-1"
               >
                 {item.label}
               </motion.span>
             )}
           </AnimatePresence>
 
+          {/* Badge */}
+          {item.badge && isSidebarExpanded && (
+            <span className="ml-2 px-1.5 py-0.5 text-xs font-medium rounded-full bg-red-500 text-white">
+              {item.badge}
+            </span>
+          )}
+
+          {/* Chevron for children */}
           {hasChildren && isSidebarExpanded && (
             <motion.span
               animate={{ rotate: isExpanded ? 180 : 0 }}
               transition={{ duration: 0.2 }}
-              className={`ml-auto ${
-                isActive ? "text-blue-500" : "text-gray-400"
-              }`}
+              className="ml-2"
             >
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-4 h-4 text-gray-400" />
             </motion.span>
           )}
         </motion.div>
 
+        {/* Children Menu */}
         {hasChildren && (
           <div
-            className={`overflow-hidden transition-all duration-300 ease-in-out`}
+            className="overflow-hidden transition-all duration-300 ease-in-out"
             style={{
               maxHeight: isExpanded && isSidebarExpanded ? "1000px" : "0px",
               opacity: isExpanded && isSidebarExpanded ? 1 : 0,
@@ -333,99 +128,96 @@ const Sidebar: React.FC = () => {
     );
   };
 
-  const isSidebarExpanded = isPinned || isHovered;
+  const isSidebarExpanded = isSidebarPinned || isHovered;
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">
-      {/* Overlay for unpinned state */}
-      {!isPinned && isHovered && (
+    <>
+      {/* Overlay for mobile/unpinned state */}
+      {!isSidebarPinned && isHovered && (
         <div
-          className="fixed inset-0 z-40"
+          className="fixed inset-0 z-40 bg-black/20"
           onClick={() => setIsHovered(false)}
         />
       )}
 
       {/* Sidebar */}
-      <motion.div
-        animate={{ width: isSidebarExpanded ? 240 : 56 }}
+      <motion.aside
+        animate={{
+          width: isSidebarExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH,
+        }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
-        onMouseEnter={() => !isPinned && setIsHovered(true)}
-        onMouseLeave={() => !isPinned && setIsHovered(false)}
-        className={`h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 shadow-lg overflow-hidden ${
-          !isPinned ? "fixed left-0 top-0 z-50" : ""
+        onMouseEnter={() => !isSidebarPinned && setIsHovered(true)}
+        onMouseLeave={() => !isSidebarPinned && setIsHovered(false)}
+        className={`h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-lg z-50 flex flex-col ${
+          !isSidebarPinned ? "fixed left-0 top-0" : "relative"
         } scrollbar-hide`}
         style={{
-          scrollbarWidth: "none",
-          msOverflowStyle: "none",
+          width: isSidebarExpanded
+            ? `${EXPANDED_WIDTH}px`
+            : `${COLLAPSED_WIDTH}px`,
         }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-3 py-4 border-b border-gray-200 dark:border-gray-800">
-          <AnimatePresence mode="wait">
-            {isSidebarExpanded && (
-              <motion.h2
-                key="sidebar-title"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="text-lg font-semibold text-gray-800 dark:text-white whitespace-nowrap"
-              >
-                Navigation
-              </motion.h2>
-            )}
-          </AnimatePresence>
-
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => {
-              setIsPinned(!isPinned);
-              setIsHovered(false);
-            }}
-            className={`p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
-              !isSidebarExpanded ? "mx-auto" : ""
-            }`}
-            title={isPinned ? "Unpin sidebar" : "Pin sidebar"}
-          >
-            <Pin
-              className={`w-5 h-5 transition-transform ${
-                isPinned ? "text-blue-500 rotate-45" : "text-gray-400 rotate-0"
-              }`}
-            />
-          </motion.button>
-        </div>
-
-        {/* Menu Items */}
-        <div className="py-3 overflow-y-auto h-[calc(100vh-73px)] scrollbar-hide">
-          {menuItems.map((item) => renderMenuItem(item))}
-        </div>
-
-        {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-          <motion.div
-            className={`flex items-center ${
-              !isSidebarExpanded ? "justify-center" : "space-x-3"
-            }`}
-            whileHover={{ x: isSidebarExpanded ? 4 : 0 }}
-          >
-            <Settings className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+        {/* Fixed Header - Logo section */}
+        <div className="flex-shrink-0 px-4 py-[18px] border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
             <AnimatePresence mode="wait">
-              {isSidebarExpanded && (
-                <motion.span
-                  key="settings-label"
+              {isSidebarExpanded ? (
+                <motion.div
+                  key="logo-expanded"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="text-sm font-medium text-gray-600 dark:text-gray-300"
+                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={() => navigate("/")}
                 >
-                  Settings
-                </motion.span>
+                  <Store className="w-6 h-6 text-sky-700/80 dark:text-sky-700/70" />
+                  <span className="font-bold text-md text-gray-800 dark:text-white">
+                    Kiddo Valley
+                  </span>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="logo-collapsed"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="w-full flex justify-center cursor-pointer"
+                  onClick={() => navigate("/")}
+                >
+                  <Store className="w-6 h-6 text-sky-700/80 dark:text-sky-700/70" />
+                </motion.div>
               )}
             </AnimatePresence>
-          </motion.div>
+
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => {
+                setSidebarPinned(!isSidebarPinned);
+                setIsHovered(false);
+              }}
+              className={`p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
+                !isSidebarExpanded ? "mx-auto" : ""
+              }`}
+              title={isSidebarPinned ? "Unpin sidebar" : "Pin sidebar"}
+            >
+              <Pin
+                className={`w-4 h-4 transition-transform ${
+                  isSidebarPinned
+                    ? "text-sky-700/80 dark:text-sky-700/70 rotate-45"
+                    : "text-gray-400 rotate-0"
+                }`}
+              />
+            </motion.button>
+          </div>
         </div>
-      </motion.div>
-    </div>
+
+        {/* Scrollable Menu Area */}
+        <div className="flex-1 overflow-y-auto py-4 scrollbar-hide">
+          {sidebarMenuData.map((item) => renderMenuItem(item))}
+        </div>
+      </motion.aside>
+    </>
   );
 };
 

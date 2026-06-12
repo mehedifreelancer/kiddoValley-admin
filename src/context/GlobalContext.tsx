@@ -1,4 +1,11 @@
-import React, { createContext, useState, useContext, useEffect } from "react";
+import React, {
+  createContext,
+  useState,
+  useContext,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 
 // Types
 export type Theme = "light" | "dark";
@@ -142,80 +149,99 @@ export const GlobalProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [isSidebarPinned]);
 
   // Theme functions
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
-  };
+  }, []);
 
   // Notification functions
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications],
+  );
 
-  const addNotification = (
-    notification: Omit<Notification, "id" | "time" | "read">,
-  ) => {
-    const newNotification: Notification = {
-      ...notification,
-      id: Date.now().toString(),
-      time: new Date().toISOString(),
-      read: false,
-    };
-    setNotifications((prev) => [newNotification, ...prev]);
-  };
+  const addNotification = useCallback(
+    (notification: Omit<Notification, "id" | "time" | "read">) => {
+      const newNotification: Notification = {
+        ...notification,
+        id: Date.now().toString(),
+        time: new Date().toISOString(),
+        read: false,
+      };
+      setNotifications((prev) => [newNotification, ...prev]);
+    },
+    [],
+  );
 
-  const markAsRead = (id: string) => {
+  const markAsRead = useCallback((id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
-  };
+  }, []);
 
-  const markAllAsRead = () => {
+  const markAllAsRead = useCallback(() => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
+  }, []);
 
-  const removeNotification = (id: string) => {
+  const removeNotification = useCallback((id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
-  };
+  }, []);
 
-  const clearAllNotifications = () => {
+  const clearAllNotifications = useCallback(() => {
     setNotifications([]);
-  };
+  }, []);
 
   // User functions
-  const logout = () => {
+  const logout = useCallback(() => {
     setUser(null);
-  };
+  }, []);
 
-  const isAuthenticated = !!user;
+  const isAuthenticated = useMemo(() => !!user, [user]);
+
+  const value = useMemo(
+    () => ({
+      // Theme
+      theme,
+      setTheme,
+      toggleTheme,
+
+      // Notifications
+      notifications,
+      unreadCount,
+      addNotification,
+      markAsRead,
+      markAllAsRead,
+      removeNotification,
+      clearAllNotifications,
+
+      // User
+      user,
+      setUser,
+      isAuthenticated,
+      logout,
+
+      // App State
+      isSidebarPinned,
+      setSidebarPinned: setIsSidebarPinned,
+    }),
+    [
+      theme,
+      notifications,
+      unreadCount,
+      user,
+      isAuthenticated,
+      isSidebarPinned,
+      toggleTheme,
+      addNotification,
+      markAsRead,
+      markAllAsRead,
+      removeNotification,
+      clearAllNotifications,
+      logout,
+    ],
+  );
 
   return (
-    <GlobalContext.Provider
-      value={{
-        // Theme
-        theme,
-        setTheme,
-        toggleTheme,
-
-        // Notifications
-        notifications,
-        unreadCount,
-        addNotification,
-        markAsRead,
-        markAllAsRead,
-        removeNotification,
-        clearAllNotifications,
-
-        // User
-        user,
-        setUser,
-        isAuthenticated,
-        logout,
-
-        // App State
-        isSidebarPinned,
-        setSidebarPinned: setIsSidebarPinned,
-      }}
-    >
-      {children}
-    </GlobalContext.Provider>
+    <GlobalContext.Provider value={value}>{children}</GlobalContext.Provider>
   );
 };
 
