@@ -44,11 +44,11 @@ function generateEAN13(): string {
 }
 
 const StepIndicator = ({ current }: { current: number }) => (
-  <div className="flex items-center justify-between my-8">
+  <div className="z-1 sticky top-[-5px] flex items-center justify-between  bg-white dark:bg-gray-800 py-2 shadow-sm mb-5">
     {/* Step 1 */}
     <div className="flex-1 text-center">
       <div
-        className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full  ${
           current === 1
             ? "bg-blue-500 text-white border-2 border-blue-500"
             : "bg-green-500 text-white border-2 border-green-500"
@@ -100,7 +100,7 @@ const StepIndicator = ({ current }: { current: number }) => (
       >
         3
       </div>
-      <div className="text-sm mt-1">Stock & Pricing</div>
+      <div className="text-sm mt-1">Pricing</div>
     </div>
   </div>
 );
