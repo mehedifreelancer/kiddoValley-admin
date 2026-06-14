@@ -1,8 +1,10 @@
 // modules/master-data/product/EditProductWizard.tsx
 import {
+  Camera,
   CheckCircle,
+  ChevronLeft,
+  ChevronRight,
   Edit,
-  GripVertical,
   Plus,
   RefreshCw,
   Trash2,
@@ -14,18 +16,14 @@ import { DataTable } from "primereact/datatable";
 import { Dropdown } from "primereact/dropdown";
 import { Editor } from "primereact/editor";
 import React, { useEffect, useState } from "react";
-import { DndProvider, useDrag, useDrop } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
+import Barcode from "react-barcode";
 import { toast } from "react-hot-toast";
-import { useNavigate } from "react-router";
-
 import api from "../../apiConfig";
 import Button from "../../components/ui/Button";
 import InputField from "../../components/ui/InputField";
 import { getCategories } from "../master-data/category/category.service";
 import { getProductById, updateProduct } from "./product.service";
 
-// ---------- Helper functions (same as in CreateProductWizard) ----------
 function generateEAN13(): string {
   const prefix = "890";
   const random = Math.floor(Math.random() * 1000000000)
@@ -41,128 +39,83 @@ function generateEAN13(): string {
   return withoutCheck + check;
 }
 
-const slugify = (text: string): string =>
-  text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-
-// Drag & Drop Image Component (same as in create wizard)
-const ItemType = "IMAGE";
-interface DraggableImageProps {
-  image: any;
-  index: number;
-  moveImage: (dragIndex: number, hoverIndex: number) => void;
-  removeImage: (index: number) => void;
-}
-const DraggableImage: React.FC<DraggableImageProps> = ({
-  image,
-  index,
-  moveImage,
-  removeImage,
-}) => {
-  const ref = React.useRef<HTMLDivElement>(null);
-  const [{ isDragging }, drag] = useDrag({
-    type: ItemType,
-    item: { index },
-    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
-  });
-  const [, drop] = useDrop({
-    accept: ItemType,
-    hover: (item: { index: number }) => {
-      if (!ref.current) return;
-      const dragIndex = item.index;
-      const hoverIndex = index;
-      if (dragIndex === hoverIndex) return;
-      moveImage(dragIndex, hoverIndex);
-      item.index = hoverIndex;
-    },
-  });
-  drag(drop(ref));
-  return (
-    <div
-      ref={ref}
-      className={`relative group cursor-move ${isDragging ? "opacity-50" : ""}`}
-    >
-      <div className="relative w-24 h-24 rounded-lg overflow-hidden  border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 transition-all">
-        <img
-          src={image.imgUrl}
-          alt="preview"
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-          <GripVertical className="w-5 h-5 text-white cursor-grab" />
-        </div>
-        <button
-          type="button"
-          onClick={() => removeImage(index)}
-          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-        >
-          <X className="w-3 h-3" />
-        </button>
-      </div>
-      <div className="text-center mt-1 text-xs text-gray-500 truncate w-24">
-        {index + 1}
-      </div>
-    </div>
-  );
-};
-
-// Step Indicator
 const StepIndicator = ({ current }: { current: number }) => (
-  <div className="flex items-center justify-between mb-8">
+  <div className="z-1 sticky top-[-5px] flex items-center justify-between bg-white dark:bg-gray-800 py-2 shadow-sm mb-5">
     <div className="flex-1 text-center">
       <div
         className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-          current === 1 ? "bg-blue-500 text-white" : "bg-green-500 text-white"
+          current === 1
+            ? "bg-blue-500 text-white border-2 border-blue-500"
+            : "bg-green-500 text-white border-2 border-green-500"
         }`}
       >
         {current === 1 ? 1 : <CheckCircle className="w-5 h-5" />}
       </div>
       <div className="text-sm mt-1">Basic Info</div>
     </div>
+    <div
+      className={`flex-1 border-t-2 ${
+        current > 1
+          ? "border-green-500"
+          : "border-gray-300 dark:border-gray-600"
+      }`}
+    />
     <div className="flex-1 text-center">
       <div
-        className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-          current === 2 ? "bg-blue-500 text-white" : "bg-green-500 text-white"
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+          current === 2
+            ? "bg-blue-500 text-white border-blue-500"
+            : current > 2
+              ? "bg-green-500 text-white border-green-500"
+              : "bg-gray-200 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600"
         }`}
       >
-        {current === 2 ? 2 : <CheckCircle className="w-5 h-5" />}
+        {current === 2 ? (
+          2
+        ) : current > 2 ? (
+          <CheckCircle className="w-5 h-5" />
+        ) : (
+          2
+        )}
       </div>
       <div className="text-sm mt-1">Variants</div>
     </div>
+    <div
+      className={`flex-1 border-t-2 ${
+        current > 2
+          ? "border-green-500"
+          : "border-gray-300 dark:border-gray-600"
+      }`}
+    />
     <div className="flex-1 text-center">
       <div
-        className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${
           current === 3
-            ? "bg-blue-500 text-white"
-            : "bg-gray-200 dark:bg-gray-700 text-gray-500"
+            ? "bg-blue-500 text-white border-blue-500"
+            : "bg-gray-200 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600"
         }`}
       >
         3
       </div>
-      <div className="text-sm mt-1">Stock & Pricing</div>
+      <div className="text-sm mt-1">Pricing</div>
     </div>
   </div>
 );
 
-// ---------- Main Edit Wizard Component ----------
 interface EditProductWizardProps {
   productId: number;
   onClose: () => void;
-  onSuccess?: () => void;
+  onProductSaved: () => void;
 }
 
 export const EditProductWizard: React.FC<EditProductWizardProps> = ({
   productId,
   onClose,
-  onSuccess,
+  onProductSaved,
 }) => {
-  const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [isEditingVariant, setIsEditingVariant] = useState(false);
 
   // ---------- Step 1 state (product) ----------
   const [categories, setCategories] = useState<any[]>([]);
@@ -171,9 +124,11 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
   const [forceOrderPriority, setForceOrderPriority] = useState(0);
   const [videoUrl, setVideoUrl] = useState("");
   const [productDetails, setProductDetails] = useState("");
-  const [imageList, setImageList] = useState<any[]>([]);
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [existingImagesToKeep, setExistingImagesToKeep] = useState<any[]>([]);
+  const [thumbnailImage, setThumbnailImage] = useState<any>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [existingThumbnailId, setExistingThumbnailId] = useState<number | null>(
+    null,
+  );
   const [formErrors, setFormErrors] = useState<any>({});
 
   // ---------- Step 2: variants ----------
@@ -193,21 +148,157 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
   const [newValueInput, setNewValueInput] = useState("");
   const [newAttributeName, setNewAttributeName] = useState("");
   const [newAttributeValues, setNewAttributeValues] = useState("");
-  const [variantImages, setVariantImages] = useState<any[]>([]);
-  const [variantImageFiles, setVariantImageFiles] = useState<File[]>([]);
   const [variantIsImported, setVariantIsImported] = useState(false);
   const [variantCountry, setVariantCountry] = useState("");
   const [variantBarcode, setVariantBarcode] = useState("");
+  const [showVariantForm, setShowVariantForm] = useState(false);
+  const [isEditingMode, setIsEditingMode] = useState(false);
+  // Variant images (for the add/edit form)
+  const [variantImages, setVariantImages] = useState<any[]>([]);
+  const [variantImageFiles, setVariantImageFiles] = useState<File[]>([]);
 
-  // ---------- Step 3: stock batches ----------
-  const [batchFormData, setBatchFormData] = useState<{
+  // ---------- Step 3: price sets (pending stocks) ----------
+  const [pendingStocks, setPendingStocks] = useState<{
+    [variantId: number]: Array<{
+      id: string;
+      buyingPrice: number;
+      sellingPrice: number;
+      discount: number;
+      isEditing?: boolean;
+    }>;
+  }>({});
+  const [newPriceSet, setNewPriceSet] = useState<{
     [variantId: number]: {
       buyingPrice: number;
       sellingPrice: number;
       discount: number;
-      quantity: number;
     };
   }>({});
+
+  // Helper: check if buying price is unique for a variant (exclude optional tempId)
+  const isBuyingPriceUnique = (
+    variantId: number,
+    buyingPrice: number,
+    excludeTempId?: string,
+  ): boolean => {
+    const variant = variants.find((v) => v.id === variantId);
+    const existingPrices =
+      variant?.stocks?.map((s) => s.buyingOrMakingPrice) || [];
+    const pendingPrices = (pendingStocks[variantId] || [])
+      .filter((p) => p.id !== excludeTempId)
+      .map((p) => p.buyingPrice);
+    const allPrices = [...existingPrices, ...pendingPrices];
+    return !allPrices.includes(buyingPrice);
+  };
+
+  // Add a temporary price set row
+  const addTempStock = (variantId: number) => {
+    const formData = newPriceSet[variantId];
+    if (!formData || formData.buyingPrice <= 0 || formData.sellingPrice <= 0) {
+      toast.error("Please fill buying price and MRP (both must be > 0)");
+      return;
+    }
+    if (!isBuyingPriceUnique(variantId, formData.buyingPrice)) {
+      toast.error(
+        "This buying price already exists for this variant. Please enter a different buying price.",
+      );
+      return;
+    }
+    const newId = `temp-${Date.now()}-${Math.random()}`;
+    setPendingStocks((prev) => ({
+      ...prev,
+      [variantId]: [
+        ...(prev[variantId] || []),
+        {
+          id: newId,
+          buyingPrice: formData.buyingPrice,
+          sellingPrice: formData.sellingPrice,
+          discount: formData.discount,
+          isEditing: false,
+        },
+      ],
+    }));
+    setNewPriceSet((prev) => ({
+      ...prev,
+      [variantId]: { buyingPrice: 0, sellingPrice: 0, discount: 0 },
+    }));
+  };
+
+  const removeTempStock = (variantId: number, tempId: string) => {
+    setPendingStocks((prev) => ({
+      ...prev,
+      [variantId]: (prev[variantId] || []).filter((p) => p.id !== tempId),
+    }));
+  };
+
+  const editTempStock = (variantId: number, tempId: string) => {
+    setPendingStocks((prev) => ({
+      ...prev,
+      [variantId]: (prev[variantId] || []).map((p) =>
+        p.id === tempId ? { ...p, isEditing: true } : p,
+      ),
+    }));
+  };
+
+  const saveTempStock = (variantId: number, tempId: string) => {
+    const tempRow = pendingStocks[variantId]?.find((p) => p.id === tempId);
+    if (!tempRow) return;
+    if (!isBuyingPriceUnique(variantId, tempRow.buyingPrice, tempId)) {
+      toast.error(
+        "This buying price already exists for this variant. Please enter a different buying price.",
+      );
+      return;
+    }
+    setPendingStocks((prev) => ({
+      ...prev,
+      [variantId]: (prev[variantId] || []).map((p) =>
+        p.id === tempId ? { ...p, isEditing: false } : p,
+      ),
+    }));
+  };
+
+  const updateTempStock = (
+    variantId: number,
+    tempId: string,
+    field: "buyingPrice" | "sellingPrice" | "discount",
+    value: number,
+  ) => {
+    setPendingStocks((prev) => ({
+      ...prev,
+      [variantId]: (prev[variantId] || []).map((p) =>
+        p.id === tempId ? { ...p, [field]: value } : p,
+      ),
+    }));
+  };
+
+  const saveAllPendingStocks = async () => {
+    if (Object.keys(pendingStocks).length === 0) return;
+    try {
+      setSubmitting(true);
+      for (const variantIdStr of Object.keys(pendingStocks)) {
+        const variantId = parseInt(variantIdStr);
+        const stocks = pendingStocks[variantId] || [];
+        for (const stock of stocks) {
+          if (stock.buyingPrice > 0 && stock.sellingPrice > 0) {
+            await api.post("/stock/add", {
+              variantId,
+              batchNo: "",
+              buyingOrMakingPrice: stock.buyingPrice,
+              sellingPrice: stock.sellingPrice,
+              discountPercent: stock.discount,
+              quantity: 0,
+            });
+          }
+        }
+      }
+      setPendingStocks({});
+      await fetchVariants();
+    } catch (err) {
+      throw err;
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // Load categories and attributes
   useEffect(() => {
@@ -245,14 +336,17 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
         setSelectedCategory(
           categories.find((c) => c.id === product.categoryId) || null,
         );
-        const existingImgs = product.images || [];
-        setExistingImagesToKeep(existingImgs);
-        setImageList(existingImgs);
-        setImageFiles([]);
+        const existingImg = product.images?.[0] || null;
+        setThumbnailImage(existingImg);
+        setExistingThumbnailId(existingImg?.id || null);
+        setThumbnailFile(null);
 
         // Load variants
         const res = await api.get(`/variant/product/${productId}`);
-        const variantData = res.data.data || [];
+        const variantData = (res.data.data || []).map((v: any) => ({
+          ...v,
+          images: v.images || [],
+        }));
         setVariants(variantData);
       } catch (err) {
         console.error(err);
@@ -266,14 +360,30 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     }
   }, [productId, categories]);
 
-  // ---------- Step 1: Update product (basic info + images) ----------
+  const fetchVariants = async () => {
+    if (!productId) return;
+    try {
+      const res = await api.get(`/variant/product/${productId}`);
+      const variantData = (res.data.data || []).map((v: any) => ({
+        ...v,
+        images: v.images || [],
+      }));
+      setVariants(variantData);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load variants");
+    }
+  };
+
+  // ---------- Step 1: Update product (basic info + thumbnail) ----------
   const handleStep1Next = async () => {
     if (submitting) return;
 
     const errors: any = {};
     if (!productName.trim()) errors.name = "Product name required";
     if (!selectedCategory) errors.category = "Category required";
-    if (imageList.length === 0) errors.images = "At least one image required";
+    if (!thumbnailImage && !thumbnailFile)
+      errors.images = "Thumbnail image is required";
     setFormErrors(errors);
     if (Object.keys(errors).length) return;
 
@@ -285,12 +395,9 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
       formData.append("forceOrderPriority", String(forceOrderPriority));
       if (videoUrl) formData.append("videoUrl", videoUrl);
       if (productDetails) formData.append("description", productDetails);
-      if (existingImagesToKeep.length) {
-        formData.append("existingImages", JSON.stringify(existingImagesToKeep));
-      } else {
-        formData.append("existingImages", JSON.stringify([]));
-      }
-      imageFiles.forEach((file) => formData.append("images", file));
+      const existingImages = thumbnailImage ? [thumbnailImage] : [];
+      formData.append("existingImages", JSON.stringify(existingImages));
+      if (thumbnailFile) formData.append("images", thumbnailFile);
 
       await updateProduct(productId, formData);
       toast.success("Product basic info updated");
@@ -302,7 +409,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     }
   };
 
-  // ---------- Variant management (same as create wizard but with DELETE) ----------
+  // ---------- Variant management ----------
   const resetVariantForm = () => {
     setCurrentAttributes({});
     setVariantImages([]);
@@ -311,187 +418,230 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     setVariantCountry("");
     setVariantBarcode("");
     setEditingVariantId(null);
-    setIsEditingVariant(false);
+    setIsEditingMode(false);
   };
 
-  const editVariant = async (variant: any) => {
-    if (isEditingVariant) {
-      toast.error("Finish current edit before editing another");
-      return;
-    }
-    try {
-      const res = await api.get(`/variant/${variant.id}`);
-      const freshVariant = res.data.data;
-      setEditingVariantId(freshVariant.id);
-      setCurrentAttributes(freshVariant.attributes || {});
-      setVariantImages(freshVariant.images || []);
-      setVariantImageFiles([]);
-      setVariantIsImported(freshVariant.isImported || false);
-      setVariantCountry(freshVariant.countryOfOrigin || "");
-      setVariantBarcode(freshVariant.barcode || "");
-      setIsEditingVariant(true);
-    } catch (err) {
-      toast.error("Failed to load variant data");
-    }
+  const openAddVariantForm = () => {
+    setEditingVariantId(null);
+    setCurrentAttributes({});
+    setVariantIsImported(false);
+    setVariantCountry("");
+    setVariantBarcode("");
+    setVariantImages([]);
+    setVariantImageFiles([]);
+    setIsEditingMode(false);
+    setShowVariantForm(true);
   };
 
-  const deleteVariant = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this variant?")) return;
-    try {
-      await api.delete(`/variant/${id}`);
-      toast.success("Variant deleted");
-      // Refresh variants list
-      const res = await api.get(`/variant/product/${productId}`);
-      setVariants(res.data.data || []);
-      if (editingVariantId === id) resetVariantForm();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to delete variant");
-    }
+  const openEditVariantForm = (variant: any) => {
+    setEditingVariantId(variant.id);
+    setCurrentAttributes(variant.attributes || {});
+    setVariantIsImported(variant.isImported || false);
+    setVariantCountry(variant.countryOfOrigin || "");
+    setVariantBarcode(variant.barcode || "");
+    setVariantImages(variant.images || []);
+    setVariantImageFiles([]);
+    setIsEditingMode(true);
+    setShowVariantForm(true);
+  };
+
+  const closeVariantForm = () => {
+    setShowVariantForm(false);
+    setEditingVariantId(null);
+    setIsEditingMode(false);
+    setVariantImages([]);
+    setVariantImageFiles([]);
   };
 
   const saveVariant = async () => {
     if (submitting) return;
-    if (Object.keys(currentAttributes).length === 0) {
-      toast.error("Please add at least one attribute-value pair");
+    if (!isEditingMode && Object.keys(currentAttributes).length === 0) {
+      toast.error(
+        "Please add at least one attribute-value pair for new variant",
+      );
       return;
     }
 
-    if (editingVariantId) {
-      // Update variant
-      const formData = new FormData();
-      formData.append("attributes", JSON.stringify(currentAttributes));
-      formData.append("isImported", String(variantIsImported));
-      if (variantCountry) formData.append("countryOfOrigin", variantCountry);
-      formData.append("barcode", variantBarcode);
-      const existingImgUrls = variantImages
-        .filter((img) => !img.imgUrl.startsWith("blob:"))
-        .map((img) => ({ imgUrl: img.imgUrl }));
-      formData.append("existingImages", JSON.stringify(existingImgUrls));
-      variantImageFiles.forEach((file) => formData.append("images", file));
+    const formData = new FormData();
+    formData.append("attributes", JSON.stringify(currentAttributes));
+    formData.append("isImported", String(variantIsImported));
+    if (variantCountry) formData.append("countryOfOrigin", variantCountry);
+    if (variantBarcode) formData.append("barcode", variantBarcode);
+    const existingImgUrls = variantImages
+      .filter((img) => !img.imgUrl.startsWith("blob:"))
+      .map((img) => ({ imgUrl: img.imgUrl }));
+    formData.append("existingImages", JSON.stringify(existingImgUrls));
+    variantImageFiles.forEach((file) => formData.append("images", file));
 
-      try {
-        setSubmitting(true);
+    try {
+      setSubmitting(true);
+      if (isEditingMode && editingVariantId) {
         await api.put(`/variant/${editingVariantId}`, formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
         toast.success("Variant updated");
-        const res = await api.get(`/variant/product/${productId}`);
-        setVariants(res.data.data || []);
-        resetVariantForm();
-      } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to update variant");
-      } finally {
-        setSubmitting(false);
-      }
-    } else {
-      // Create new variant
-      const formData = new FormData();
-      formData.append("productId", String(productId));
-      formData.append("attributes", JSON.stringify(currentAttributes));
-      formData.append("isImported", String(variantIsImported));
-      if (variantCountry) formData.append("countryOfOrigin", variantCountry);
-      formData.append("barcode", variantBarcode);
-      variantImageFiles.forEach((file) => formData.append("images", file));
-
-      try {
-        setSubmitting(true);
+      } else {
+        formData.append("productId", String(productId));
         await api.post("/variant/create", formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
         toast.success("Variant added");
-        const res = await api.get(`/variant/product/${productId}`);
-        setVariants(res.data.data || []);
-        resetVariantForm();
-      } catch (err: any) {
-        toast.error(err.response?.data?.message || "Failed to add variant");
-      } finally {
-        setSubmitting(false);
       }
-    }
-  };
-
-  // ---------- Stock batch addition ----------
-  const addStock = async (variantId: number) => {
-    const data = batchFormData[variantId];
-    if (
-      !data ||
-      data.buyingPrice <= 0 ||
-      data.sellingPrice <= 0 ||
-      data.quantity <= 0
-    ) {
-      toast.error("Fill all stock fields correctly");
-      return;
-    }
-    try {
-      setSubmitting(true);
-      await api.post("/stock/add", {
-        variantId,
-        batchNo: "",
-        buyingOrMakingPrice: data.buyingPrice,
-        sellingPrice: data.sellingPrice,
-        discountPercent: data.discount,
-        quantity: data.quantity,
-      });
-      toast.success("Stock added");
-      // Refresh variants to show updated stock list
-      const res = await api.get(`/variant/product/${productId}`);
-      setVariants(res.data.data || []);
-      setBatchFormData((prev) => ({
-        ...prev,
-        [variantId]: {
-          buyingPrice: 0,
-          sellingPrice: 0,
-          discount: 0,
-          quantity: 0,
-        },
-      }));
+      await fetchVariants();
+      closeVariantForm();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to add stock");
+      toast.error(err.response?.data?.message || "Failed to save variant");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Final save & close
-  const handleSaveAndClose = async () => {
-    // No need to publish – just close and refresh parent
-    onClose();
-    if (onSuccess) onSuccess();
-    else navigate("/products/product-list");
-  };
-
-  // Image handlers (product level)
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    for (const file of files) {
-      const mockUrl = URL.createObjectURL(file);
-      setImageList((prev) => [...prev, { imgUrl: mockUrl }]);
-      setImageFiles((prev) => [...prev, file]);
-    }
-  };
-  const removeProductImage = (index: number) => {
-    setImageList((prev) => prev.filter((_, i) => i !== index));
-    setImageFiles((prev) => prev.filter((_, i) => i !== index));
-    const removed = imageList[index];
-    if (removed && removed.id) {
-      setExistingImagesToKeep((prev) =>
-        prev.filter((img) => img.id !== removed.id),
+  const deleteVariant = async (id: number) => {
+    const variant = variants.find((v) => v.id === id);
+    // Check if any stock batch has positive quantity
+    const hasStockWithQuantity = variant?.stocks?.some(
+      (stock: any) => stock.currentQty > 0,
+    );
+    if (hasStockWithQuantity) {
+      toast.error(
+        "Cannot delete variant because it has stock with positive quantity. Please reduce stock to zero first.",
       );
+      return;
+    }
+    if (variants.length === 1) {
+      toast.error(
+        "Product must have at least one variant. Cannot delete the last variant.",
+      );
+      return;
+    }
+    if (!confirm("Are you sure you want to delete this variant?")) return;
+    try {
+      await api.delete(`/variant/${id}`);
+      toast.success("Variant deleted");
+      await fetchVariants();
+      if (editingVariantId === id) closeVariantForm();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to delete variant");
+    }
+  };
+  // ---------- Variant image upload (list) ----------
+  const handleVariantImageUploadList = async (
+    variantId: number,
+    files: FileList | null,
+  ) => {
+    if (!files || files.length === 0) return;
+    const formData = new FormData();
+    const variant = variants.find((v) => v.id === variantId);
+    const existingImages = variant?.images || [];
+    formData.append("existingImages", JSON.stringify(existingImages));
+    Array.from(files).forEach((file) => formData.append("images", file));
+    try {
+      setSubmitting(true);
+      await api.put(`/variant/${variantId}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.success("Images added");
+      await fetchVariants();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to upload images");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleVariantImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    for (const file of files) {
-      const mockUrl = URL.createObjectURL(file);
-      setVariantImages((prev) => [...prev, { imgUrl: mockUrl }]);
-      setVariantImageFiles((prev) => [...prev, file]);
+  const removeVariantImageList = async (
+    variantId: number,
+    imageUrl: string,
+  ) => {
+    const variant = variants.find((v) => v.id === variantId);
+    if (!variant) return;
+    const remainingImages = (variant.images || []).filter(
+      (img: any) => img.imgUrl !== imageUrl,
+    );
+    const formData = new FormData();
+    formData.append("existingImages", JSON.stringify(remainingImages));
+    try {
+      setSubmitting(true);
+      await api.put(`/variant/${variantId}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.success("Image removed");
+      await fetchVariants();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to remove image");
+    } finally {
+      setSubmitting(false);
     }
   };
-  const removeVariantImage = (idx: number) => {
-    setVariantImages((prev) => prev.filter((_, i) => i !== idx));
-    setVariantImageFiles((prev) => prev.filter((_, i) => i !== idx));
+
+  const variantImagesBody = (rowData: any) => {
+    const images = rowData.images || [];
+    return (
+      <div className="flex items-center gap-2">
+        <div className="flex -space-x-2">
+          {images.slice(0, 3).map((img: any, idx: number) => (
+            <div key={idx} className="relative group">
+              <img
+                src={img.imgUrl}
+                alt=""
+                className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => window.open(img.imgUrl, "_blank")}
+                title="Click to view full image"
+              />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeVariantImageList(rowData.id, img.imgUrl);
+                }}
+                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 hidden group-hover:block hover:bg-red-600"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+          {images.length > 3 && (
+            <span className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-medium">
+              +{images.length - 3}
+            </span>
+          )}
+        </div>
+        <label className="cursor-pointer p-1 hover:bg-gray-100 rounded">
+          <Camera className="w-4 h-4 text-gray-500" />
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) =>
+              handleVariantImageUploadList(rowData.id, e.target.files)
+            }
+          />
+        </label>
+      </div>
+    );
   };
+
+  // ---------- Thumbnail handlers ----------
+  const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      const mockUrl = URL.createObjectURL(file);
+      setThumbnailImage({ imgUrl: mockUrl, isNew: true });
+      setThumbnailFile(file);
+    }
+  };
+
+  const removeThumbnail = () => {
+    setThumbnailImage(null);
+    setThumbnailFile(null);
+    if (existingThumbnailId) {
+      // Will be removed via existingImages array in update
+    }
+  };
+
+  // ---------- Helpers ----------
+  const formatVariantName = (variant: any) => productName;
 
   const handleValueSelect = (value: string) => {
     if (!selectedAttrName || !value) return;
@@ -504,7 +654,6 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     delete newAttrs[key];
     setCurrentAttributes(newAttrs);
   };
-
   const handleAddValueToExisting = async () => {
     if (!existingAttrName || !newValueInput.trim())
       return toast.error("Select attribute and enter value(s)");
@@ -525,7 +674,6 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
       toast.error("Failed");
     }
   };
-
   const handleAddNewAttribute = async () => {
     if (!newAttributeName || !newAttributeValues)
       return toast.error("Provide name and values");
@@ -541,12 +689,42 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     }
   };
 
-  const formatVariantName = (variant: any) => {
-    const attrEntries = Object.entries(variant.attributes || {});
-    if (attrEntries.length === 0) return productName;
-    const attrStr = attrEntries.map(([k, v]) => `${k}: ${v}`).join(", ");
-    return `${productName} (${attrStr})`;
+  const hasMissingPriceSet = () => {
+    for (const variant of variants) {
+      const existingCount = variant.stocks?.length || 0;
+      const pendingCount = pendingStocks[variant.id]?.length || 0;
+      if (existingCount + pendingCount === 0) {
+        return true;
+      }
+    }
+    return false;
   };
+
+  const handleSaveAllChanges = async () => {
+    if (submitting) return;
+    try {
+      setSubmitting(true);
+      await saveAllPendingStocks();
+      toast.success("Product updated successfully!");
+      onProductSaved(); // refresh parent list
+      onClose(); // close modal
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save changes");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const getPriceSetCount = (variant: any) => {
+    const existing = variant.stocks?.length || 0;
+    const pending = pendingStocks[variant.id]?.length || 0;
+    return existing + pending;
+  };
+
+  const isDefaultVariant =
+    isEditingMode &&
+    editingVariantId &&
+    Object.keys(currentAttributes).length === 0;
 
   if (loading) {
     return (
@@ -555,566 +733,920 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
   }
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="max-w-6xl mx-auto p-6 rounded-lg shadow">
-        <StepIndicator current={step} />
+    <div className="max-w-6xl mx-auto rounded-md">
+      <StepIndicator current={step} />
 
-        {/* STEP 1 – Edit basic info */}
-        {step === 1 && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField
-                label="Product Name *"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                error={formErrors.name}
-              />
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Category *
-                </label>
-                <Dropdown
-                  value={selectedCategory?.id}
-                  options={categories}
-                  onChange={(e) =>
-                    setSelectedCategory(
-                      categories.find((c) => c.id === e.value),
-                    )
-                  }
-                  optionLabel="name"
-                  optionValue="id"
-                  placeholder="Select category"
-                  className="w-full"
-                />
-                {formErrors.category && (
-                  <p className="text-red-500 text-xs">{formErrors.category}</p>
-                )}
-              </div>
-              <InputField
-                label="Force Order Priority (0 = disabled)"
-                type="number"
-                value={forceOrderPriority}
-                onChange={(e) => setForceOrderPriority(Number(e.target.value))}
-              />
-              <InputField
-                label="Video URL"
-                value={videoUrl}
-                onChange={(e) => setVideoUrl(e.target.value)}
-              />
-            </div>
+      {step === 1 && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InputField
+              label="Product Name *"
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              error={formErrors.name}
+            />
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Description
+              <label className="block text-sm font-medium mb-1">
+                Category *
               </label>
-              <Editor
-                value={productDetails}
-                onTextChange={(e) => setProductDetails(e.htmlValue as any)}
-                style={{ height: "200px" }}
+              <Dropdown
+                value={selectedCategory?.id}
+                options={categories}
+                onChange={(e) =>
+                  setSelectedCategory(categories.find((c) => c.id === e.value))
+                }
+                optionLabel="name"
+                optionValue="id"
+                placeholder="Select category"
+                className="w-full"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Product Images *
-              </label>
-              <div className="mb-2">
-                <label className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg cursor-pointer">
-                  <Upload className="w-4 h-4 text-blue-600" />
-                  <span className="text-blue-600">Upload Images</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {imageList.map((img, idx) => (
-                  <DraggableImage
-                    key={idx}
-                    image={img}
-                    index={idx}
-                    moveImage={(drag, hover) => {
-                      const newList = [...imageList];
-                      const dragged = newList[drag];
-                      newList.splice(drag, 1);
-                      newList.splice(hover, 0, dragged);
-                      setImageList(newList);
-                    }}
-                    removeImage={removeProductImage}
-                  />
-                ))}
-              </div>
-              {formErrors.images && (
-                <p className="text-red-500 text-xs">{formErrors.images}</p>
+              {formErrors.category && (
+                <p className="text-red-500 text-xs">{formErrors.category}</p>
               )}
             </div>
-            <div className="flex justify-end">
-              <Button onClick={handleStep1Next} loading={submitting}>
-                Save & Next →
-              </Button>
-            </div>
+            <InputField
+              label="Force Order Priority (0 = disabled)"
+              type="number"
+              value={forceOrderPriority}
+              onChange={(e) => setForceOrderPriority(Number(e.target.value))}
+            />
+            <InputField
+              label="Video URL"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+            />
           </div>
-        )}
-        {/* STEP 2 – Variants (edit, add, delete) */}
-        {step === 2 && (
-          <div className="space-y-6">
-            <div className="border border-gray-200 dark:border-gray-700 rounded-md    p-5 ">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold mb-4">
-                  {editingVariantId ? "Edit Variant" : "Add New Variant"}
-                </h3>
-                <button
-                  onClick={() => setShowAddAttribute(true)}
-                  className="text-blue-600 text-sm flex items-center gap-1 "
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Description
+            </label>
+            <Editor
+              value={productDetails}
+              onTextChange={(e) => setProductDetails(e.htmlValue as any)}
+              style={{ height: "200px" }}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Thumbnail Image *
+            </label>
+            <div className="relative w-full h-32 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors overflow-hidden">
+              {thumbnailImage ? (
+                <div className="relative w-full h-full flex items-center justify-center">
+                  <img
+                    src={thumbnailImage.imgUrl}
+                    alt="Thumbnail"
+                    className="max-w-full max-h-full object-contain cursor-pointer"
+                    onClick={() => window.open(thumbnailImage.imgUrl, "_blank")}
+                    title="Click to view full image"
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeThumbnail();
+                    }}
+                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 z-10"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  className="flex flex-col items-center justify-center w-full h-full cursor-pointer"
+                  onClick={() =>
+                    document.getElementById("thumbnail-upload-edit")?.click()
+                  }
                 >
-                  <Plus className="w-4 h-4" /> New Attribute
-                </button>
-              </div>
-              <div className=" p-4 rounded-md border border-gray-200 dark:border-gray-700 mb-4">
-                <div className="flex flex-wrap gap-3 items-end">
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium">
-                      Attribute Name
-                    </label>
-                    <Dropdown
-                      value={selectedAttrName}
-                      options={availableAttributes.map((a) => ({
-                        label: a.name,
-                        value: a.name,
-                      }))}
-                      onChange={(e) => {
-                        setSelectedAttrName(e.value);
-                        setSelectedAttrValue("");
-                      }}
-                      placeholder="Select attribute"
-                      className="w-full"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium">
-                      Attribute Value
-                    </label>
-                    <Dropdown
-                      value={selectedAttrValue}
-                      options={
-                        availableAttributes
-                          .find((a) => a.name === selectedAttrName)
-                          ?.values.map((v: string) => ({
-                            label: v,
-                            value: v,
-                          })) || []
-                      }
-                      onChange={(e) => handleValueSelect(e.value)}
-                      placeholder="Select value"
-                      disabled={!selectedAttrName}
-                      className="w-full"
-                    />
-                  </div>
+                  <Upload className="w-8 h-8 mb-2 text-gray-500 dark:text-gray-400" />
+                  <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
+                    <span className="font-semibold">Click to upload</span> or
+                    drag and drop
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Only one image (thumbnail)
+                  </p>
                 </div>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">
-                  Current Attributes
-                </label>
-                <div className="flex flex-wrap gap-2 min-h-[60px] p-3  rounded-lg border border-gray-200 dark:border-gray-700">
-                  {Object.entries(currentAttributes).length === 0 ? (
-                    <span className="text-gray-400 text-sm">
-                      No attributes selected
-                    </span>
-                  ) : (
-                    Object.entries(currentAttributes).map(([k, v]) => (
-                      <span
-                        key={k}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-200 dark:bg-gray-700 rounded-full text-sm"
-                      >
-                        {k}: {v}
-                        <X
-                          className="w-3.5 h-3.5 cursor-pointer hover:text-red-600"
-                          onClick={() => removeCurrentAttribute(k)}
-                        />
-                      </span>
-                    ))
-                  )}
-                </div>
-              </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">
-                  Variant Images (max 3)
-                </label>
-                <div className="flex flex-wrap gap-3 w-full border border-gray-200 dark:border-gray-700 rounded-md p-3">
-                  {variantImages.map((img, idx) => (
-                    <div
-                      key={idx}
-                      className="relative w-20 h-20 rounded overflow-hidden border"
-                    >
-                      <img
-                        src={img.imgUrl}
-                        alt="preview"
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        onClick={() => removeVariantImage(idx)}
-                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                  {variantImages.length < 3 && (
-                    <label className="w-20 h-20 flex border border-gray-200 dark:border-gray-700 rounded flex items-center justify-center cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                      <Upload className="w-6 h-6 text-gray-400" />
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleVariantImageUpload}
-                        className="hidden"
-                      />
-                    </label>
-                  )}
-                </div>
-              </div>
-              <div className="mb-4 flex justify-between  w-full items-end">
-                <div className="w-1/2">
-                  <label className=" text-sm font-medium mb-2">
-                    Barcode (optional)
-                  </label>
-                  <div className="flex gap-2">
-                    <InputField
-                      value={variantBarcode}
-                      onChange={(e) => setVariantBarcode(e.target.value)}
-                      placeholder="Scan or enter barcode"
-                      className="flex-1"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setVariantBarcode(generateEAN13())}
-                      className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer "
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                <div className="w-1/2">
-                  <div className="flex items-center justify-end gap-4 ">
-                    <span className="font-medium">Is Imported?</span>
-                    <label>
-                      <input
-                        type="radio"
-                        name="variantImported"
-                        checked={!variantIsImported}
-                        onChange={() => {
-                          setVariantIsImported(false);
-                          setVariantCountry("");
-                        }}
-                      />{" "}
-                      No
-                    </label>
-                    <label>
-                      <input
-                        type="radio"
-                        name="variantImported"
-                        checked={variantIsImported}
-                        onChange={() => setVariantIsImported(true)}
-                      />{" "}
-                      Yes
-                    </label>
-                  </div>
-                  {variantIsImported && (
-                    <InputField
-                      label="Country of Origin"
-                      value={variantCountry}
-                      onChange={(e) => setVariantCountry(e.target.value)}
-                    />
-                  )}
-                </div>
-              </div>
+              )}
+              <input
+                id="thumbnail-upload-edit"
+                type="file"
+                accept="image/*"
+                onChange={handleThumbnailUpload}
+                className="hidden"
+              />
+            </div>
+            {formErrors.images && (
+              <p className="text-red-500 text-xs mt-1">{formErrors.images}</p>
+            )}
+          </div>
+          <div className="modal-sticky-footer">
+            <Button onClick={handleStep1Next} loading={submitting}>
+              Save & Next →
+            </Button>
+          </div>
+        </div>
+      )}
 
-              <div className="flex justify-end gap-3">
-                {editingVariantId && (
-                  <Button variant="outline" onClick={resetVariantForm}>
-                    Cancel Edit
-                  </Button>
-                )}
+      {step === 2 && (
+        <div className="space-y-6">
+          <div className="z-1 sticky top-[-1px] flex justify-between items-center bg-gray-200 dark:bg-gray-800 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+            <span className="text-sm text-gray-700 dark:text-gray-300">
+              💡 Manage variants – add, edit, or delete.
+            </span>
+            <div className="flex gap-2">
+              {showVariantForm && (
+                <Button variant="outline" onClick={closeVariantForm}>
+                  Cancel
+                </Button>
+              )}
+              {showVariantForm ? (
                 <Button
                   variant="primary"
                   onClick={saveVariant}
-                  disabled={Object.keys(currentAttributes).length === 0}
                   loading={submitting}
                 >
-                  {editingVariantId ? "Update Variant" : "Add Variant"}
+                  {isEditingMode ? "Update Variant" : "Save Variant"}
                 </Button>
-              </div>
-            </div>
-
-            {variants.length > 0 && (
-              <div>
-                <h3 className="font-semibold text-lg mb-3">Variants List</h3>
-                <DataTable value={variants} stripedRows>
-                  <Column field="sku" header="SKU" />
-                  <Column field="barcode" header="Barcode" />
-                  <Column
-                    header="Attributes"
-                    body={(row) =>
-                      Object.entries(row.attributes || {})
-                        .map(([k, v]) => `${k}:${v}`)
-                        .join(", ") || "—"
-                    }
-                  />
-                  <Column
-                    header="Imported"
-                    body={(row) => (row.isImported ? "Yes" : "No")}
-                  />
-                  <Column
-                    header="Actions"
-                    body={(row) => (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => editVariant(row)}
-                          disabled={isEditingVariant}
-                          className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => deleteVariant(row.id)}
-                          disabled={isEditingVariant}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  />
-                </DataTable>
-              </div>
-            )}
-
-            <div className="flex justify-between pt-4 border-t">
-              <Button variant="outline" onClick={() => setStep(1)}>
-                ← Back
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => setStep(3)}
-                disabled={variants.length === 0}
-              >
-                Next: Stock & Pricing →
-              </Button>
+              ) : (
+                <Button variant="primary" onClick={openAddVariantForm}>
+                  <Plus className="w-4 h-4 mr-2" /> Add Variant
+                </Button>
+              )}
             </div>
           </div>
-        )}
 
-        {/* STEP 3 – Stock batches (add new) */}
-        {step === 3 && (
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold">Stock & Pricing</h3>
-            {variants.map((variant) => (
+          {showVariantForm && (
+            <div className="border rounded-md p-5 border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold mb-4">
+                {isEditingMode
+                  ? isDefaultVariant
+                    ? "Edit"
+                    : "Edit Variant"
+                  : "Add New Variant"}
+              </h3>
+              {(!isDefaultVariant || !isEditingMode) && (
+                <>
+                  <div className="p-4 rounded-md">
+                    <div className="flex flex-wrap gap-3 items-end">
+                      <div className="flex-1">
+                        <div className="flex gap-1">
+                          <label className="block text-xs font-medium">
+                            Attribute Name
+                          </label>
+                          <button
+                            onClick={() => setShowAddAttribute(true)}
+                            className="flex gap-1 btn-primary text-[8px]! px-1 py-0.5 rounded items-center cursor-pointer"
+                          >
+                            <Plus className="w-2 h-2" />{" "}
+                            <span className="mt-[.5px]">New</span>
+                          </button>
+                        </div>
+                        <Dropdown
+                          value={selectedAttrName}
+                          options={availableAttributes.map((a) => ({
+                            label: a.name,
+                            value: a.name,
+                          }))}
+                          onChange={(e) => {
+                            setSelectedAttrName(e.value);
+                            setSelectedAttrValue("");
+                          }}
+                          placeholder="Select attribute"
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium">
+                          Attribute Value
+                        </label>
+                        <Dropdown
+                          value={selectedAttrValue}
+                          options={
+                            availableAttributes
+                              .find((a) => a.name === selectedAttrName)
+                              ?.values.map((v: string) => ({
+                                label: v,
+                                value: v,
+                              })) || []
+                          }
+                          onChange={(e) => handleValueSelect(e.value)}
+                          placeholder="Select value"
+                          disabled={!selectedAttrName}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-2">
+                      Current Attributes
+                    </label>
+                    <div className="flex flex-wrap gap-2 min-h-[60px] p-3 rounded-md border border-dashed border-gray-200 dark:border-gray-700">
+                      {Object.entries(currentAttributes).length === 0 ? (
+                        <span className="text-gray-400 text-sm">
+                          No attributes selected
+                        </span>
+                      ) : (
+                        Object.entries(currentAttributes).map(([k, v]) => (
+                          <span
+                            key={k}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-200 dark:bg-blue-800 rounded-full text-sm"
+                          >
+                            {k}: {v}
+                            <X
+                              className="w-3.5 h-3.5 cursor-pointer hover:text-red-600"
+                              onClick={() => removeCurrentAttribute(k)}
+                            />
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">
+                  Barcode (optional)
+                </label>
+                <div className="flex gap-2">
+                  <InputField
+                    value={variantBarcode}
+                    onChange={(e) => setVariantBarcode(e.target.value)}
+                    placeholder="Scan or enter barcode"
+                    className="flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setVariantBarcode(generateEAN13())}
+                    className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                </div>
+                {(variantBarcode || (isEditingMode && editingVariantId)) && (
+                  <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/30">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="font-medium text-gray-600 dark:text-gray-400">
+                          Barcode Number:
+                        </span>
+                        <span className="text-gray-800 dark:text-gray-200 font-mono">
+                          {variantBarcode || "—"}
+                        </span>
+                      </div>
+                      {variantBarcode && (
+                        <div className="flex justify-center pt-2">
+                          <div className="bg-white p-2 rounded shadow-sm">
+                            <Barcode
+                              value={variantBarcode}
+                              format="CODE128"
+                              width={1.5}
+                              height={40}
+                              fontSize={10}
+                              margin={0}
+                              displayValue={true}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-4 mb-4">
+                <span className="font-medium">Is Imported?</span>
+                <label>
+                  <input
+                    type="radio"
+                    name="variantImported"
+                    checked={!variantIsImported}
+                    onChange={() => {
+                      setVariantIsImported(false);
+                      setVariantCountry("");
+                    }}
+                  />{" "}
+                  No
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="variantImported"
+                    checked={variantIsImported}
+                    onChange={() => setVariantIsImported(true)}
+                  />{" "}
+                  Yes
+                </label>
+              </div>
+              {variantIsImported && (
+                <InputField
+                  label="Country of Origin"
+                  value={variantCountry}
+                  onChange={(e) => setVariantCountry(e.target.value)}
+                />
+              )}
+            </div>
+          )}
+
+          <DataTable
+            value={variants}
+            stripedRows
+            emptyMessage="No variants found"
+            rowClassName={() => "table-row"}
+          >
+            <Column
+              header="Name"
+              body={() => productName}
+              sortable
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              field="sku"
+              header="SKU"
+              sortable
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              field="barcode"
+              header="Barcode"
+              sortable
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              header="Attributes"
+              body={(row) =>
+                Object.entries(row.attributes || {})
+                  .map(([k, v]) => `${k}:${v}`)
+                  .join(", ") || "—"
+              }
+              sortable
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              header="Imported"
+              body={(row) => (row.isImported ? "Yes" : "No")}
+              sortable
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              header="Images"
+              body={variantImagesBody}
+              style={{ width: "200px" }}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
+              header="Actions"
+              body={(row) => (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => openEditVariantForm(row)}
+                    className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                    title="Edit"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => deleteVariant(row.id)}
+                    className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              style={{ width: "120px" }}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+          </DataTable>
+
+          <div className="modal-sticky-footer gap-4">
+            <Button variant="outline" onClick={() => setStep(1)}>
+              <ChevronLeft className="w-4 h-4" /> Back
+            </Button>
+            <Button variant="primary" onClick={() => setStep(3)}>
+              Pricing <ChevronRight className="w-4 h-4 mt-1" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="space-y-5">
+          {variants.map((variant) => {
+            const existingStocks = variant.stocks || [];
+            const tempStocks = pendingStocks[variant.id] || [];
+            const allRows = [
+              ...existingStocks.map((s) => ({
+                ...s,
+                _isTemp: false,
+                id: s.id,
+              })),
+              ...tempStocks.map((t) => ({ ...t, _isTemp: true })),
+            ];
+            const formValues = newPriceSet[variant.id] || {
+              buyingPrice: 0,
+              sellingPrice: 0,
+              discount: 0,
+            };
+            const hasPriceSets = getPriceSetCount(variant) > 0;
+
+            return (
               <div
                 key={variant.id}
-                className="border rounded-lg p-5 bg-gray-50 dark:bg-gray-800/50"
+                className="border rounded-md p-5 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
               >
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h4 className="font-medium text-lg">
-                      {formatVariantName(variant)}
-                    </h4>
-                    <p className="text-sm text-gray-500">SKU: {variant.sku}</p>
-                    {variant.barcode && (
-                      <p className="text-sm text-gray-500">
-                        Barcode: {variant.barcode}
-                      </p>
-                    )}
-                  </div>
+                <div className="mb-3">
+                  <h4 className="font-medium text-base">{productName}</h4>
+                  <p className="text-xs text-gray-500">SKU: {variant.sku}</p>
+                  {variant.barcode && (
+                    <p className="text-xs text-gray-500">
+                      Barcode: {variant.barcode}
+                    </p>
+                  )}
                 </div>
 
-                {variant.stocks && variant.stocks.length > 0 && (
+                {hasPriceSets ? (
                   <DataTable
-                    value={variant.stocks}
+                    value={allRows}
+                    stripedRows
+                    emptyMessage="No price sets added yet"
+                    rowClassName={() => "table-row"}
                     className="mb-4"
-                    size="small"
                   >
-                    <Column field="batchNo" header="Batch" />
-                    <Column field="buyingOrMakingPrice" header="Buying Price" />
-                    <Column field="sellingPrice" header="Selling Price" />
-                    <Column field="discountPercent" header="Discount %" />
-                    <Column field="currentQty" header="Quantity" />
+                    <Column
+                      header="Buying Price"
+                      body={(row) =>
+                        row._isTemp && row.isEditing ? (
+                          <input
+                            type="number"
+                            value={row.buyingPrice}
+                            onChange={(e) =>
+                              updateTempStock(
+                                variant.id,
+                                row.id,
+                                "buyingPrice",
+                                parseFloat(e.target.value) || 0,
+                              )
+                            }
+                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        ) : (
+                          <span className="text-xs">
+                            {row.buyingOrMakingPrice || row.buyingPrice}
+                          </span>
+                        )
+                      }
+                      headerClassName="column-header text-xs"
+                      bodyClassName="column-body text-xs py-1"
+                    />
+                    <Column
+                      header="MRP"
+                      body={(row) =>
+                        row._isTemp && row.isEditing ? (
+                          <input
+                            type="number"
+                            value={row.sellingPrice}
+                            onChange={(e) =>
+                              updateTempStock(
+                                variant.id,
+                                row.id,
+                                "sellingPrice",
+                                parseFloat(e.target.value) || 0,
+                              )
+                            }
+                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        ) : (
+                          <span className="text-xs">{row.sellingPrice}</span>
+                        )
+                      }
+                      headerClassName="column-header text-xs"
+                      bodyClassName="column-body text-xs py-1"
+                    />
+                    <Column
+                      header="Discount %"
+                      body={(row) => {
+                        const discountValue = row._isTemp
+                          ? row.discount
+                          : (row.discountPercent ?? row.discount);
+                        if (
+                          discountValue === 0 ||
+                          discountValue === null ||
+                          discountValue === undefined
+                        ) {
+                          return (
+                            <div className="flex justify-center">
+                              <X className="w-4 h-4 text-red-500" />
+                            </div>
+                          );
+                        }
+                        return row._isTemp && row.isEditing ? (
+                          <input
+                            type="number"
+                            value={discountValue}
+                            onChange={(e) =>
+                              updateTempStock(
+                                variant.id,
+                                row.id,
+                                "discount",
+                                parseFloat(e.target.value) || 0,
+                              )
+                            }
+                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        ) : (
+                          <span className="text-xs">{discountValue}%</span>
+                        );
+                      }}
+                      headerClassName="column-header text-xs"
+                      bodyClassName="column-body text-xs py-1 text-center"
+                    />
+                    <Column
+                      header="Actions"
+                      body={(row) => {
+                        if (row._isTemp) {
+                          return (
+                            <div className="flex gap-2">
+                              {row.isEditing ? (
+                                <button
+                                  onClick={() =>
+                                    saveTempStock(variant.id, row.id)
+                                  }
+                                  className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                  title="Save"
+                                >
+                                  <CheckCircle className="w-4 h-4" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() =>
+                                    editTempStock(variant.id, row.id)
+                                  }
+                                  className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                  title="Edit"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() =>
+                                  removeTempStock(variant.id, row.id)
+                                }
+                                className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                title="Remove"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          );
+                        }
+                        // For existing stock – delete only if currentQty === 0
+                        return (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={async () => {
+                                if (row.currentQty > 0) {
+                                  toast.error(
+                                    "Cannot delete price set because it has quantity greater than 0. Please reduce stock to zero first.",
+                                  );
+                                  return;
+                                }
+                                if (
+                                  !confirm(
+                                    "Delete this price set? This action cannot be undone.",
+                                  )
+                                )
+                                  return;
+                                try {
+                                  setSubmitting(true);
+                                  await api.delete(`/stock/${row.id}`);
+                                  toast.success("Price set deleted");
+                                  await fetchVariants();
+                                } catch (err: any) {
+                                  toast.error(
+                                    err.response?.data?.message ||
+                                      "Failed to delete price set",
+                                  );
+                                } finally {
+                                  setSubmitting(false);
+                                }
+                              }}
+                              className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        );
+                      }}
+                      style={{ width: "100px" }}
+                      headerClassName="column-header text-xs"
+                      bodyClassName="column-body text-xs py-1"
+                    />
                   </DataTable>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 text-sm border border-dashed rounded-md mb-4">
+                    No price sets added yet. Use the form below to add your
+                    first price set.
+                  </div>
                 )}
 
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <h5 className="text-sm font-medium mb-2">
-                    Add new stock batch
-                  </h5>
-                  <div className="grid grid-cols-4 gap-3 items-end">
-                    <InputField
-                      label="Buying Price"
-                      type="number"
-                      value={batchFormData[variant.id]?.buyingPrice || 0}
-                      onChange={(e) =>
-                        setBatchFormData((prev) => ({
-                          ...prev,
-                          [variant.id]: {
-                            ...prev[variant.id],
-                            buyingPrice: Number(e.target.value),
-                          },
-                        }))
-                      }
-                    />
-                    <InputField
-                      label="Selling Price"
-                      type="number"
-                      value={batchFormData[variant.id]?.sellingPrice || 0}
-                      onChange={(e) =>
-                        setBatchFormData((prev) => ({
-                          ...prev,
-                          [variant.id]: {
-                            ...prev[variant.id],
-                            sellingPrice: Number(e.target.value),
-                          },
-                        }))
-                      }
-                    />
-                    <InputField
-                      label="Discount %"
-                      type="number"
-                      value={batchFormData[variant.id]?.discount || 0}
-                      onChange={(e) =>
-                        setBatchFormData((prev) => ({
-                          ...prev,
-                          [variant.id]: {
-                            ...prev[variant.id],
-                            discount: Number(e.target.value),
-                          },
-                        }))
-                      }
-                    />
-                    <InputField
-                      label="Quantity"
-                      type="number"
-                      value={batchFormData[variant.id]?.quantity || 0}
-                      onChange={(e) =>
-                        setBatchFormData((prev) => ({
-                          ...prev,
-                          [variant.id]: {
-                            ...prev[variant.id],
-                            quantity: Number(e.target.value),
-                          },
-                        }))
-                      }
-                    />
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => addStock(variant.id)}
-                      disabled={submitting}
-                      className="col-span-4 mt-2"
-                    >
-                      Add Stock Batch
-                    </Button>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Buying Price *
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={
+                          formValues.buyingPrice === 0
+                            ? ""
+                            : formValues.buyingPrice
+                        }
+                        onFocus={(e) => {
+                          if (e.target.value === "0") e.target.value = "";
+                        }}
+                        onBlur={(e) => {
+                          const val = e.target.value;
+                          if (val === "") {
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: {
+                                ...prev[variant.id],
+                                buyingPrice: 0,
+                              },
+                            }));
+                          } else {
+                            const num = parseFloat(val);
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: {
+                                ...prev[variant.id],
+                                buyingPrice: isNaN(num) ? 0 : num,
+                              },
+                            }));
+                          }
+                        }}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const num = parseFloat(val);
+                          setNewPriceSet((prev) => ({
+                            ...prev,
+                            [variant.id]: {
+                              ...prev[variant.id],
+                              buyingPrice: isNaN(num) ? 0 : num,
+                            },
+                          }));
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        MRP *
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={
+                          formValues.sellingPrice === 0
+                            ? ""
+                            : formValues.sellingPrice
+                        }
+                        onFocus={(e) => {
+                          if (e.target.value === "0") e.target.value = "";
+                        }}
+                        onBlur={(e) => {
+                          const val = e.target.value;
+                          if (val === "") {
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: {
+                                ...prev[variant.id],
+                                sellingPrice: 0,
+                              },
+                            }));
+                          } else {
+                            const num = parseFloat(val);
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: {
+                                ...prev[variant.id],
+                                sellingPrice: isNaN(num) ? 0 : num,
+                              },
+                            }));
+                          }
+                        }}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const num = parseFloat(val);
+                          setNewPriceSet((prev) => ({
+                            ...prev,
+                            [variant.id]: {
+                              ...prev[variant.id],
+                              sellingPrice: isNaN(num) ? 0 : num,
+                            },
+                          }));
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Discount %
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={
+                          formValues.discount === 0 ? "" : formValues.discount
+                        }
+                        onFocus={(e) => {
+                          if (e.target.value === "0") e.target.value = "";
+                        }}
+                        onBlur={(e) => {
+                          const val = e.target.value;
+                          if (val === "") {
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: {
+                                ...prev[variant.id],
+                                discount: 0,
+                              },
+                            }));
+                          } else {
+                            const num = parseFloat(val);
+                            setNewPriceSet((prev) => ({
+                              ...prev,
+                              [variant.id]: {
+                                ...prev[variant.id],
+                                discount: isNaN(num) ? 0 : num,
+                              },
+                            }));
+                          }
+                        }}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const num = parseFloat(val);
+                          setNewPriceSet((prev) => ({
+                            ...prev,
+                            [variant.id]: {
+                              ...prev[variant.id],
+                              discount: isNaN(num) ? 0 : num,
+                            },
+                          }));
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end mt-3">
+                    <div className="relative inline-block group">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => addTempStock(variant.id)}
+                        className="flex items-center gap-1"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="lucide lucide-info"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M12 16v-4" />
+                          <path d="M12 8h.01" />
+                        </svg>
+                        Add Price Set
+                      </Button>
+                      <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-20 w-56 p-2 text-xs text-white bg-gray-800 rounded shadow-lg whitespace-normal">
+                        Add multiple price sets for different purchase costs or
+                        MRPs. Unsaved rows can be removed. All changes are saved
+                        when you click Save All Changes.
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            ))}
-            <div className="flex justify-between pt-4 border-t">
+            );
+          })}
+          <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-700 modal-sticky-footer">
+            <div className="flex gap-3">
               <Button variant="outline" onClick={() => setStep(2)}>
-                ← Back
+                <ChevronLeft className="w-4 h-4" /> Back
               </Button>
-              <div className="flex gap-3">
-                <Button
-                  variant="success"
-                  onClick={handleSaveAndClose}
-                  loading={submitting}
-                >
-                  Save All Changes & Close
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* Attribute Modal (same as create) */}
-        {showAddAttribute && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-              <div className="flex border-b mb-4">
-                <button
-                  className={`flex-1 pb-2 text-center ${attributeTab === "addValue" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"}`}
-                  onClick={() => setAttributeTab("addValue")}
-                >
-                  Add Value to Existing
-                </button>
-                <button
-                  className={`flex-1 pb-2 text-center ${attributeTab === "newAttr" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"}`}
-                  onClick={() => setAttributeTab("newAttr")}
-                >
-                  Add New Attribute
-                </button>
-              </div>
-              {attributeTab === "addValue" && (
-                <div>
-                  <Dropdown
-                    value={existingAttrName}
-                    options={availableAttributes.map((a) => ({
-                      label: a.name,
-                      value: a.name,
-                    }))}
-                    onChange={(e) => setExistingAttrName(e.value)}
-                    placeholder="Select attribute"
-                    className="w-full mb-3"
-                  />
-                  <InputField
-                    label="New Value(s) (comma separated)"
-                    value={newValueInput}
-                    onChange={(e) => setNewValueInput(e.target.value)}
-                  />
-                  <div className="flex justify-end gap-3 mt-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowAddAttribute(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button onClick={handleAddValueToExisting}>
-                      Add Value
-                    </Button>
-                  </div>
-                </div>
-              )}
-              {attributeTab === "newAttr" && (
-                <div>
-                  <InputField
-                    label="Attribute Name"
-                    value={newAttributeName}
-                    onChange={(e) => setNewAttributeName(e.target.value)}
-                  />
-                  <InputField
-                    label="Values (comma separated)"
-                    value={newAttributeValues}
-                    onChange={(e) => setNewAttributeValues(e.target.value)}
-                  />
-                  <div className="flex justify-end gap-3 mt-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowAddAttribute(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button onClick={handleAddNewAttribute}>
-                      Add Attribute
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <Button
+                variant="success"
+                onClick={handleSaveAllChanges}
+                loading={submitting}
+                disabled={hasMissingPriceSet()}
+                title={
+                  hasMissingPriceSet()
+                    ? "All variants must have at least one price set"
+                    : ""
+                }
+              >
+                Save All Changes
+              </Button>
             </div>
           </div>
-        )}
-      </div>
-    </DndProvider>
+        </div>
+      )}
+
+      {showAddAttribute && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <div className="flex mb-6">
+              <button
+                className={`cursor-pointer flex-1 pb-2 text-center ${attributeTab === "addValue" ? "border-b-2 border-blue-500 text-blue-600" : "border-b-2 text-gray-500"} text-sm`}
+                onClick={() => setAttributeTab("addValue")}
+              >
+                Add Value to Existing
+              </button>
+              <button
+                className={`cursor-pointer flex-1 pb-2 text-center ${attributeTab === "newAttr" ? "border-b-2 border-blue-500 text-blue-600" : "border-b-2 text-gray-500"} text-sm`}
+                onClick={() => setAttributeTab("newAttr")}
+              >
+                Add New Attribute
+              </button>
+            </div>
+            {attributeTab === "addValue" && (
+              <div className="flex flex-col gap-4">
+                <Dropdown
+                  value={existingAttrName}
+                  options={availableAttributes.map((a) => ({
+                    label: a.name,
+                    value: a.name,
+                  }))}
+                  onChange={(e) => setExistingAttrName(e.value)}
+                  placeholder="Select attribute"
+                  className="w-full mb-3"
+                />
+                <InputField
+                  label="New Value(s) (comma separated)"
+                  value={newValueInput}
+                  onChange={(e) => setNewValueInput(e.target.value)}
+                />
+                <div className="flex justify-end gap-3 mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAddAttribute(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleAddValueToExisting}>Add Value</Button>
+                </div>
+              </div>
+            )}
+            {attributeTab === "newAttr" && (
+              <div className="flex flex-col gap-4">
+                <InputField
+                  label="Attribute Name"
+                  value={newAttributeName}
+                  onChange={(e) => setNewAttributeName(e.target.value)}
+                />
+                <InputField
+                  label="Values (comma separated)"
+                  value={newAttributeValues}
+                  onChange={(e) => setNewAttributeValues(e.target.value)}
+                />
+                <div className="flex justify-end gap-3 mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAddAttribute(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleAddNewAttribute}>Add Attribute</Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

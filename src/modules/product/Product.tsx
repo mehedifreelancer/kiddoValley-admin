@@ -551,7 +551,10 @@ export const Product = () => {
         {modalFor === "edit" && selectedProduct && (
           <Modal
             isOpen={true}
-            onClose={closeModal}
+            onClose={() => {
+              fetchProducts(); // refresh list even on cancel
+              closeModal();
+            }}
             title="Edit Product"
             size="xl"
           >
@@ -559,20 +562,22 @@ export const Product = () => {
               <EditProductWizard
                 productId={selectedProduct.id}
                 onClose={closeModal}
-                onSuccess={() => {
-                  fetchProducts(); // refresh list after edit
-                  closeModal();
+                onProductSaved={() => {
+                  fetchProducts(); // refresh product list after edit
+                  closeModal(); // close the modal (already called by onClose, but safe)
                 }}
               />
             </div>
           </Modal>
         )}
-
         {/* ===== DELETE MODAL ===== */}
         {modalFor === "delete" && (
           <Modal
             isOpen={true}
-            onClose={closeModal}
+            onClose={() => {
+              fetchProducts(); // refresh list even on cancel
+              closeModal();
+            }}
             title="Delete Product"
             size="sm"
           >
