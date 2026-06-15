@@ -7,6 +7,7 @@ import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { toast } from "react-hot-toast";
 
+import api from "../../apiConfig";
 import Button from "../../components/ui/Button";
 import DataTableSearch from "../../components/ui/DataTableSearch";
 import Modal from "../../components/ui/Modal";
@@ -19,10 +20,14 @@ import {
   updateProduct,
 } from "./product.service";
 
-// ✅ Import the wizard component (assumed to be in the same directory)
 import CreateProductWizard from "./CreateProductWizard";
 import EditProductWizard from "./EditProductWizard";
-import { Category, ProductImage, ProductItem } from "./product.types";
+import {
+  Category,
+  ProductImage,
+  ProductItem,
+  VariantItem,
+} from "./product.types";
 
 const ItemType = "IMAGE";
 
@@ -89,11 +94,38 @@ const DraggableImage: React.FC<DraggableImageProps> = ({
   );
 };
 
+// Variant images display component
+const VariantImagesDisplay = ({ images }: { images: any[] }) => {
+  if (!images || images.length === 0)
+    return <span className="text-gray-400">—</span>;
+  return (
+    <div className="flex -space-x-2">
+      {images.slice(0, 3).map((img, idx) => (
+        <img
+          key={idx}
+          src={img.imgUrl}
+          alt="variant"
+          className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 object-cover"
+        />
+      ))}
+      {images.length > 3 && (
+        <span className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-medium">
+          +{images.length - 3}
+        </span>
+      )}
+    </div>
+  );
+};
+
 export const Product = () => {
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [loading, setLoading] = useState(true);
+  const [expandedRows, setExpandedRows] = useState<any[]>([]);
+  const [variantsMap, setVariantsMap] = useState<{
+    [productId: number]: VariantItem[];
+  }>({});
 
   const [first, setFirst] = useState(0);
   const [rows, setRows] = useState(10);
@@ -107,7 +139,7 @@ export const Product = () => {
     null,
   );
 
-  // States used ONLY for edit modal
+  // States for edit modal (unchanged)
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
     null,
   );
@@ -125,7 +157,6 @@ export const Product = () => {
   const [productDetails, setProductDetails] = useState<string>("");
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   // Debounce search
@@ -151,9 +182,7 @@ export const Product = () => {
   const fetchCategories = async () => {
     try {
       const response = await getCategories(1, 1000);
-      if (response.success) {
-        setCategories(response.data);
-      }
+      if (response.success) setCategories(response.data);
     } catch (error) {
       toast.error("Failed to fetch categories");
     }
@@ -166,11 +195,23 @@ export const Product = () => {
       if (response.success) {
         setProducts(response.data);
         setTotalRecords(response.pagination.total);
+        setVariantsMap({});
       }
     } catch (error) {
       toast.error("Failed to fetch products");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchVariantsForProduct = async (productId: number) => {
+    if (variantsMap[productId]) return;
+    try {
+      const res = await api.get(`/variant/product/${productId}`);
+      const variants = res.data.data || [];
+      setVariantsMap((prev) => ({ ...prev, [productId]: variants }));
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -180,12 +221,17 @@ export const Product = () => {
     setPage(event.first / event.rows + 1);
   };
 
-  // Regenerate barcode for edit modal
-  const regenerateBarcode = () => {
-    setBarcodeValue(generateBarcode());
+  const onRowToggle = (e: any) => {
+    setExpandedRows(e.data);
   };
 
-  // Populate edit modal state
+  const onRowExpand = async (e: any) => {
+    const product = e.data;
+    await fetchVariantsForProduct(product.id);
+  };
+
+  const regenerateBarcode = () => setBarcodeValue(generateBarcode());
+
   useEffect(() => {
     if (modalFor === "edit" && selectedProduct) {
       setBarcodeValue(selectedProduct.barcode);
@@ -203,7 +249,6 @@ export const Product = () => {
     }
   }, [modalFor, selectedProduct]);
 
-  // Image handlers for edit modal
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     for (const file of files) {
@@ -272,7 +317,6 @@ export const Product = () => {
     resetForm();
   };
 
-  // Edit form validation
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
     if (!barcodeValue) errors.barcode = "Barcode is required";
@@ -288,10 +332,8 @@ export const Product = () => {
   const handleEditSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!validateForm() || !selectedProduct) return;
-
     try {
       setSubmitting(true);
-
       const formData = new FormData();
       formData.append("barcode", barcodeValue);
       formData.append("barcodeTitle", barcodeTitle);
@@ -313,7 +355,6 @@ export const Product = () => {
           ) as HTMLInputElement
         )?.value || "0",
       );
-
       const videoUrl = (
         event.currentTarget.elements.namedItem("videoUrl") as HTMLInputElement
       )?.value;
@@ -323,15 +364,11 @@ export const Product = () => {
         formData.append("forceOrderPriority", forceOrderPriority.toString());
       if (discountPercent)
         formData.append("discountPercent", discountPercent.toString());
-
-      // Send existing image URLs (order preserved)
       const currentOrderedUrls = imageList
         .filter((img) => !img.imgUrl.startsWith("blob:"))
         .map((img) => ({ imgUrl: img.imgUrl }));
       formData.append("existingImages", JSON.stringify(currentOrderedUrls));
-
       imageFiles.forEach((file) => formData.append("images", file));
-
       await updateProduct(selectedProduct.id, formData);
       toast.success("Product updated successfully");
       setModalFor(null);
@@ -346,7 +383,6 @@ export const Product = () => {
 
   const handleDelete = async () => {
     if (!selectedProduct) return;
-
     try {
       setSubmitting(true);
       await deleteProduct(selectedProduct.id);
@@ -361,26 +397,17 @@ export const Product = () => {
     }
   };
 
-  // DataTable column templates
+  // Product list column templates
   const imageBody = (rowData: ProductItem) => {
     if (!rowData.images?.length)
       return <span className="text-gray-400">—</span>;
+    const img = rowData.images[0];
     return (
-      <div className="flex -space-x-2">
-        {rowData.images.slice(0, 3).map((img, idx) => (
-          <img
-            key={idx}
-            src={img.imgUrl}
-            alt=""
-            className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 object-cover"
-          />
-        ))}
-        {rowData.images.length > 3 && (
-          <span className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-medium">
-            +{rowData.images.length - 3}
-          </span>
-        )}
-      </div>
+      <img
+        src={img.imgUrl}
+        alt="thumbnail"
+        className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-600"
+      />
     );
   };
 
@@ -434,6 +461,63 @@ export const Product = () => {
     </div>
   );
 
+  // Row expansion template (variants)
+  const rowExpansionTemplate = (product: ProductItem) => {
+    const variants = variantsMap[product.id] || [];
+    if (variants.length === 0) {
+      return (
+        <div className="p-4 text-center text-gray-500">No variants found.</div>
+      );
+    }
+    return (
+      <div className="p-4 bg-gray-50 dark:bg-gray-800/30">
+        <DataTable
+          value={variants}
+          stripedRows
+          rowClassName={() => "table-row"}
+        >
+          <Column
+            field="sku"
+            header="SKU"
+            headerClassName="column-header text-xs"
+            bodyClassName="column-body text-xs"
+          />
+          <Column
+            field="barcode"
+            header="Barcode"
+            headerClassName="column-header text-xs"
+            bodyClassName="column-body text-xs"
+          />
+          <Column
+            header="Attributes"
+            body={(row: any) =>
+              Object.entries(row.attributes || {})
+                .map(([k, v]) => `${k}:${v}`)
+                .join(", ") || "—"
+            }
+            headerClassName="column-header text-xs"
+            bodyClassName="column-body text-xs"
+          />
+          <Column
+            header="Imported"
+            body={(row: any) => (row.isImported ? "Yes" : "No")}
+            headerClassName="column-header text-xs"
+            bodyClassName="column-body text-xs"
+          />
+          <Column
+            header="Images"
+            body={(row: any) => (
+              <VariantImagesDisplay images={row.images || []} />
+            )}
+            style={{ width: "150px" }}
+            headerClassName="column-header text-xs"
+            bodyClassName="column-body text-xs"
+          />
+        </DataTable>
+      </div>
+    );
+  };
+
   if (loading && products.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -465,6 +549,10 @@ export const Product = () => {
         <div className="table-container">
           <DataTable
             value={products}
+            expandedRows={expandedRows}
+            onRowToggle={onRowToggle}
+            onRowExpand={onRowExpand}
+            rowExpansionTemplate={rowExpansionTemplate}
             paginator
             lazy
             first={first}
@@ -476,6 +564,7 @@ export const Product = () => {
             stripedRows
             rowClassName={() => "table-row"}
           >
+            <Column expander style={{ width: "3rem" }} />
             <Column
               field="id"
               header="ID"
@@ -483,7 +572,6 @@ export const Product = () => {
               headerClassName="column-header"
               bodyClassName="column-body"
             />
-
             <Column
               field="name"
               header="Product Name"
@@ -492,10 +580,11 @@ export const Product = () => {
               bodyClassName="column-body"
             />
             <Column
-              header="Images"
+              header="Thumbnail"
               body={imageBody}
               headerClassName="column-header"
               bodyClassName="column-body"
+              style={{ width: "80px" }}
             />
             <Column
               header="Category"
@@ -503,7 +592,6 @@ export const Product = () => {
               headerClassName="column-header"
               bodyClassName="column-body"
             />
-
             <Column
               header="Force Order"
               body={forceOrderBody}
@@ -527,7 +615,7 @@ export const Product = () => {
           </DataTable>
         </div>
 
-        {/* ===== CREATE MODAL with full wizard ===== */}
+        {/* Create Modal */}
         {modalFor === "create" && (
           <Modal
             closeOnOverlayClick={false}
@@ -547,12 +635,12 @@ export const Product = () => {
           </Modal>
         )}
 
-        {/* ===== EDIT MODAL (original form) ===== */}
+        {/* Edit Modal */}
         {modalFor === "edit" && selectedProduct && (
           <Modal
             isOpen={true}
             onClose={() => {
-              fetchProducts(); // refresh list even on cancel
+              fetchProducts();
               closeModal();
             }}
             title="Edit Product"
@@ -563,19 +651,20 @@ export const Product = () => {
                 productId={selectedProduct.id}
                 onClose={closeModal}
                 onProductSaved={() => {
-                  fetchProducts(); // refresh product list after edit
-                  closeModal(); // close the modal (already called by onClose, but safe)
+                  fetchProducts();
+                  closeModal();
                 }}
               />
             </div>
           </Modal>
         )}
-        {/* ===== DELETE MODAL ===== */}
+
+        {/* Delete Modal */}
         {modalFor === "delete" && (
           <Modal
             isOpen={true}
             onClose={() => {
-              fetchProducts(); // refresh list even on cancel
+              fetchProducts();
               closeModal();
             }}
             title="Delete Product"
