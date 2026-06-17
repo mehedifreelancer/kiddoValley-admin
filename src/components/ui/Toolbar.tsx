@@ -17,11 +17,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
 }) => {
   return (
     <div
-      className={`my-1
+      className={`flex items-center justify-between my-1
         bg-white dark:bg-gray-800
         rounded-sm shadow-sm
         p-2
-        flex items-center justify-between
         ${className}
       `}
     >

@@ -6,6 +6,7 @@ import Components from "./components/ui/Components";
 import SignIn from "./modules/auth/SignIn";
 import Dashboard from "./modules/dashboard/dashboard";
 import Category from "./modules/master-data/category/Category";
+import Order from "./modules/order/order";
 import { Product } from "./modules/product/Product";
 import Stock from "./modules/stock/stock";
 
@@ -31,7 +32,7 @@ export const router = createBrowserRouter([
       { path: "customer", element: <Customer /> },
       { path: "supplier", element: <Supplier /> },
       { path: "stock", element: <Stock /> },
-      { path: "sells", element: <Sells /> },
+      { path: "order", element: <Order /> },
       { path: "purchase", element: <Purchase /> },
       { path: "report", element: <Report /> },
       {

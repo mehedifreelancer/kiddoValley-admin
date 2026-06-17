@@ -55,7 +55,7 @@ export const sidebarMenuData: MenuItem[] = [
     id: "sells",
     label: "Sells",
     icon: <ShoppingCart className="w-4 h-4" />,
-    path: "/sells",
+    path: "/order",
   },
   {
     id: "purchase",

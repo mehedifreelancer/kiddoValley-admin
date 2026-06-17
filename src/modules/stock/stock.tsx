@@ -6,18 +6,16 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import { Column } from "primereact/column";
-import { DataTable } from "primereact/datatable";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
-
 import Button from "../../components/ui/Button";
 import DataTableSearch from "../../components/ui/DataTableSearch";
 import Modal from "../../components/ui/Modal";
 import Toolbar from "../../components/ui/Toolbar";
-import { getStockList } from "./stock.service";
+import { StockTable, StockTableColumn } from "./StockTable";
 import { FlatStockItem } from "./stock.types";
 
+// Thumbnails component (same as before)
 const VariantThumbnails = ({ images }: { images: any[] }) => {
   if (!images || images.length === 0)
     return <span className="text-gray-400">—</span>;
@@ -45,70 +43,26 @@ const VariantThumbnails = ({ images }: { images: any[] }) => {
 
 export const Stock: React.FC = () => {
   const [stockItems, setStockItems] = useState<FlatStockItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [totalRecords, setTotalRecords] = useState(0);
-  const [page, setPage] = useState(1);
-  const [rows, setRows] = useState(10);
   const [globalFilter, setGlobalFilter] = useState("");
   const [sortField, setSortField] = useState("currentQty");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportData, setReportData] = useState<any>(null);
 
-  const fetchStock = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await getStockList(
-        page,
-        rows,
-        globalFilter,
-        sortField,
-        sortOrder,
-      );
-      setStockItems(response.data);
-      setTotalRecords(response.pagination.total);
-    } catch (error) {
-      toast.error("Failed to load stock data");
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, rows, globalFilter, sortField, sortOrder]);
-
-  useEffect(() => {
-    fetchStock();
-  }, [fetchStock]);
-
-  const onPageChange = (event: any) => {
-    setPage(event.page + 1);
-    setRows(event.rows);
-  };
-
-  const onSort = (event: any) => {
-    setSortField(event.sortField);
-    setSortOrder(event.sortOrder === 1 ? "asc" : "desc");
-  };
-
-  const onSearch = (value: string) => {
-    setGlobalFilter(value);
-    setPage(1);
-  };
-
-  const toggleStockOrder = () => {
+  const onSearch = useCallback((value: string) => setGlobalFilter(value), []);
+  const toggleStockOrder = useCallback(() => {
     setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"));
-    setPage(1);
-  };
+  }, []);
 
-  const generateReport = () => {
+  const generateReport = useCallback(() => {
     if (stockItems.length === 0) {
       toast.error("No stock data to generate report");
       return;
     }
-    let totalProducts = 0;
-    let totalMRP = 0;
-    let totalInvestment = 0;
-    let totalProfit = 0;
-
+    let totalProducts = 0,
+      totalMRP = 0,
+      totalInvestment = 0,
+      totalProfit = 0;
     stockItems.forEach((item) => {
       const qty = item.currentQty;
       totalProducts += qty;
@@ -116,7 +70,6 @@ export const Stock: React.FC = () => {
       totalInvestment += item.buyingPrice * qty;
       totalProfit += (item.sellingPrice - item.buyingPrice) * qty;
     });
-
     setReportData({
       totalProducts,
       totalMRP,
@@ -125,9 +78,9 @@ export const Stock: React.FC = () => {
       generatedAt: new Date().toLocaleString(),
     });
     setShowReportModal(true);
-  };
+  }, [stockItems]);
 
-  const printReport = () => {
+  const printReport = useCallback(() => {
     const printContent = document.getElementById("stock-report-content");
     if (!printContent) return;
     const originalTitle = document.title;
@@ -145,223 +98,191 @@ export const Stock: React.FC = () => {
       printWindow.close();
     }
     document.title = originalTitle;
-  };
+  }, []);
 
-  // ✅ Row class for low stock highlighting (bg-red-500 when quantity < 6)
-  const rowClassName = (rowData: FlatStockItem) => {
+  const rowClassName = useCallback((rowData: FlatStockItem) => {
     if (rowData.currentQty < 6) {
       return "bg-red-900/50! text-white table-row";
     }
     return "table-row";
-  };
+  }, []);
 
-  // Column templates
-  const productNameBody = (row: FlatStockItem) => (
-    <span className="font-medium">{row.variant.productName}</span>
-  );
-  const skuBody = (row: FlatStockItem) => (
-    <span className="font-mono text-sm">{row.variant.sku}</span>
-  );
-  const barcodeBody = (row: FlatStockItem) => (
-    <span className="font-mono text-sm">{row.variant.barcode || "—"}</span>
-  );
-  const attributesBody = (row: FlatStockItem) => {
-    const attrs = row.variant.attributes || {};
-    const entries = Object.entries(attrs);
-    if (entries.length === 0) return <span className="text-gray-400">—</span>;
-    return (
-      <span className="text-sm">
-        {entries.map(([k, v]) => `${k}:${v}`).join(", ")}
-      </span>
-    );
-  };
-  const priceBody = (row: FlatStockItem) => (
-    <div>
-      <div>Buy: {row.buyingPrice} TK</div>
-      <div className="text-green-600 dark:text-green-400">
-        MRP: {row.sellingPrice} TK
-      </div>
-    </div>
-  );
-  const discountBody = (row: FlatStockItem) => {
-    if (row.discountPercent === 0) {
-      return (
-        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
-          <X className="w-4 h-4" />
-        </span>
-      );
-    }
-    return (
-      <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-xs font-medium">
-        {row.discountPercent}% OFF
-      </span>
-    );
-  };
-  const quantityBody = (row: FlatStockItem) => (
-    <span className="font-semibold">{row.currentQty}</span>
-  );
-  const batchBody = (row: FlatStockItem) => (
-    <span className="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-      {row.batchNo}
-    </span>
-  );
-  const imageBody = (row: FlatStockItem) => (
-    <VariantThumbnails images={row.variant.images || []} />
-  );
-  const actionsBody = () => (
-    <div className="flex gap-2">
-      <button
-        className="p-1 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded transition-colors"
-        title="Adjust stock (coming soon)"
-        onClick={() =>
-          toast.info("Adjust stock functionality will be added later")
-        }
-      >
-        <Eye className="w-4 h-4" />
-      </button>
-    </div>
+  const handleDataChange = useCallback((data: FlatStockItem[]) => {
+    setStockItems(data);
+  }, []);
+
+  // Columns – stable
+  const columns: StockTableColumn[] = useMemo(
+    () => [
+      {
+        field: "variant.productName",
+        header: "Product",
+        sortable: true,
+        body: (row) => (
+          <span className="font-medium">{row.variant.productName}</span>
+        ),
+      },
+      {
+        field: "variant.sku",
+        header: "SKU",
+        sortable: true,
+        body: (row) => (
+          <span className="font-mono text-sm">{row.variant.sku}</span>
+        ),
+      },
+      {
+        field: "variant.barcode",
+        header: "Barcode",
+        sortable: true,
+        body: (row) => (
+          <span className="font-mono text-sm">
+            {row.variant.barcode || "—"}
+          </span>
+        ),
+      },
+      {
+        header: "Attributes",
+        body: (row) => {
+          const attrs = row.variant.attributes || {};
+          const entries = Object.entries(attrs);
+          if (entries.length === 0)
+            return <span className="text-gray-400">—</span>;
+          return (
+            <span className="text-sm">
+              {entries.map(([k, v]) => `${k}:${v}`).join(", ")}
+            </span>
+          );
+        },
+      },
+      {
+        header: "Batch",
+        body: (row) => (
+          <span className="font-mono text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+            {row.batchNo}
+          </span>
+        ),
+      },
+      {
+        header: "Images",
+        body: (row) => <VariantThumbnails images={row.variant.images || []} />,
+        style: { width: "120px" },
+      },
+      {
+        header: "Price",
+        body: (row) => (
+          <div>
+            <div>Buy: {row.buyingPrice} TK</div>
+            <div className="text-green-600 dark:text-green-400">
+              MRP: {row.sellingPrice} TK
+            </div>
+          </div>
+        ),
+      },
+      {
+        header: "Discount",
+        body: (row) => {
+          if (row.discountPercent === 0) {
+            return (
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
+                <X className="w-4 h-4" />
+              </span>
+            );
+          }
+          return (
+            <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-xs font-medium">
+              {row.discountPercent}% OFF
+            </span>
+          );
+        },
+      },
+      {
+        field: "currentQty",
+        header: "Quantity",
+        sortable: true,
+        body: (row) => <span className="font-semibold">{row.currentQty}</span>,
+      },
+      {
+        header: "Actions",
+        body: () => (
+          <div className="flex gap-2">
+            <button
+              className="p-1 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded transition-colors"
+              title="Adjust stock (coming soon)"
+              onClick={() =>
+                toast.info("Adjust stock functionality will be added later")
+              }
+            >
+              <Eye className="w-4 h-4" />
+            </button>
+          </div>
+        ),
+        style: { width: "80px" },
+      },
+    ],
+    [],
   );
 
-  if (loading && stockItems.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+  // Build the custom Toolbar exactly as before
+  const customToolbar = (
+    <Toolbar title="Stock List">
+      <div className="flex gap-2">
+        <DataTableSearch
+          value={globalFilter}
+          onChange={onSearch}
+          placeholder="Search by product, SKU, barcode..."
+          className="w-[280px]"
+        />
+        <Button
+          onClick={toggleStockOrder}
+          variant="outline"
+          className="flex items-center gap-2"
+          title={`Sort by quantity (${sortOrder === "desc" ? "high to low" : "low to high"})`}
+        >
+          <ArrowUpDown className="w-4 h-4" />
+          <span className="hidden sm:inline">
+            Qty {sortOrder === "desc" ? "↓" : "↑"}
+          </span>
+        </Button>
+        <Button
+          onClick={generateReport}
+          variant="outline"
+          className="flex items-center gap-2"
+          title="Stock Report"
+        >
+          <TrendingUp className="w-4 h-4" />
+          <span className="hidden sm:inline">Quick Report</span>
+        </Button>
+        <Button
+          onClick={() => window.location.reload()}
+          variant="outline"
+          className="flex items-center gap-2"
+          title="Refresh"
+        >
+          <RefreshCw className="w-4 h-4" />
+        </Button>
       </div>
-    );
-  }
+    </Toolbar>
+  );
 
   return (
     <div>
-      <Toolbar title="Stock List">
-        <div className="flex gap-2">
-          <DataTableSearch
-            value={globalFilter}
-            onChange={onSearch}
-            placeholder="Search by product, SKU, barcode..."
-            className="w-[280px]"
-          />
-          <Button
-            onClick={toggleStockOrder}
-            variant="outline"
-            className="flex items-center gap-2"
-            title={`Sort by quantity (${sortOrder === "desc" ? "high to low" : "low to high"})`}
-          >
-            <ArrowUpDown className="w-4 h-4" />
-            <span className="hidden sm:inline">
-              Qty {sortOrder === "desc" ? "↓" : "↑"}
-            </span>
-          </Button>
-          <Button
-            onClick={generateReport}
-            variant="outline"
-            className="flex items-center gap-2"
-            title="Stock Report"
-          >
-            <TrendingUp className="w-4 h-4" />
-            <span className="hidden sm:inline">Quick Report</span>
-          </Button>
-          <Button
-            onClick={fetchStock}
-            variant="outline"
-            className="flex items-center gap-2"
-            title="Refresh"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-        </div>
-      </Toolbar>
+      <StockTable
+        columns={columns}
+        toolbar={customToolbar} // <-- custom toolbar passed here
+        showSearch={false} // internal search disabled
+        searchValue={globalFilter}
+        onSearchChange={onSearch}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSortChange={(field, order) => {
+          setSortField(field);
+          setSortOrder(order);
+        }}
+        rowClassName={rowClassName}
+        onDataChange={handleDataChange}
+      />
 
-      <div className="table-container">
-        <DataTable
-          value={stockItems}
-          lazy
-          paginator
-          rows={rows}
-          totalRecords={totalRecords}
-          first={(page - 1) * rows}
-          onPage={onPageChange}
-          onSort={onSort}
-          sortField={sortField}
-          sortOrder={sortOrder === "asc" ? 1 : -1}
-          loading={loading}
-          emptyMessage="No stock batches found"
-          // ❌ stripedRows removed to avoid class conflict
-          rowClassName={rowClassName}
-        >
-          <Column
-            field="variant.productName"
-            header="Product"
-            sortable
-            body={productNameBody}
-            headerClassName="column-header"
-            bodyClassName="column-body"
-          />
-          <Column
-            field="variant.sku"
-            header="SKU"
-            sortable
-            body={skuBody}
-            headerClassName="column-header"
-            bodyClassName="column-body"
-          />
-          <Column
-            field="variant.barcode"
-            header="Barcode"
-            sortable
-            body={barcodeBody}
-            headerClassName="column-header"
-            bodyClassName="column-body"
-          />
-          <Column
-            header="Attributes"
-            body={attributesBody}
-            headerClassName="column-header"
-            bodyClassName="column-body"
-          />
-          <Column
-            header="Batch"
-            body={batchBody}
-            headerClassName="column-header"
-            bodyClassName="column-body"
-          />
-          <Column
-            header="Images"
-            body={imageBody}
-            headerClassName="column-header"
-            bodyClassName="column-body"
-            style={{ width: "120px" }}
-          />
-          <Column
-            header="Price"
-            body={priceBody}
-            headerClassName="column-header"
-            bodyClassName="column-body"
-          />
-          <Column
-            header="Discount"
-            body={discountBody}
-            headerClassName="column-header"
-            bodyClassName="column-body"
-          />
-          <Column
-            field="currentQty"
-            header="Quantity"
-            sortable
-            body={quantityBody}
-            headerClassName="column-header"
-            bodyClassName="column-body"
-          />
-          <Column
-            header="Actions"
-            body={actionsBody}
-            headerClassName="column-header"
-            bodyClassName="column-body"
-            style={{ width: "80px" }}
-          />
-        </DataTable>
-      </div>
-
-      {/* Stock Report Modal */}
+      {/* Report Modal – unchanged */}
       <Modal
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
