@@ -1,19 +1,20 @@
-import { Button } from "primereact/button";
+import { ArrowUpDown, Delete, Plus, Trash2 } from "lucide-react";
 import { Calendar } from "primereact/calendar";
 import { Column } from "primereact/column";
 import { DataTable } from "primereact/datatable";
 import { Dialog } from "primereact/dialog";
 import { InputNumber } from "primereact/inputnumber";
 import { InputText } from "primereact/inputtext";
-import { Panel } from "primereact/panel";
 import React, { useCallback, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
+import Button from "../../components/ui/Button";
+import Toolbar from "../../components/ui/Toolbar";
 import { StockTable, StockTableColumn } from "../stock/StockTable";
 import { FlatStockItem } from "../stock/stock.types";
 import { createOrder } from "./order.service";
 import { CreateOrderPayload, OrderItem } from "./order.types";
 
-// ---------- Thumbnails component ----------
+// ---------- Thumbnails (local) ----------
 const VariantThumbnails = ({ images }: { images: any[] }) => {
   if (!images || images.length === 0)
     return <span className="text-gray-400">—</span>;
@@ -50,7 +51,7 @@ const formatProfit = (sellingPrice: number, buyingPrice: number) => {
   return `${profit.toFixed(2)} TK (${percent.toFixed(1)}%)`;
 };
 
-// ---------- Hooks ----------
+// ---------- Hooks (placeholders – replace with real implementations) ----------
 const useWhatsAppNotification = () => {
   const sendNotification = useCallback((orderData: any) => {
     console.log("WhatsApp notification:", orderData);
@@ -89,12 +90,18 @@ export const Order: React.FC = () => {
   const { sendNotification } = useWhatsAppNotification();
   const { createPathaoOrder } = usePathao();
 
+  // All stock items (to check for multiple batches)
   const [allStockItems, setAllStockItems] = useState<FlatStockItem[]>([]);
+
+  // Sorting state for stock table
+  const [sortField, setSortField] = useState("currentQty");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   const handleStockDataChange = useCallback((data: FlatStockItem[]) => {
     setAllStockItems(data);
   }, []);
 
+  // Add item to order
   const addItemToOrder = useCallback(
     (stock: FlatStockItem) => {
       if (orderItems.some((item) => item.stockId === stock.id)) {
@@ -126,6 +133,7 @@ export const Order: React.FC = () => {
     [orderItems],
   );
 
+  // Handle "Select" click – check for multiple batches
   const handleAddToOrder = useCallback(
     (stock: FlatStockItem) => {
       if (stock.currentQty <= 0) {
@@ -145,6 +153,7 @@ export const Order: React.FC = () => {
     [allStockItems, addItemToOrder],
   );
 
+  // Update quantity in order table
   const updateQuantity = useCallback((stockId: number, newQty: number) => {
     setOrderItems((prev) =>
       prev.map((item) => {
@@ -171,6 +180,22 @@ export const Order: React.FC = () => {
     setOrderItems((prev) => prev.filter((item) => item.stockId !== stockId));
   }, []);
 
+  // Clear all items
+  const clearAllItems = useCallback(() => {
+    if (orderItems.length === 0) {
+      toast.info("No items to clear.");
+      return;
+    }
+    setOrderItems([]);
+    toast.success("All items cleared.");
+  }, [orderItems]);
+
+  // Toggle sort order
+  const toggleSort = useCallback(() => {
+    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+  }, []);
+
+  // Totals
   const totalItems = orderItems.reduce((sum, i) => sum + i.quantity, 0);
   const totalDiscount = orderItems.reduce(
     (sum, i) => sum + i.discountAmount,
@@ -178,6 +203,7 @@ export const Order: React.FC = () => {
   );
   const totalBill = orderItems.reduce((sum, i) => sum + i.finalPrice, 0);
 
+  // Validation
   const isCustomerFormValid = useCallback(
     () =>
       customerName.trim() !== "" &&
@@ -220,6 +246,7 @@ export const Order: React.FC = () => {
       toast.success("Order created successfully!");
       sendNotification(payload);
       createPathaoOrder(payload);
+      // Reset form
       setOrderItems([]);
       setCustomerName("");
       setCustomerPhone("");
@@ -289,12 +316,12 @@ export const Order: React.FC = () => {
         header: "Action",
         body: (row) => (
           <Button
-            label="Select"
-            icon="pi pi-plus"
-            size="small"
+            size="xs"
             onClick={() => handleAddToOrder(row)}
-            className="p-button-sm"
-          />
+            className="btn-primary"
+          >
+            <Plus className="w-4" />
+          </Button>
         ),
         style: { width: "100px" },
       },
@@ -306,6 +333,19 @@ export const Order: React.FC = () => {
     if (row.currentQty < 6) return "bg-red-900/50! text-white table-row";
     return "table-row";
   }, []);
+
+  // Toolbar children: Sort button for StockTable
+  const toolbarChildren = (
+    <Button
+      size="xs"
+      variant="outline"
+      onClick={toggleSort}
+      className="flex items-center gap-1"
+    >
+      <ArrowUpDown className="w-4 h-4" />
+      <span>Qty {sortOrder === "asc" ? "↑" : "↓"}</span>
+    </Button>
+  );
 
   // ----- Order table column templates -----
   const orderProductBody = useCallback(
@@ -345,12 +385,13 @@ export const Order: React.FC = () => {
   const orderActionsBody = useCallback(
     (row: OrderItem) => (
       <Button
-        icon="pi pi-trash"
-        severity="danger"
-        size="small"
+        size="xs"
+        variant="danger"
         onClick={() => removeItem(row.stockId)}
-        className="p-button-sm"
-      />
+        className="btn-danger px-2!"
+      >
+        <Trash2 className="w-4 " />
+      </Button>
     ),
     [removeItem],
   );
@@ -358,20 +399,22 @@ export const Order: React.FC = () => {
   const batchSelectBody = useCallback(
     (batch: FlatStockItem) => (
       <Button
-        label="Select"
         size="small"
         onClick={() => {
           addItemToOrder(batch);
           setShowBatchModal(false);
         }}
-      />
+      >
+        Select
+      </Button>
     ),
     [addItemToOrder],
   );
 
+  // ---------- Render ----------
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
-      {/* Left Column – Stock Table (no Panel wrapper, uses its own toolbar) */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {/* Left Column – Stock Table */}
       <StockTable
         title="Stock List"
         columns={stockColumns}
@@ -379,20 +422,42 @@ export const Order: React.FC = () => {
         onlyInStock={false}
         rowClassName={rowClassName}
         onDataChange={handleStockDataChange}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSortChange={(field, order) => {
+          setSortField(field);
+          setSortOrder(order);
+        }}
+        toolbarChildren={toolbarChildren}
       />
 
-      {/* Right Column – Order + Customer Info */}
-      <Panel
-        header="Current Order"
-        toggleable
-        className="border-l-4 border-green-500"
-        titleClassName="text-green-700 dark:text-green-300"
-      >
-        <div className="mb-4">
+      {/* Right Column – Current Order */}
+      <div className="flex flex-col ">
+        {/* Toolbar */}
+        <Toolbar title="Current Order">
+          <div className="flex items-center justify-between w-full">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              {orderItems.length} item{orderItems.length !== 1 ? "s" : ""}
+            </div>
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={clearAllItems}
+              className="flex items-center gap-1"
+            >
+              <Delete className="w-5" />
+              Clear
+            </Button>
+          </div>
+        </Toolbar>
+
+        {/* Order Items Table */}
+        <div className="table-container">
           <DataTable
             value={orderItems}
-            emptyMessage="No items added"
+            emptyMessage="No items added yet"
             size="small"
+            className="w-full"
           >
             <Column
               header="Product"
@@ -439,25 +504,28 @@ export const Order: React.FC = () => {
               bodyClassName="column-body"
             />
           </DataTable>
-          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
-            <div className="flex justify-between text-sm">
-              <span>Total Items:</span>
-              <span className="font-semibold">{totalItems}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Total Discount:</span>
-              <span className="font-semibold text-red-600">
-                {totalDiscount.toFixed(2)} TK
-              </span>
-            </div>
-            <div className="flex justify-between text-lg font-bold mt-1">
-              <span>Total Bill:</span>
-              <span>{totalBill.toFixed(2)} TK</span>
-            </div>
+        </div>
+
+        {/* Footer Summary */}
+        <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+          <div className="flex justify-between text-sm">
+            <span>Total Items:</span>
+            <span className="font-semibold">{totalItems}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span>Total Discount:</span>
+            <span className="font-semibold text-red-600">
+              {totalDiscount.toFixed(2)} TK
+            </span>
+          </div>
+          <div className="flex justify-between text-lg font-bold mt-1">
+            <span>Total Bill:</span>
+            <span>{totalBill.toFixed(2)} TK</span>
           </div>
         </div>
 
-        <div className="border-t pt-4">
+        {/* Customer Information Form */}
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
           <h3 className="text-md font-semibold mb-3">Customer Information</h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -505,10 +573,15 @@ export const Order: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-4 flex justify-end">
-          <Button label="Next" icon="pi pi-arrow-right" onClick={handleNext} />
+        {/* Next Button */}
+        <div className="flex justify-end mt-4">
+          <Button
+            label="Next"
+            iconRight="pi pi-arrow-right"
+            onClick={handleNext}
+          />
         </div>
-      </Panel>
+      </div>
 
       {/* Batch Selection Modal */}
       <Dialog
@@ -566,15 +639,14 @@ export const Order: React.FC = () => {
         footer={
           <div>
             <Button
-              label="Cancel"
+              variant="outline"
               onClick={() => setShowConfirmModal(false)}
-              className="p-button-text"
-            />
-            <Button
-              label="Confirm Order"
-              onClick={confirmOrder}
-              severity="success"
-            />
+            >
+              Cancel
+            </Button>
+            <Button variant="success" onClick={confirmOrder}>
+              Confirm Order
+            </Button>
           </div>
         }
       >
