@@ -4,17 +4,17 @@ import { Column } from "primereact/column";
 import { DataTable } from "primereact/datatable";
 import { Dialog } from "primereact/dialog";
 import { InputNumber } from "primereact/inputnumber";
-import { InputText } from "primereact/inputtext";
 import React, { useCallback, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 import Button from "../../components/ui/Button";
+import InputField from "../../components/ui/InputField";
 import Toolbar from "../../components/ui/Toolbar";
 import { StockTable, StockTableColumn } from "../stock/StockTable";
 import { FlatStockItem } from "../stock/stock.types";
 import { createOrder } from "./order.service";
 import { CreateOrderPayload, OrderItem } from "./order.types";
 
-// ---------- Thumbnails (local) ----------
+// ---------- Thumbnails ----------
 const VariantThumbnails = ({ images }: { images: any[] }) => {
   if (!images || images.length === 0)
     return <span className="text-gray-400">—</span>;
@@ -51,7 +51,7 @@ const formatProfit = (sellingPrice: number, buyingPrice: number) => {
   return `${profit.toFixed(2)} TK (${percent.toFixed(1)}%)`;
 };
 
-// ---------- Hooks (placeholders – replace with real implementations) ----------
+// ---------- Hooks (placeholders) ----------
 const useWhatsAppNotification = () => {
   const sendNotification = useCallback((orderData: any) => {
     console.log("WhatsApp notification:", orderData);
@@ -277,8 +277,12 @@ export const Order: React.FC = () => {
         header: "Product Name",
         body: (row) => (
           <div>
-            <div className="font-medium">{row.variant.productName}</div>
-            <div className="text-xs text-gray-500">{row.variant.sku}</div>
+            <div className="font-medium text-gray-800 dark:text-gray-200">
+              {row.variant.productName}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              {row.variant.sku}
+            </div>
           </div>
         ),
       },
@@ -306,7 +310,11 @@ export const Order: React.FC = () => {
         sortable: true,
         body: (row) => (
           <span
-            className={row.currentQty < 6 ? "text-red-600 font-semibold" : ""}
+            className={
+              row.currentQty < 6
+                ? "text-red-600 font-semibold"
+                : "text-gray-800 dark:text-gray-200"
+            }
           >
             {row.currentQty}
           </span>
@@ -316,14 +324,16 @@ export const Order: React.FC = () => {
         header: "Action",
         body: (row) => (
           <Button
-            size="xs"
+            size="small"
+            variant="outline"
             onClick={() => handleAddToOrder(row)}
-            className="btn-primary"
+            className="flex items-center gap-1 p-button-sm"
           >
-            <Plus className="w-4" />
+            <Plus className="w-4 h-4" />
+            Select
           </Button>
         ),
-        style: { width: "100px" },
+        style: { width: "110px" },
       },
     ],
     [handleAddToOrder],
@@ -351,18 +361,30 @@ export const Order: React.FC = () => {
   const orderProductBody = useCallback(
     (row: OrderItem) => (
       <div>
-        <div className="font-medium">{row.productName}</div>
-        <div className="text-xs text-gray-500">{row.sku}</div>
+        <div className="font-medium text-gray-800 dark:text-gray-200">
+          {row.productName}
+        </div>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          {row.sku}
+        </div>
       </div>
     ),
     [],
   );
   const orderProfitBody = useCallback(
-    (row: OrderItem) => formatProfit(row.sellingPrice, row.buyingPrice),
+    (row: OrderItem) => (
+      <span className="text-gray-700 dark:text-gray-300">
+        {formatProfit(row.sellingPrice, row.buyingPrice)}
+      </span>
+    ),
     [],
   );
   const orderDiscountBody = useCallback(
-    (row: OrderItem) => formatDiscount(row.sellingPrice, row.discountPercent),
+    (row: OrderItem) => (
+      <span className="text-gray-700 dark:text-gray-300">
+        {formatDiscount(row.sellingPrice, row.discountPercent)}
+      </span>
+    ),
     [],
   );
   const orderQuantityBody = useCallback(
@@ -379,18 +401,22 @@ export const Order: React.FC = () => {
     [updateQuantity],
   );
   const orderLineTotalBody = useCallback(
-    (row: OrderItem) => <span>{row.finalPrice.toFixed(2)} TK</span>,
+    (row: OrderItem) => (
+      <span className="font-semibold text-gray-800 dark:text-gray-200">
+        {row.finalPrice.toFixed(2)} TK
+      </span>
+    ),
     [],
   );
   const orderActionsBody = useCallback(
     (row: OrderItem) => (
       <Button
-        size="xs"
+        size="small"
         variant="danger"
         onClick={() => removeItem(row.stockId)}
-        className="btn-danger px-2!"
+        className="p-button-sm flex items-center gap-1"
       >
-        <Trash2 className="w-4 " />
+        <Trash2 className="w-4 h-4" />
       </Button>
     ),
     [removeItem],
@@ -400,6 +426,7 @@ export const Order: React.FC = () => {
     (batch: FlatStockItem) => (
       <Button
         size="small"
+        variant="primary"
         onClick={() => {
           addItemToOrder(batch);
           setShowBatchModal(false);
@@ -413,7 +440,7 @@ export const Order: React.FC = () => {
 
   // ---------- Render ----------
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 p-2 ">
       {/* Left Column – Stock Table */}
       <StockTable
         title="Stock List"
@@ -424,6 +451,7 @@ export const Order: React.FC = () => {
         onDataChange={handleStockDataChange}
         sortField={sortField}
         sortOrder={sortOrder}
+        wrapperClass="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 "
         onSortChange={(field, order) => {
           setSortField(field);
           setSortOrder(order);
@@ -432,155 +460,174 @@ export const Order: React.FC = () => {
       />
 
       {/* Right Column – Current Order */}
-      <div className="flex flex-col ">
+      <div className="flex flex-col gap-2 ">
         {/* Toolbar */}
-        <Toolbar title="Current Order">
-          <div className="flex items-center justify-between w-full">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              {orderItems.length} item{orderItems.length !== 1 ? "s" : ""}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700  max-h-[550px] overflow-scroll ">
+          <Toolbar title="Current Order">
+            <div className="flex items-center justify-between w-full">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                {orderItems.length} item{orderItems.length !== 1 ? "s" : ""}
+              </div>
+              <Button
+                size="xs"
+                variant="danger"
+                onClick={clearAllItems}
+                className="flex items-center gap-1"
+              >
+                <Delete className="w-4 h-4" />
+                Clear
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="danger"
-              onClick={clearAllItems}
-              className="flex items-center gap-1"
+          </Toolbar>
+
+          {/* Order Items Table */}
+          <div className="table-container p-1">
+            <DataTable
+              value={orderItems}
+              emptyMessage="No items added yet"
+              size="small"
+              className="w-full"
             >
-              <Delete className="w-5" />
-              Clear
-            </Button>
+              <Column
+                header="Product"
+                body={orderProductBody}
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
+                field="batchNo"
+                header="Batch"
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
+                header="Profit Margin"
+                body={orderProfitBody}
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
+                header="Discount"
+                body={orderDiscountBody}
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
+                header="Qty"
+                body={orderQuantityBody}
+                style={{ width: "100px" }}
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
+                header="Line Total"
+                body={orderLineTotalBody}
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
+                header="Actions"
+                body={orderActionsBody}
+                style={{ width: "80px" }}
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+            </DataTable>
           </div>
-        </Toolbar>
 
-        {/* Order Items Table */}
-        <div className="table-container">
-          <DataTable
-            value={orderItems}
-            emptyMessage="No items added yet"
-            size="small"
-            className="w-full"
-            rowClassName={rowClassName}
-          >
-            <Column
-              header="Product"
-              body={orderProductBody}
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-            <Column
-              field="batchNo"
-              header="Batch"
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-            <Column
-              header="Profit Margin"
-              body={orderProfitBody}
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-            <Column
-              header="Discount"
-              body={orderDiscountBody}
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-            <Column
-              header="Qty"
-              body={orderQuantityBody}
-              style={{ width: "100px" }}
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-            <Column
-              header="Line Total"
-              body={orderLineTotalBody}
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-            <Column
-              header="Actions"
-              body={orderActionsBody}
-              style={{ width: "80px" }}
-              headerClassName="column-header"
-              bodyClassName="column-body"
-            />
-          </DataTable>
-        </div>
-
-        {/* Footer Summary */}
-        <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
-          <div className="flex justify-between text-sm">
-            <span>Total Items:</span>
-            <span className="font-semibold">{totalItems}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span>Total Discount:</span>
-            <span className="font-semibold text-red-600">
-              {totalDiscount.toFixed(2)} TK
-            </span>
-          </div>
-          <div className="flex justify-between text-lg font-bold mt-1">
-            <span>Total Bill:</span>
-            <span>{totalBill.toFixed(2)} TK</span>
+          {/* Footer Summary */}
+          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600 dark:text-gray-300">
+                Total Items:
+              </span>
+              <span className="font-semibold text-gray-800 dark:text-gray-200">
+                {totalItems}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600 dark:text-gray-300">
+                Total Discount:
+              </span>
+              <span className="font-semibold text-red-600">
+                {totalDiscount.toFixed(2)} TK
+              </span>
+            </div>
+            <div className="flex justify-between text-lg font-bold mt-1">
+              <span className="text-gray-800 dark:text-gray-200">
+                Total Bill:
+              </span>
+              <span className="text-green-600 dark:text-green-400">
+                {totalBill.toFixed(2)} TK
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Customer Information Form */}
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
-          <h3 className="text-md font-semibold mb-3">Customer Information</h3>
-          <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700  ">
+          <Toolbar
+            title="            Customer Information
+"
+            className="flex justify-between "
+          >
+            <Button
+              variant="primary"
+              onClick={handleNext}
+              className="flex items-center gap-2"
+            >
+              Next
+              <span className="ml-1">→</span>
+            </Button>
+          </Toolbar>
+          <div className="grid grid-cols-2 gap-3 p-4">
             <div>
-              <label className="block text-sm font-medium">Name *</label>
-              <InputText
+              <InputField
+                label="Name *"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
+                required
                 className="w-full"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium">Phone *</label>
-              <InputText
+              <InputField
+                label="Phone *"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
+                required
                 className="w-full"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium">
-                Secondary Phone
-              </label>
-              <InputText
+              <InputField
+                label="Secondary Phone"
                 value={customerPhone2}
                 onChange={(e) => setCustomerPhone2(e.target.value)}
                 className="w-full"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium">Delivery Date</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Delivery Date
+              </label>
               <Calendar
                 value={deliveryDate}
                 onChange={(e) => setDeliveryDate(e.value as Date)}
                 className="w-full"
+                showIcon
               />
             </div>
             <div className="col-span-2">
-              <label className="block text-sm font-medium">Address *</label>
-              <InputText
+              <InputField
+                label="Address *"
                 value={customerAddress}
                 onChange={(e) => setCustomerAddress(e.target.value)}
+                required
                 className="w-full"
               />
             </div>
           </div>
-        </div>
-
-        {/* Next Button */}
-        <div className="flex justify-end mt-4">
-          <Button
-            label="Next"
-            iconRight="pi pi-arrow-right"
-            onClick={handleNext}
-          />
         </div>
       </div>
 
@@ -591,7 +638,7 @@ export const Order: React.FC = () => {
         style={{ width: "650px" }}
         onHide={() => setShowBatchModal(false)}
       >
-        <p className="mb-2 text-sm text-gray-600">
+        <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">
           This product has multiple batches. Please select one:
         </p>
         <DataTable value={selectedVariantStocks} size="small">
@@ -653,12 +700,26 @@ export const Order: React.FC = () => {
       >
         <div className="space-y-3">
           <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded">
-            <h4 className="font-semibold">Customer Details</h4>
-            <p>Name: {customerName}</p>
-            <p>Phone: {customerPhone}</p>
-            {customerPhone2 && <p>Alt Phone: {customerPhone2}</p>}
-            <p>Address: {customerAddress}</p>
-            <p>Delivery Date: {deliveryDate.toLocaleDateString()}</p>
+            <h4 className="font-semibold text-gray-800 dark:text-gray-200">
+              Customer Details
+            </h4>
+            <p className="text-gray-600 dark:text-gray-300">
+              Name: {customerName}
+            </p>
+            <p className="text-gray-600 dark:text-gray-300">
+              Phone: {customerPhone}
+            </p>
+            {customerPhone2 && (
+              <p className="text-gray-600 dark:text-gray-300">
+                Alt Phone: {customerPhone2}
+              </p>
+            )}
+            <p className="text-gray-600 dark:text-gray-300">
+              Address: {customerAddress}
+            </p>
+            <p className="text-gray-600 dark:text-gray-300">
+              Delivery Date: {deliveryDate.toLocaleDateString()}
+            </p>
           </div>
           <DataTable value={orderItems} size="small">
             <Column
@@ -687,9 +748,11 @@ export const Order: React.FC = () => {
               bodyClassName="column-body"
             />
           </DataTable>
-          <div className="flex justify-between font-bold">
+          <div className="flex justify-between font-bold text-gray-800 dark:text-gray-200">
             <span>Total:</span>
-            <span>{totalBill.toFixed(2)} TK</span>
+            <span className="text-green-600 dark:text-green-400">
+              {totalBill.toFixed(2)} TK
+            </span>
           </div>
         </div>
       </Dialog>

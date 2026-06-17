@@ -15,6 +15,7 @@ export interface StockTableColumn {
   style?: React.CSSProperties;
   headerClassName?: string;
   bodyClassName?: string;
+  wrapperClass?: string;
 }
 
 interface StockTableProps {
@@ -31,6 +32,7 @@ interface StockTableProps {
   onSortChange?: (field: string, order: "asc" | "desc") => void;
   rowClassName?: (row: FlatStockItem) => string;
   onDataChange?: (data: FlatStockItem[]) => void;
+  wrapperClass?: string;
   [key: string]: any;
 }
 
@@ -48,6 +50,7 @@ export const StockTable: React.FC<StockTableProps> = ({
   onSortChange,
   rowClassName,
   onDataChange,
+  wrapperClass,
   ...rest
 }) => {
   const onDataChangeRef = useRef(onDataChange);
@@ -143,9 +146,9 @@ export const StockTable: React.FC<StockTableProps> = ({
   };
 
   return (
-    <div>
+    <div className={wrapperClass}>
       {renderToolbar()}
-      <div className="table-container">
+      <div className="table-container ">
         <DataTable
           value={stockItems}
           lazy
