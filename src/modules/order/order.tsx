@@ -458,6 +458,7 @@ export const Order: React.FC = () => {
             emptyMessage="No items added yet"
             size="small"
             className="w-full"
+            rowClassName={rowClassName}
           >
             <Column
               header="Product"
