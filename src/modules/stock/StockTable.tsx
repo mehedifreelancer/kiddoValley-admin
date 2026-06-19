@@ -33,6 +33,7 @@ interface StockTableProps {
   rowClassName?: (row: FlatStockItem) => string;
   onDataChange?: (data: FlatStockItem[]) => void;
   wrapperClass?: string;
+  searchInputRef?: React.RefObject<HTMLInputElement | null>;
   debounceDelay?: number;
   [key: string]: any;
 }
@@ -52,6 +53,7 @@ export const StockTable: React.FC<StockTableProps> = ({
   rowClassName,
   onDataChange,
   wrapperClass,
+  searchInputRef,
   debounceDelay = 300,
   ...rest
 }) => {
@@ -62,7 +64,9 @@ export const StockTable: React.FC<StockTableProps> = ({
 
   const [internalSearch, setInternalSearch] = useState("");
   const [internalSortField, setInternalSortField] = useState("currentQty");
-  const [internalSortOrder, setInternalSortOrder] = useState<"asc" | "desc">("asc");
+  const [internalSortOrder, setInternalSortOrder] = useState<"asc" | "desc">(
+    "asc",
+  );
 
   const [stockItems, setStockItems] = useState<FlatStockItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -70,20 +74,20 @@ export const StockTable: React.FC<StockTableProps> = ({
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState(10);
 
-  // Compute search, sortField, sortOrder from props or internal state
-  const search = externalSearch !== undefined ? externalSearch : internalSearch;
-  const sortField = externalSortField !== undefined ? externalSortField : internalSortField;
-  const sortOrder = externalSortOrder !== undefined ? externalSortOrder : internalSortOrder;
+  // Debounced search
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // Debounced search value
-  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  const search = externalSearch !== undefined ? externalSearch : internalSearch;
+  const sortField =
+    externalSortField !== undefined ? externalSortField : internalSortField;
+  const sortOrder =
+    externalSortOrder !== undefined ? externalSortOrder : internalSortOrder;
 
   // Update debounced search after delay
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
     }, debounceDelay);
-
     return () => clearTimeout(timer);
   }, [search, debounceDelay]);
 
@@ -143,6 +147,7 @@ export const StockTable: React.FC<StockTableProps> = ({
         <div className="flex gap-2">
           {showSearch && (
             <DataTableSearch
+              ref={searchInputRef}
               value={search}
               onChange={handleSearchChange}
               placeholder="Search by product, SKU, barcode..."
