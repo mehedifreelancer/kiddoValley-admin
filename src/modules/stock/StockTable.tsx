@@ -33,6 +33,7 @@ interface StockTableProps {
   rowClassName?: (row: FlatStockItem) => string;
   onDataChange?: (data: FlatStockItem[]) => void;
   wrapperClass?: string;
+  debounceDelay?: number;
   [key: string]: any;
 }
 
@@ -51,6 +52,7 @@ export const StockTable: React.FC<StockTableProps> = ({
   rowClassName,
   onDataChange,
   wrapperClass,
+  debounceDelay = 300,
   ...rest
 }) => {
   const onDataChangeRef = useRef(onDataChange);
@@ -60,9 +62,7 @@ export const StockTable: React.FC<StockTableProps> = ({
 
   const [internalSearch, setInternalSearch] = useState("");
   const [internalSortField, setInternalSortField] = useState("currentQty");
-  const [internalSortOrder, setInternalSortOrder] = useState<"asc" | "desc">(
-    "asc",
-  );
+  const [internalSortOrder, setInternalSortOrder] = useState<"asc" | "desc">("asc");
 
   const [stockItems, setStockItems] = useState<FlatStockItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -70,11 +70,22 @@ export const StockTable: React.FC<StockTableProps> = ({
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState(10);
 
+  // Compute search, sortField, sortOrder from props or internal state
   const search = externalSearch !== undefined ? externalSearch : internalSearch;
-  const sortField =
-    externalSortField !== undefined ? externalSortField : internalSortField;
-  const sortOrder =
-    externalSortOrder !== undefined ? externalSortOrder : internalSortOrder;
+  const sortField = externalSortField !== undefined ? externalSortField : internalSortField;
+  const sortOrder = externalSortOrder !== undefined ? externalSortOrder : internalSortOrder;
+
+  // Debounced search value
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+
+  // Update debounced search after delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, debounceDelay);
+
+    return () => clearTimeout(timer);
+  }, [search, debounceDelay]);
 
   const handleSearchChange = (value: string) => {
     if (onSearchChange) onSearchChange(value);
@@ -98,7 +109,7 @@ export const StockTable: React.FC<StockTableProps> = ({
       const response = await getStockList(
         page,
         rows,
-        search,
+        debouncedSearch,
         sortField,
         sortOrder,
         onlyInStock,
@@ -114,7 +125,7 @@ export const StockTable: React.FC<StockTableProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [page, rows, search, sortField, sortOrder, onlyInStock]);
+  }, [page, rows, debouncedSearch, sortField, sortOrder, onlyInStock]);
 
   useEffect(() => {
     fetchStock();
@@ -125,7 +136,6 @@ export const StockTable: React.FC<StockTableProps> = ({
     setRows(event.rows);
   };
 
-  // Render toolbar: if custom toolbar provided, use it; else use default with Toolbar component
   const renderToolbar = () => {
     if (toolbar) return toolbar;
     return (
@@ -148,7 +158,7 @@ export const StockTable: React.FC<StockTableProps> = ({
   return (
     <div className={wrapperClass}>
       {renderToolbar()}
-      <div className="table-container ">
+      <div className="table-container">
         <DataTable
           value={stockItems}
           lazy
