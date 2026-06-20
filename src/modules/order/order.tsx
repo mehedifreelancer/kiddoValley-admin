@@ -15,7 +15,7 @@ import { createOrder } from "./order.service";
 import { CreateOrderPayload, OrderItem } from "./order.types";
 import { useBarcodeScanner } from "../../hooks/useBarcodeScanner";
 import { getStockList } from "../stock/stock.service";
-
+import { useEmailNotification } from "../../hooks/useEmailNotification";
 // ---------- Thumbnails ----------
 const VariantThumbnails = ({ images }: { images: any[] }) => {
   if (!images || images.length === 0) return <span className="text-gray-400">—</span>;
@@ -51,14 +51,7 @@ const formatProfit = (sellingPrice: number, buyingPrice: number) => {
   return `${profit.toFixed(2)} TK (${percent.toFixed(1)}%)`;
 };
 
-// ---------- Hooks ----------
-const useWhatsAppNotification = () => {
-  const sendNotification = (orderData: any) => {
-    console.log("WhatsApp notification:", orderData);
-    toast.success("WhatsApp notification sent (mock)");
-  };
-  return { sendNotification };
-};
+// ---------- Helper function (not a hook) ----------
 const usePathao = () => {
   const createPathaoOrder = (orderData: any) => {
     console.log("Pathao order:", orderData);
@@ -90,7 +83,15 @@ export const Order: React.FC = () => {
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [selectedVariantStocks, setSelectedVariantStocks] = useState<FlatStockItem[]>([]);
 
-  const { sendNotification } = useWhatsAppNotification();
+  // ✅ WhatsApp hook – called inside component
+  const { sendEmail } = useEmailNotification({
+    defaultTo: "mehediaiyub451@gmail.com", // your admin email
+    defaultSubject: "New Order Notification",
+  });
+
+
+  // Inside confirmOrder:
+
   const { createPathaoOrder } = usePathao();
 
   // Sorting state
@@ -314,7 +315,21 @@ export const Order: React.FC = () => {
     try {
       await createOrder(payload);
       toast.success("Order created successfully!");
-      sendNotification(payload);
+
+      // ✅ Send WhatsApp notification (reusable hook)
+      await sendEmail(
+        undefined,
+        undefined,
+        undefined,
+        {
+          customerName,
+          total: totalBill.toFixed(2),
+          items: orderItems,
+          customerPhone,
+          customerAddress,
+        }
+      );
+
       createPathaoOrder(payload);
       setOrderItems([]);
       setReservedQuantities({});
@@ -603,59 +618,56 @@ export const Order: React.FC = () => {
         </div>
       </Modal>
 
-{/* ======== Confirmation Modal ======== */}
-{/* ======== Confirmation Modal ======== */}
-<Modal
-  isOpen={showConfirmModal}
-  onClose={() => setShowConfirmModal(false)}
-  title="Confirm Order"
-  size="xl"
->
-  <div className="p-1 space-y-3">
-    <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded text-[14px]">
-      <h4 className="font-semibold text-gray-800 dark:text-gray-200">Customer Details</h4>
-      <p className="text-gray-600 dark:text-gray-300">Name: {customerName}</p>
-      <p className="text-gray-600 dark:text-gray-300">Phone: {customerPhone}</p>
-      {customerPhone2 && <p className="text-gray-600 dark:text-gray-300">Alt Phone: {customerPhone2}</p>}
-      <p className="text-gray-600 dark:text-gray-300">Address: {customerAddress}</p>
-      <p className="text-gray-600 dark:text-gray-300">Delivery Date: {deliveryDate.toLocaleDateString()}</p>
-    </div>
+      {/* ======== Confirmation Modal ======== */}
+      <Modal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        title="Confirm Order"
+        size="xl"
+      >
+        <div className="p-1 space-y-3">
+          <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded text-[14px]">
+            <h4 className="font-semibold text-gray-800 dark:text-gray-200">Customer Details</h4>
+            <p className="text-gray-600 dark:text-gray-300">Name: {customerName}</p>
+            <p className="text-gray-600 dark:text-gray-300">Phone: {customerPhone}</p>
+            {customerPhone2 && <p className="text-gray-600 dark:text-gray-300">Alt Phone: {customerPhone2}</p>}
+            <p className="text-gray-600 dark:text-gray-300">Address: {customerAddress}</p>
+            <p className="text-gray-600 dark:text-gray-300">Delivery Date: {deliveryDate.toLocaleDateString()}</p>
+          </div>
 
-    {/* Order Items Table – now with card styling */}
-    <div className="">
-      <div className="table-container">
-        <DataTable rowClassName="table-row" value={orderItems} size="small" >
-          <Column field="productName" header="Product" headerClassName="column-header" bodyClassName="column-body" />
-          <Column field="sku" header="SKU" headerClassName="column-header" bodyClassName="column-body" />
-          <Column field="quantity" header="Qty" headerClassName="column-header" bodyClassName="column-body" />
-          <Column
-            field="finalPrice"
-            header="Selling Price"
-            body={(row) => `${row.finalPrice.toFixed(2)} TK`}
-            headerClassName="column-header"
-            bodyClassName="column-body"
-            footer={() => (
-              <div className=" font-bold text-gray-800 dark:text-gray-200 flex text-[13px] ml-[-30px] ">
-                <span className="mr-2">Total:</span>
-                <span className="text-green-600 dark:text-green-400 ">{totalBill.toFixed(2)} TK</span>
-              </div>
-            )}
-          />
-        </DataTable>
-      </div>
-    </div>
+          {/* Order Items Table */}
+          <div className="table-container">
+            <DataTable rowClassName="table-row" value={orderItems} size="small">
+              <Column field="productName" header="Product" headerClassName="column-header" bodyClassName="column-body" />
+              <Column field="sku" header="SKU" headerClassName="column-header" bodyClassName="column-body" />
+              <Column field="quantity" header="Qty" headerClassName="column-header" bodyClassName="column-body" />
+              <Column
+                field="finalPrice"
+                header="Selling Price"
+                body={(row) => `${row.finalPrice.toFixed(2)} TK`}
+                headerClassName="column-header"
+                bodyClassName="column-body"
+                footer={() => (
+                  <div className="font-bold text-gray-800 dark:text-gray-200 flex text-[13px] ml-[-30px]">
+                    <span className="mr-2">Total:</span>
+                    <span className="text-green-600 dark:text-green-400">{totalBill.toFixed(2)} TK</span>
+                  </div>
+                )}
+              />
+            </DataTable>
+          </div>
 
-    {/* Footer buttons */}
-    <div className="flex justify-end gap-3 mt-4 pt-4 border-t dark:border-gray-700">
-      <Button variant="outline" onClick={() => setShowConfirmModal(false)}>
-        Cancel
-      </Button>
-      <Button variant="success" onClick={confirmOrder}>
-        Confirm Order
-      </Button>
-    </div>
-  </div>
-</Modal>
+          {/* Footer buttons */}
+          <div className="flex justify-end gap-3 mt-4 pt-4 border-t dark:border-gray-700">
+            <Button variant="outline" onClick={() => setShowConfirmModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="success" onClick={confirmOrder}>
+              Confirm Order
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

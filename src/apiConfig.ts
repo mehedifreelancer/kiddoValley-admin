@@ -8,7 +8,7 @@ import axios, {
 import Cookies from "js-cookie";
 import { toast } from "react-hot-toast";
 
-// Types
+// ---------- Types ----------
 interface ApiResponse<T = any> {
   success: boolean;
   data: T;
@@ -22,23 +22,37 @@ interface ApiResponse<T = any> {
   };
 }
 
-// Cookie keys
+// ---------- Constants ----------
 const ACCESS_TOKEN_KEY = "accessToken";
 const REFRESH_TOKEN_KEY = "refreshToken";
 
-// Get environment variables
+// Keep trailing slashes as defined in .env
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:4000/api/admin/";
+
+const API_PUBLIC_BASE_URL =
+  import.meta.env.VITE_API_PUBLIC_BASE_URL || "http://localhost:4000/api/public/";
+
 const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || "30000");
 
-// Track if token refresh is in progress
+// ---------- Admin API Instance (with auth) ----------
+const instance: AxiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: API_TIMEOUT,
+  headers: {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  },
+  withCredentials: true,
+});
+
+// ---------- Refresh token helpers ----------
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (value?: unknown) => void;
   reject: (reason?: any) => void;
 }> = [];
 
-// Process queue
 const processQueue = (error: any = null, token: string | null = null) => {
   failedQueue.forEach((prom) => {
     if (error) {
@@ -50,18 +64,6 @@ const processQueue = (error: any = null, token: string | null = null) => {
   failedQueue = [];
 };
 
-// Create axios instance
-const instance: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: API_TIMEOUT,
-  headers: {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  },
-  withCredentials: true,
-});
-
-// Helper to refresh token
 const refreshToken = async (): Promise<string | null> => {
   try {
     const refreshToken = Cookies.get(REFRESH_TOKEN_KEY);
@@ -69,18 +71,17 @@ const refreshToken = async (): Promise<string | null> => {
       throw new Error("No refresh token available");
     }
 
-    const response = await axios.post<
+    // Path without leading slash – base already ends with "/"
+    const response = await instance.post<
       ApiResponse<{ accessToken: string; refreshToken: string }>
     >(
-      `${API_BASE_URL}/admin/auth/refresh-token`,
-      { refreshToken },
-      { withCredentials: true },
+      "auth/refresh-token",
+      { refreshToken }
     );
 
     if (response.data.success && response.data.data) {
       const { accessToken, refreshToken: newRefreshToken } = response.data.data;
 
-      // Update cookies
       Cookies.set(ACCESS_TOKEN_KEY, accessToken, { expires: 7, path: "/" });
       Cookies.set(REFRESH_TOKEN_KEY, newRefreshToken, {
         expires: 7,
@@ -97,7 +98,7 @@ const refreshToken = async (): Promise<string | null> => {
   }
 };
 
-// Request interceptor to add token
+// ---------- Admin request interceptor ----------
 instance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = Cookies.get(ACCESS_TOKEN_KEY);
@@ -105,27 +106,23 @@ instance.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Log request in development
     if (import.meta.env.VITE_ENABLE_LOGS === "true") {
       console.log(
-        `🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`,
+        `🚀 Admin API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,
         config.data,
       );
     }
 
     return config;
   },
-  (error: AxiosError) => {
-    return Promise.reject(error);
-  },
+  (error: AxiosError) => Promise.reject(error),
 );
 
-// Response interceptor to handle token refresh
+// ---------- Admin response interceptor ----------
 instance.interceptors.response.use(
   (response: AxiosResponse) => {
-    // Log response in development
     if (import.meta.env.VITE_ENABLE_LOGS === "true") {
-      console.log(`✅ API Response: ${response.config.url}`, response.data);
+      console.log(`✅ Admin API Response: ${response.config.url}`, response.data);
     }
     return response;
   },
@@ -134,15 +131,12 @@ instance.interceptors.response.use(
       _retry?: boolean;
     };
 
-    // Check if error is 401 (Unauthorized) and not already retried
     if (error.response?.status === 401 && !originalRequest._retry) {
-      // Skip token refresh for login endpoint
-      if (originalRequest.url?.includes("/auth/sign-in")) {
+      if (originalRequest.url?.includes("auth/sign-in")) {
         return Promise.reject(error);
       }
 
       if (isRefreshing) {
-        // If refresh is already in progress, queue the request
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
@@ -162,30 +156,18 @@ instance.interceptors.response.use(
         const newToken = await refreshToken();
 
         if (newToken) {
-          // Update authorization header
           if (originalRequest.headers) {
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
           }
-
-          // Process queued requests
           processQueue(null, newToken);
-
           return instance(originalRequest);
         } else {
-          // Refresh failed - clear cookies and redirect to login
           Cookies.remove(ACCESS_TOKEN_KEY, { path: "/" });
           Cookies.remove(REFRESH_TOKEN_KEY, { path: "/" });
           Cookies.remove("userInfo", { path: "/" });
-
-          // Process queue with error
           processQueue(new Error("Refresh token failed"), null);
-
-          // Show session expired message
           toast.error("Session expired. Please login again.");
-
-          // Redirect to login page
           window.location.href = "/sign-in";
-
           return Promise.reject(new Error("Refresh token failed"));
         }
       } catch (refreshError) {
@@ -196,20 +178,18 @@ instance.interceptors.response.use(
       }
     }
 
-    // Handle other errors
     const errorMessage =
       (error.response?.data as any)?.message ||
       error.message ||
       "Something went wrong";
 
-    // Don't show toast for 401 errors (handled above)
     if (error.response?.status !== 401) {
       toast.error(errorMessage);
     }
 
     if (import.meta.env.VITE_ENABLE_LOGS === "true") {
       console.error(
-        `❌ API Error: ${originalRequest.url}`,
+        `❌ Admin API Error: ${originalRequest.url}`,
         error.response?.data || error.message,
       );
     }
@@ -218,7 +198,31 @@ instance.interceptors.response.use(
   },
 );
 
-// API Methods
+// ---------- Public API Instance (no auth, separate base) ----------
+const publicInstance: AxiosInstance = axios.create({
+  baseURL: API_PUBLIC_BASE_URL,
+  timeout: API_TIMEOUT,
+  headers: {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  },
+  withCredentials: true,
+});
+
+if (import.meta.env.VITE_ENABLE_LOGS === "true") {
+  publicInstance.interceptors.request.use((config) => {
+    console.log(`🌐 Public API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`, config.data);
+    return config;
+  });
+  publicInstance.interceptors.response.use((response) => {
+    console.log(`✅ Public API Response: ${response.config.url}`, response.data);
+    return response;
+  });
+}
+
+// ---------- Exports ----------
+
+// Main admin API (default)
 const api = {
   get: <T = any>(
     url: string,
@@ -258,7 +262,6 @@ const api = {
     return instance.delete<ApiResponse<T>>(url, config);
   },
 
-  // Upload file with multipart/form-data
   upload: <T = any>(
     url: string,
     file: File,
@@ -267,7 +270,6 @@ const api = {
   ): Promise<AxiosResponse<ApiResponse<T>>> => {
     const formData = new FormData();
     formData.append(fieldName, file);
-
     return instance.post<ApiResponse<T>>(url, formData, {
       ...config,
       headers: {
@@ -277,7 +279,6 @@ const api = {
     });
   },
 
-  // Upload multiple files
   uploadMultiple: <T = any>(
     url: string,
     files: File[],
@@ -288,7 +289,6 @@ const api = {
     files.forEach((file) => {
       formData.append(fieldName, file);
     });
-
     return instance.post<ApiResponse<T>>(url, formData, {
       ...config,
       headers: {
@@ -296,6 +296,47 @@ const api = {
         "Content-Type": "multipart/form-data",
       },
     });
+  },
+};
+
+// Public API (named export)
+export const apiPublic = {
+  get: <T = any>(
+    url: string,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<ApiResponse<T>>> => {
+    return publicInstance.get<ApiResponse<T>>(url, config);
+  },
+
+  post: <T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<ApiResponse<T>>> => {
+    return publicInstance.post<ApiResponse<T>>(url, data, config);
+  },
+
+  put: <T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<ApiResponse<T>>> => {
+    return publicInstance.put<ApiResponse<T>>(url, data, config);
+  },
+
+  patch: <T = any>(
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<ApiResponse<T>>> => {
+    return publicInstance.patch<ApiResponse<T>>(url, data, config);
+  },
+
+  delete: <T = any>(
+    url: string,
+    config?: AxiosRequestConfig,
+  ): Promise<AxiosResponse<ApiResponse<T>>> => {
+    return publicInstance.delete<ApiResponse<T>>(url, config);
   },
 };
 
