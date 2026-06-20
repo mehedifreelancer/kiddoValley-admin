@@ -6,7 +6,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import Button from "../../components/ui/Button";
 import DataTableSearch from "../../components/ui/DataTableSearch";
@@ -14,6 +14,7 @@ import Modal from "../../components/ui/Modal";
 import Toolbar from "../../components/ui/Toolbar";
 import { StockTable, StockTableColumn } from "./StockTable";
 import { FlatStockItem } from "./stock.types";
+import { useBarcodeScanner } from "../../hooks/useBarcodeScanner";
 
 // Thumbnails component (same as before)
 const VariantThumbnails = ({ images }: { images: any[] }) => {
@@ -48,7 +49,17 @@ export const Stock: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportData, setReportData] = useState<any>(null);
-
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  useBarcodeScanner({
+    inputRef: searchInputRef,
+    onSearchChange: setGlobalFilter,
+    onBarcodeScanned: (barcode) => {
+      toast.success(`Scanned: ${barcode}`);
+    },
+    onClear: () => {
+      console.log("Input cleared via scanner");
+    },
+  });
   const onSearch = useCallback((value: string) => setGlobalFilter(value), []);
   const toggleStockOrder = useCallback(() => {
     setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"));
@@ -227,6 +238,7 @@ export const Stock: React.FC = () => {
     <Toolbar title="Stock List">
       <div className="flex gap-2">
         <DataTableSearch
+          ref={searchInputRef}
           value={globalFilter}
           onChange={onSearch}
           placeholder="Search by product, SKU, barcode..."

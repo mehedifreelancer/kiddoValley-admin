@@ -4,7 +4,7 @@ import { Column } from "primereact/column";
 import { DataTable } from "primereact/datatable";
 import { Dialog } from "primereact/dialog";
 import { InputNumber } from "primereact/inputnumber";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import Button from "../../components/ui/Button";
 import InputField from "../../components/ui/InputField";
@@ -14,6 +14,7 @@ import { FlatStockItem } from "../stock/stock.types";
 import { createOrder } from "./order.service";
 import { CreateOrderPayload, OrderItem } from "./order.types";
 import { useBarcodeScanner } from "../../hooks/useBarcodeScanner";
+import { getStockList } from "../stock/stock.service";
 
 // ---------- Thumbnails ----------
 const VariantThumbnails = ({ images }: { images: any[] }) => {
@@ -50,7 +51,7 @@ const formatProfit = (sellingPrice: number, buyingPrice: number) => {
   return `${profit.toFixed(2)} TK (${percent.toFixed(1)}%)`;
 };
 
-// ---------- Hooks (placeholders) ----------
+// ---------- Hooks ----------
 const useWhatsAppNotification = () => {
   const sendNotification = useCallback((orderData: any) => {
     console.log("WhatsApp notification:", orderData);
@@ -75,12 +76,19 @@ export const Order: React.FC = () => {
   const [customerAddress, setCustomerAddress] = useState("");
   const [deliveryDate, setDeliveryDate] = useState<Date>(new Date());
 
-  // Search state – controlled
+  // Reservation state
+  const [reservedQuantities, setReservedQuantities] = useState<Record<number, number>>({});
+
+  // Search state
   const [searchTerm, setSearchTerm] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Order items
+  // Order items and ref
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const orderItemsRef = useRef(orderItems);
+  useEffect(() => {
+    orderItemsRef.current = orderItems;
+  }, [orderItems]);
 
   // Modals
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -90,110 +98,230 @@ export const Order: React.FC = () => {
   const { sendNotification } = useWhatsAppNotification();
   const { createPathaoOrder } = usePathao();
 
-  // All stock items (to check for multiple batches)
+  // All stock items
   const [allStockItems, setAllStockItems] = useState<FlatStockItem[]>([]);
 
   // Sorting state
   const [sortField, setSortField] = useState("currentQty");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
+  // ---------- Helpers ----------
+  const getAvailableQty = useCallback((stock: FlatStockItem) => {
+    const reserved = reservedQuantities[stock.id] || 0;
+    return stock.currentQty - reserved;
+  }, [reservedQuantities]);
+
+  // ---------- Core Order Functions (in correct order) ----------
+
+  // 1. updateQuantity – used by InputNumber and increaseQuantity
+  const updateQuantity = useCallback(
+    (stockId: number, newQty: number) => {
+      setOrderItems((prev) =>
+        prev.map((item) => {
+          if (item.stockId !== stockId) return item;
+          const stock = allStockItems.find((s) => s.id === stockId);
+          if (!stock) return item;
+          const reserved = reservedQuantities[stockId] || 0;
+          const maxAvailable = stock.currentQty - reserved + item.quantity;
+          const qty = Math.min(Math.max(1, newQty), maxAvailable);
+          if (qty !== newQty && newQty > qty) {
+            toast.warn(`Only ${maxAvailable} units available`);
+          }
+          const delta = qty - item.quantity;
+          setReservedQuantities((prevRes) => ({
+            ...prevRes,
+            [stockId]: (prevRes[stockId] || 0) + delta,
+          }));
+          const total = item.sellingPrice * qty;
+          const discountAmount = ((item.sellingPrice * item.discountPercent) / 100) * qty;
+          const finalPrice = total - discountAmount;
+          const profitTk = (item.sellingPrice - item.buyingPrice) * qty;
+          return { ...item, quantity: qty, total, discountAmount, finalPrice, profitTk };
+        })
+      );
+    },
+    [allStockItems, reservedQuantities]
+  );
+
+  // 2. Add a new item (assumes not already in order)
+  const addItemToOrder = useCallback(
+    (stock: FlatStockItem) => {
+      const available = getAvailableQty(stock);
+      if (available <= 0) {
+        toast.error(`"${stock.variant.productName}" is out of stock (${available} available)`);
+        return;
+      }
+      const discountPerUnit = (stock.sellingPrice * stock.discountPercent) / 100;
+      const profitTkPerUnit = stock.sellingPrice - stock.buyingPrice;
+      const profitPercent = (profitTkPerUnit / stock.sellingPrice) * 100;
+      const newItem: OrderItem = {
+        stockId: stock.id,
+        batchNo: stock.batchNo,
+        productName: stock.variant.productName,
+        sku: stock.variant.sku,
+        buyingPrice: stock.buyingPrice,
+        sellingPrice: stock.sellingPrice,
+        discountPercent: stock.discountPercent,
+        quantity: 1,
+        maxQuantity: stock.currentQty,
+        total: stock.sellingPrice,
+        discountAmount: discountPerUnit,
+        finalPrice: stock.sellingPrice - discountPerUnit,
+        profitTk: profitTkPerUnit,
+        profitPercent,
+      };
+      setOrderItems((prev) => [...prev, newItem]);
+      setReservedQuantities((prev) => ({
+        ...prev,
+        [stock.id]: (prev[stock.id] || 0) + 1,
+      }));
+    },
+    [getAvailableQty]
+  );
+
+  // 3. Increment quantity of an existing order item by 1
+  const increaseQuantity = useCallback(
+    (stockId: number) => {
+      const items = orderItemsRef.current;
+      const item = items.find((i) => i.stockId === stockId);
+      if (!item) {
+        toast.error("Item not found in order");
+        return;
+      }
+      const stock = allStockItems.find((s) => s.id === stockId);
+      if (!stock) return;
+      const reserved = reservedQuantities[stockId] || 0;
+      const maxAllowed = stock.currentQty - reserved + item.quantity;
+      const newQty = Math.min(item.quantity + 1, maxAllowed);
+      if (newQty === item.quantity) {
+        toast.info(`Max quantity (${maxAllowed}) reached`);
+        return;
+      }
+      updateQuantity(stockId, newQty);
+    },
+    [allStockItems, reservedQuantities, updateQuantity]
+  );
+
+  // 4. Add or increment (unified handler)
+  const addOrIncrementStock = useCallback(
+    (stock: FlatStockItem) => {
+      const items = orderItemsRef.current;
+      const existing = items.find((item) => item.stockId === stock.id);
+      if (existing) {
+        increaseQuantity(stock.id);
+      } else {
+        addItemToOrder(stock);
+      }
+    },
+    [increaseQuantity, addItemToOrder]
+  );
+
+  // 5. Remove item
+  const removeItem = useCallback(
+    (stockId: number) => {
+      const items = orderItemsRef.current;
+      const item = items.find((i) => i.stockId === stockId);
+      if (item) {
+        setReservedQuantities((prev) => ({
+          ...prev,
+          [stockId]: Math.max(0, (prev[stockId] || 0) - item.quantity),
+        }));
+      }
+      setOrderItems((prev) => prev.filter((item) => item.stockId !== stockId));
+    },
+    []
+  );
+
+  // 6. Clear all
+  const clearAllItems = useCallback(() => {
+    if (orderItemsRef.current.length === 0) {
+      toast.info("No items to clear.");
+      return;
+    }
+    setReservedQuantities({});
+    setOrderItems([]);
+    toast.success("All items cleared.");
+  }, []);
+
+  // ---------- "Select" Button Handler ----------
+  const handleAddToOrder = useCallback(
+    (stock: FlatStockItem) => {
+      const available = getAvailableQty(stock);
+      if (available <= 0) {
+        toast.error(`"${stock.variant.productName}" is out of stock (${available} available)`);
+        return;
+      }
+
+      const items = orderItemsRef.current;
+      const existing = items.find((item) => item.stockId === stock.id);
+      if (existing) {
+        increaseQuantity(stock.id);
+        return;
+      }
+
+      // Check for multiple batches
+      const variantBatches = allStockItems.filter(
+        (s) => s.variant.id === stock.variant.id && getAvailableQty(s) > 0
+      );
+      if (variantBatches.length > 1) {
+        setSelectedVariantStocks(variantBatches);
+        setShowBatchModal(true);
+      } else {
+        addItemToOrder(stock);
+      }
+    },
+    [allStockItems, getAvailableQty, increaseQuantity, addItemToOrder]
+  );
+
+  // ---------- Barcode Scanner ----------
+  useBarcodeScanner({
+    inputRef: searchInputRef,
+    onSearchChange: setSearchTerm,
+    onBarcodeScanned: async (barcode) => {
+      try {
+        const response = await getStockList(1, 1000, barcode, "currentQty", "asc", false);
+        const stocks = response.data;
+        if (stocks.length === 0) {
+          toast.error(`Barcode "${barcode}" not found`);
+          return;
+        }
+        const stock = stocks[0];
+        const available = getAvailableQty(stock);
+        if (available <= 0) {
+          toast.error(`"${stock.variant.productName}" is out of stock (${available} available)`);
+          return;
+        }
+        const items = orderItemsRef.current;
+        const existing = items.find((item) => item.stockId === stock.id);
+        if (existing) {
+          increaseQuantity(stock.id);
+        } else {
+          handleAddToOrder(stock);
+        }
+      } catch (error) {
+        console.error("Barcode scan error:", error);
+        toast.error("Error searching barcode");
+      }
+    },
+    onClear: () => console.log("Input cleared"),
+  });
+
+  // ---------- Handlers for stock table ----------
   const handleStockDataChange = useCallback((data: FlatStockItem[]) => {
     setAllStockItems(data);
   }, []);
 
-  // ✅ Barcode scanner – updates searchTerm (which triggers API via StockTable)
-  useBarcodeScanner({
-    inputRef: searchInputRef,
-    onSearchChange: setSearchTerm,           // 👈 this updates the search state
-    onBarcodeScanned: (barcode) => {
-      toast.success(`Scanned: ${barcode}`);
-    },
-    onClear: () => {
-      console.log("Input cleared via scanner");
-    },
-  });
-
-  // Add item to order
-  const addItemToOrder = useCallback((stock: FlatStockItem) => {
-    if (orderItems.some((item) => item.stockId === stock.id)) {
-      toast.info("Item already in order.");
-      return;
-    }
-    const discountPerUnit = (stock.sellingPrice * stock.discountPercent) / 100;
-    const profitTkPerUnit = stock.sellingPrice - stock.buyingPrice;
-    const profitPercent = (profitTkPerUnit / stock.sellingPrice) * 100;
-    const newItem: OrderItem = {
-      stockId: stock.id,
-      batchNo: stock.batchNo,
-      productName: stock.variant.productName,
-      sku: stock.variant.sku,
-      buyingPrice: stock.buyingPrice,
-      sellingPrice: stock.sellingPrice,
-      discountPercent: stock.discountPercent,
-      quantity: 1,
-      maxQuantity: stock.currentQty,
-      total: stock.sellingPrice,
-      discountAmount: discountPerUnit,
-      finalPrice: stock.sellingPrice - discountPerUnit,
-      profitTk: profitTkPerUnit,
-      profitPercent,
-    };
-    setOrderItems((prev) => [...prev, newItem]);
-  }, [orderItems]);
-
-  const handleAddToOrder = useCallback((stock: FlatStockItem) => {
-    if (stock.currentQty <= 0) {
-      toast.error("This batch is out of stock.");
-      return;
-    }
-    const variantBatches = allStockItems.filter(
-      (s) => s.variant.id === stock.variant.id && s.currentQty > 0
-    );
-    if (variantBatches.length > 1) {
-      setSelectedVariantStocks(variantBatches);
-      setShowBatchModal(true);
-    } else {
-      addItemToOrder(stock);
-    }
-  }, [allStockItems, addItemToOrder]);
-
-  const updateQuantity = useCallback((stockId: number, newQty: number) => {
-    setOrderItems((prev) =>
-      prev.map((item) => {
-        if (item.stockId !== stockId) return item;
-        const qty = Math.min(Math.max(1, newQty), item.maxQuantity);
-        const total = item.sellingPrice * qty;
-        const discountAmount = ((item.sellingPrice * item.discountPercent) / 100) * qty;
-        const finalPrice = total - discountAmount;
-        const profitTk = (item.sellingPrice - item.buyingPrice) * qty;
-        return { ...item, quantity: qty, total, discountAmount, finalPrice, profitTk };
-      })
-    );
-  }, []);
-
-  const removeItem = useCallback((stockId: number) => {
-    setOrderItems((prev) => prev.filter((item) => item.stockId !== stockId));
-  }, []);
-
-  const clearAllItems = useCallback(() => {
-    if (orderItems.length === 0) {
-      toast.info("No items to clear.");
-      return;
-    }
-    setOrderItems([]);
-    toast.success("All items cleared.");
-  }, [orderItems]);
-
-  const toggleSort = useCallback(() => {
-    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-  }, []);
-
+  // ---------- Totals ----------
   const totalItems = orderItems.reduce((sum, i) => sum + i.quantity, 0);
   const totalDiscount = orderItems.reduce((sum, i) => sum + i.discountAmount, 0);
   const totalBill = orderItems.reduce((sum, i) => sum + i.finalPrice, 0);
 
+  // ---------- Validation & Confirm ----------
   const isCustomerFormValid = useCallback(
-    () => customerName.trim() !== "" && customerPhone.trim() !== "" && customerAddress.trim() !== "",
+    () =>
+      customerName.trim() !== "" &&
+      customerPhone.trim() !== "" &&
+      customerAddress.trim() !== "",
     [customerName, customerPhone, customerAddress]
   );
 
@@ -202,12 +330,12 @@ export const Order: React.FC = () => {
       toast.error("Please fill in customer name, phone, and address");
       return;
     }
-    if (orderItems.length === 0) {
+    if (orderItemsRef.current.length === 0) {
       toast.error("Please add at least one item");
       return;
     }
     setShowConfirmModal(true);
-  }, [isCustomerFormValid, orderItems]);
+  }, [isCustomerFormValid]);
 
   const confirmOrder = useCallback(async () => {
     const payload: CreateOrderPayload = {
@@ -216,13 +344,13 @@ export const Order: React.FC = () => {
       customerPhone2,
       customerAddress,
       deliveryDate: deliveryDate.toISOString(),
-      items: orderItems.map((item) => ({
+      items: orderItemsRef.current.map((item) => ({
         stockId: item.stockId,
         quantity: item.quantity,
         unitPrice: item.sellingPrice,
         totalPrice: item.total,
       })),
-      subtotal: orderItems.reduce((sum, i) => sum + i.total, 0),
+      subtotal: orderItemsRef.current.reduce((sum, i) => sum + i.total, 0),
       discountTotal: totalDiscount,
       total: totalBill,
     };
@@ -232,6 +360,7 @@ export const Order: React.FC = () => {
       sendNotification(payload);
       createPathaoOrder(payload);
       setOrderItems([]);
+      setReservedQuantities({});
       setCustomerName("");
       setCustomerPhone("");
       setCustomerPhone2("");
@@ -241,9 +370,9 @@ export const Order: React.FC = () => {
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to create order");
     }
-  }, [customerName, customerPhone, customerPhone2, customerAddress, deliveryDate, orderItems, totalDiscount, totalBill, sendNotification, createPathaoOrder]);
+  }, [customerName, customerPhone, customerPhone2, customerAddress, deliveryDate, totalDiscount, totalBill, sendNotification, createPathaoOrder]);
 
-  // ----- Stock table columns -----
+  // ---------- Stock Table Columns ----------
   const stockColumns: StockTableColumn[] = useMemo(
     () => [
       {
@@ -256,18 +385,8 @@ export const Order: React.FC = () => {
         ),
       },
       { field: "variant.sku", header: "SKU" },
-      {
-        field: "buyingPrice",
-        header: "Buying Price",
-        sortable: true,
-        body: (row) => `${row.buyingPrice} TK`,
-      },
-      {
-        field: "sellingPrice",
-        header: "Selling Price",
-        sortable: true,
-        body: (row) => `${row.sellingPrice} TK`,
-      },
+      { field: "buyingPrice", header: "Buying Price", sortable: true, body: (row) => `${row.buyingPrice} TK` },
+      { field: "sellingPrice", header: "Selling Price", sortable: true, body: (row) => `${row.sellingPrice} TK` },
       {
         header: "Images",
         body: (row) => <VariantThumbnails images={row.variant.images || []} />,
@@ -275,51 +394,60 @@ export const Order: React.FC = () => {
       },
       {
         field: "currentQty",
-        header: "Quantity",
+        header: "Available Qty",
         sortable: true,
-        body: (row) => (
-          <span className={row.currentQty < 6 ? "text-red-600 font-semibold" : "text-gray-800 dark:text-gray-200"}>
-            {row.currentQty}
-          </span>
-        ),
+        body: (row) => {
+          const available = getAvailableQty(row);
+          return (
+            <span className={available < 6 ? "text-red-600 font-semibold" : "text-gray-800 dark:text-gray-200"}>
+              {available}
+            </span>
+          );
+        },
       },
       {
         header: "Action",
-        body: (row) => (
-          <Button
-            size="small"
-            variant="outline"
-            onClick={() => handleAddToOrder(row)}
-            className="flex items-center gap-1 p-button-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Select
-          </Button>
-        ),
+        body: (row) => {
+          const available = getAvailableQty(row);
+          return (
+            <Button
+              size="small"
+              variant="outline"
+              onClick={() => handleAddToOrder(row)}
+              className="flex items-center gap-1 p-button-sm"
+              disabled={available <= 0}
+            >
+              <Plus className="w-4 h-4" />
+              Select
+            </Button>
+          );
+        },
         style: { width: "110px" },
       },
     ],
-    [handleAddToOrder]
+    [handleAddToOrder, getAvailableQty]
   );
 
-  const rowClassName = useCallback((row: FlatStockItem) => {
-    if (row.currentQty < 6) return "bg-red-900/50! text-white table-row";
-    return "table-row";
+  const rowClassName = useCallback(
+    (row: FlatStockItem) => {
+      const available = getAvailableQty(row);
+      return available < 6 ? "bg-red-900/50! text-white table-row" : "table-row";
+    },
+    [getAvailableQty]
+  );
+
+  const toggleSort = useCallback(() => {
+    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
   }, []);
 
   const toolbarChildren = (
-    <Button
-      size="xs"
-      variant="outline"
-      onClick={toggleSort}
-      className="flex items-center gap-1"
-    >
+    <Button size="xs" variant="outline" onClick={toggleSort} className="flex items-center gap-1">
       <ArrowUpDown className="w-4 h-4" />
       <span>Qty {sortOrder === "asc" ? "↑" : "↓"}</span>
     </Button>
   );
 
-  // ----- Order table templates -----
+  // ---------- Order Table Templates ----------
   const orderProductBody = useCallback((row: OrderItem) => (
     <div>
       <div className="font-medium text-gray-800 dark:text-gray-200">{row.productName}</div>
@@ -361,18 +489,17 @@ export const Order: React.FC = () => {
       size="small"
       variant="primary"
       onClick={() => {
-        addItemToOrder(batch);
+        addOrIncrementStock(batch);
         setShowBatchModal(false);
       }}
     >
       Select
     </Button>
-  ), [addItemToOrder]);
+  ), [addOrIncrementStock]);
 
   // ---------- Render ----------
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 p-2">
-      {/* Left – Stock Table */}
       <StockTable
         title="Stock List"
         columns={stockColumns}
@@ -389,11 +516,10 @@ export const Order: React.FC = () => {
         }}
         toolbarChildren={toolbarChildren}
         searchInputRef={searchInputRef}
-        searchValue={searchTerm}        // ✅ controlled
-        onSearchChange={setSearchTerm} // ✅ controlled
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
       />
 
-      {/* Right – Order */}
       <div className="flex flex-col gap-2">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 max-h-[550px] overflow-scroll">
           <Toolbar title="Current Order">
@@ -470,9 +596,7 @@ export const Order: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Delivery Date
-              </label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Delivery Date</label>
               <Calendar
                 value={deliveryDate}
                 onChange={(e) => setDeliveryDate(e.value as Date)}
