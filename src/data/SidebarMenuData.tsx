@@ -52,17 +52,24 @@ export const sidebarMenuData: MenuItem[] = [
     path: "/stock",
   },
   {
-    id: "sells",
-    label: "Sells",
-    icon: <ShoppingCart className="w-4 h-4" />,
-    path: "/order",
+    id: "stock-in",
+    label: "Purchase / Import",
+    icon: <Package className="w-4 h-4" />,
+    path: "/stock-in",
   },
   {
-    id: "purchase",
-    label: "Purchase",
-    icon: <Package className="w-4 h-4" />,
-    path: "/purchase",
+    id: "Create Order",
+    label: "Sells",
+    icon: <ShoppingCart className="w-4 h-4" />,
+    path: "/create-order",
   },
+  {
+    id: "Orders",
+    label: "Orders",
+    icon: <ShoppingCart className="w-4 h-4" />,
+    path: "/order-list",
+  },
+
   {
     id: "web-settings",
     label: "Web Settings",

@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import { toast } from "react-hot-toast";
-import { sendOrderEmail } from "../modules/email/email.service";
 
 interface UseEmailNotificationOptions {
   defaultTo?: string;
@@ -8,7 +7,9 @@ interface UseEmailNotificationOptions {
   defaultTemplate?: (data: any) => string;
 }
 
-export const useEmailNotification = (options: UseEmailNotificationOptions = {}) => {
+export const useEmailNotification = (
+  options: UseEmailNotificationOptions = {},
+) => {
   const {
     defaultTo = "admin@example.com",
     defaultSubject = "New Order Notification",
@@ -31,18 +32,19 @@ export const useEmailNotification = (options: UseEmailNotificationOptions = {}) 
       const emailHtml = html || defaultTemplate(variables || {});
 
       try {
-        await sendOrderEmail({
-          to: recipient,
-          subject: emailSubject,
-          html: emailHtml,
-        });
-        toast.success("Order confirmation email sent");
+        // await sendOrderEmail({
+        //   to: recipient,
+        //   subject: emailSubject,
+        //   html: emailHtml,
+        // });
+
+        toast.success("Order confirmation email sent dummy");
       } catch (error) {
         console.error("Email send error:", error);
         toast.error("Failed to send email");
       }
     },
-    [defaultTo, defaultSubject, defaultTemplate]
+    [defaultTo, defaultSubject, defaultTemplate],
   );
 
   return { sendEmail };

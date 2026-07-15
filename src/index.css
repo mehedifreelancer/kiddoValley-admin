@@ -292,3 +292,7 @@ textarea::-webkit-scrollbar-thumb {
   border-top-color: #374151;
   background-color: #1f2937;
 }
+
+.p-calendar .p-inputtext {
+  border: none;
+}
