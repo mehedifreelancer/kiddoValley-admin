@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 export const stockInPayloadSchema = z.object({
-  vendorId: z.number().positive("Vendor is required"),
-  vendorName: z.string().optional(),
+  supplierId: z.number().positive("Supplier is required"),
+  supplierName: z.string().optional(),
   stockInDate: z.string().datetime(),
   items: z
     .array(

@@ -17,7 +17,7 @@ import { stockInPayloadSchema } from "./stockIn.schema";
 import { createStockIn } from "./stockIn.service";
 import { StockInItem } from "./stockIn.types";
 
-// ---------- Thumbnails ----------
+// ---------- Thumbnails (unchanged) ----------
 const VariantThumbnails = ({ images }: { images: any[] }) => {
   if (!images || images.length === 0)
     return <span className="text-gray-400">—</span>;
@@ -42,7 +42,7 @@ const VariantThumbnails = ({ images }: { images: any[] }) => {
   );
 };
 
-// ---------- Helpers ----------
+// ---------- Helper (unchanged) ----------
 const formatDiscount = (sellingPrice: number, discountPercent: number) => {
   const amount = (sellingPrice * discountPercent) / 100;
   return `${discountPercent}% (${amount.toFixed(2)} TK)`;
@@ -60,7 +60,7 @@ export const StockIn: React.FC = () => {
   // Stock in items
   const [stockInItems, setStockInItems] = useState<StockInItem[]>([]);
 
-  // All stock items (from left table) – used for availability checks (optional)
+  // All stock items (from left table)
   const [allStockItems, setAllStockItems] = useState<FlatStockItem[]>([]);
 
   // Search state
@@ -69,12 +69,16 @@ export const StockIn: React.FC = () => {
 
   // Modals
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [selectedVariantStocks, setSelectedVariantStocks] = useState<
+    FlatStockItem[]
+  >([]);
 
   // Sorting state
   const [sortField, setSortField] = useState("currentQty");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  // Load suppliers on mount
+  // Load suppliers
   useEffect(() => {
     const loadSuppliers = async () => {
       try {
@@ -92,10 +96,11 @@ export const StockIn: React.FC = () => {
     setAllStockItems(data);
   }, []);
 
-  // Update quantity in stock-in table (used by InputNumber and addItemToStockIn)
+  // Update quantity in stock-in table
   const updateQuantity = useCallback((stockId: number, newQty: number) => {
-    setStockInItems((prev) =>
-      prev.map((item) => {
+    setStockInItems((prev) => {
+      const items = Array.isArray(prev) ? prev : [];
+      return items.map((item) => {
         if (item.stockId !== stockId) return item;
         const qty = Math.max(1, newQty);
         return {
@@ -103,15 +108,17 @@ export const StockIn: React.FC = () => {
           quantity: qty,
           total: item.buyingPrice * qty,
         };
-      }),
-    );
+      });
+    });
   }, []);
 
-  // Add item to stock-in list (with quantity increment if already exists)
+  // Direct addition (used by modal and single-batch case)
   const addItemToStockIn = useCallback(
     (stock: FlatStockItem) => {
-      const existing = stockInItems.find((item) => item.stockId === stock.id);
+      const items = Array.isArray(stockInItems) ? stockInItems : [];
+      const existing = items.find((item) => item.stockId === stock.id);
       if (existing) {
+        // If already in list, just increment
         const newQty = existing.quantity + 1;
         updateQuantity(stock.id, newQty);
         toast.success(`Quantity increased to ${newQty}`);
@@ -128,18 +135,72 @@ export const StockIn: React.FC = () => {
         quantity: 1,
         total: stock.buyingPrice,
       };
-      setStockInItems((prev) => [...prev, newItem]);
+      setStockInItems((prev) => {
+        const current = Array.isArray(prev) ? prev : [];
+        return [...current, newItem];
+      });
       toast.success(`Added ${stock.variant.productName}`);
     },
     [stockInItems, updateQuantity],
   );
 
+  // Main entry point for "Select" button – decides whether to show batch modal
+  const handleAddToStockIn = useCallback(
+    (stock: FlatStockItem) => {
+      // Check if this exact stock is already in the list
+      const alreadyInList = stockInItems.some(
+        (item) => item.stockId === stock.id,
+      );
+      if (alreadyInList) {
+        // Just increment
+        addItemToStockIn(stock);
+        return;
+      }
+
+      // Find all batches for the same variant
+      const batches = allStockItems.filter(
+        (s) => s.variant.id === stock.variant.id,
+      );
+
+      if (batches.length > 1) {
+        // Show modal to let user choose which batch
+        setSelectedVariantStocks(batches);
+        setShowBatchModal(true);
+      } else {
+        // Only one batch – add directly
+        addItemToStockIn(stock);
+      }
+    },
+    [stockInItems, allStockItems, addItemToStockIn],
+  );
+
+  // Called from the batch modal's "Select" button
+  const addOrIncrementStock = useCallback(
+    (stock: FlatStockItem) => {
+      // Check if this stock is already in the list
+      const existing = stockInItems.find((item) => item.stockId === stock.id);
+      if (existing) {
+        const newQty = existing.quantity + 1;
+        updateQuantity(stock.id, newQty);
+        toast.success(`Quantity increased to ${newQty}`);
+      } else {
+        addItemToStockIn(stock);
+      }
+      setShowBatchModal(false);
+    },
+    [stockInItems, updateQuantity, addItemToStockIn],
+  );
+
   const removeItem = useCallback((stockId: number) => {
-    setStockInItems((prev) => prev.filter((item) => item.stockId !== stockId));
+    setStockInItems((prev) => {
+      const items = Array.isArray(prev) ? prev : [];
+      return items.filter((item) => item.stockId !== stockId);
+    });
   }, []);
 
   const clearAllItems = useCallback(() => {
-    if (stockInItems.length === 0) {
+    const items = Array.isArray(stockInItems) ? stockInItems : [];
+    if (items.length === 0) {
       toast.info("No items to clear.");
       return;
     }
@@ -148,8 +209,9 @@ export const StockIn: React.FC = () => {
   }, [stockInItems]);
 
   // Totals
-  const totalItems = stockInItems.reduce((sum, i) => sum + i.quantity, 0);
-  const subtotal = stockInItems.reduce((sum, i) => sum + i.total, 0);
+  const items = Array.isArray(stockInItems) ? stockInItems : [];
+  const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
+  const subtotal = items.reduce((sum, i) => sum + i.total, 0);
   const total = subtotal;
 
   // Validation
@@ -158,7 +220,8 @@ export const StockIn: React.FC = () => {
       toast.error("Please select a supplier");
       return false;
     }
-    if (stockInItems.length === 0) {
+    const items = Array.isArray(stockInItems) ? stockInItems : [];
+    if (items.length === 0) {
       toast.error("Please add at least one item");
       return false;
     }
@@ -171,11 +234,21 @@ export const StockIn: React.FC = () => {
   };
 
   const handleConfirm = async () => {
+    const items = Array.isArray(stockInItems) ? stockInItems : [];
+    if (items.length === 0) {
+      toast.error("No items to stock in");
+      return;
+    }
+    if (!selectedSupplier) {
+      toast.error("Please select a supplier");
+      return;
+    }
+
     const payload = {
-      supplierId: selectedSupplier!.id,
-      supplierName: selectedSupplier!.name,
+      supplierId: selectedSupplier.id,
+      supplierName: selectedSupplier.name,
       stockInDate: stockInDate.toISOString(),
-      items: stockInItems.map((item) => ({
+      items: items.map((item) => ({
         stockId: item.stockId,
         quantity: item.quantity,
         unitPrice: item.buyingPrice,
@@ -187,8 +260,11 @@ export const StockIn: React.FC = () => {
 
     const result = stockInPayloadSchema.safeParse(payload);
     if (!result.success) {
-      const errors = result.error.errors.map((e) => e.message).join(", ");
-      toast.error(`Validation failed: ${errors}`);
+      const errorMessages =
+        result.error?.errors?.map((e) => e.message).join(", ") ||
+        "Validation failed";
+      toast.error(`Validation failed: ${errorMessages}`);
+      console.error("Validation error:", result.error);
       return;
     }
 
@@ -259,7 +335,7 @@ export const StockIn: React.FC = () => {
         <Button
           size="small"
           variant="outline"
-          onClick={() => addItemToStockIn(row)}
+          onClick={() => handleAddToStockIn(row)}
           className="flex items-center gap-1 p-button-sm"
         >
           <Plus className="w-4 h-4" />
@@ -291,7 +367,7 @@ export const StockIn: React.FC = () => {
     </Button>
   );
 
-  // ---------- Right Stock-In Table Templates ----------
+  // ---------- Right Stock-In Table Templates (unchanged) ----------
   const stockInProductBody = (row: StockInItem) => (
     <div>
       <div className="font-medium text-gray-800 dark:text-gray-200">
@@ -333,7 +409,7 @@ export const StockIn: React.FC = () => {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 p-2">
       {/* Left – Stock List */}
       <StockTable
-        key={JSON.stringify(stockInItems)}
+        key={JSON.stringify(items)}
         title="Stock List"
         columns={stockColumns}
         showSearch={true}
@@ -360,7 +436,7 @@ export const StockIn: React.FC = () => {
           <Toolbar title="Stock In">
             <div className="flex items-center justify-between w-full">
               <span className="text-sm text-gray-500 dark:text-gray-400">
-                {stockInItems.length} item{stockInItems.length !== 1 ? "s" : ""}
+                {items.length} item{items.length !== 1 ? "s" : ""}
               </span>
               <Button
                 size="xs"
@@ -376,7 +452,7 @@ export const StockIn: React.FC = () => {
 
           <div className="table-container p-1">
             <DataTable
-              value={stockInItems}
+              value={items}
               emptyMessage="No items added yet"
               size="small"
               className="w-full"
@@ -450,7 +526,7 @@ export const StockIn: React.FC = () => {
           </div>
         </div>
 
-        {/* Panel 2: Supplier Information */}
+        {/* Panel 2: Supplier Information (unchanged) */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
           <Toolbar title="Supplier Information">
             <Button
@@ -491,7 +567,71 @@ export const StockIn: React.FC = () => {
         </div>
       </div>
 
-      {/* Confirmation Modal */}
+      {/* ----- Batch Selection Modal (NEW) ----- */}
+      <Modal
+        isOpen={showBatchModal}
+        onClose={() => setShowBatchModal(false)}
+        title="Select Price Set"
+        size="xl"
+      >
+        <div className="p-1">
+          <div className="table-container">
+            <DataTable value={selectedVariantStocks} size="small" stripedRows>
+              <Column
+                field="batchNo"
+                header="Batch"
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
+                field="buyingPrice"
+                header="Buying Price"
+                body={(row) => `${row.buyingPrice} TK`}
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
+                field="sellingPrice"
+                header="Selling Price"
+                body={(row) => `${row.sellingPrice} TK`}
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
+                header="Discount"
+                body={(row) =>
+                  formatDiscount(row.sellingPrice, row.discountPercent)
+                }
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
+                field="currentQty"
+                header="Current Qty"
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
+                header="Action"
+                body={(row) => (
+                  <Button
+                    size="small"
+                    variant="primary"
+                    onClick={() => addOrIncrementStock(row)}
+                  >
+                    Select
+                  </Button>
+                )}
+                style={{ width: "100px" }}
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+            </DataTable>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirmation Modal (unchanged) */}
       <Modal
         isOpen={showConfirmModal}
         onClose={() => setShowConfirmModal(false)}
@@ -512,7 +652,7 @@ export const StockIn: React.FC = () => {
           </div>
 
           <div className="table-container">
-            <DataTable value={stockInItems} size="small">
+            <DataTable value={items} size="small">
               <Column
                 field="productName"
                 header="Product"
@@ -549,7 +689,6 @@ export const StockIn: React.FC = () => {
             </DataTable>
           </div>
 
-          {/* Footer buttons */}
           <div className="flex justify-end gap-3 mt-4 pt-4 border-t dark:border-gray-700">
             <Button
               variant="outline"
