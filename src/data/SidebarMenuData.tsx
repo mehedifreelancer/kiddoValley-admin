@@ -1,6 +1,7 @@
 // data/SidebarMenuData.ts
 import {
   FileText,
+  Image,
   LayoutDashboard,
   Link2,
   Package,
@@ -9,7 +10,6 @@ import {
   ShoppingCart,
   Tag,
   Truck,
-  Upload,
   Users,
 } from "lucide-react";
 import type { MenuItem } from "../types/sidebar/sidebar.types";
@@ -72,20 +72,20 @@ export const sidebarMenuData: MenuItem[] = [
 
   {
     id: "web-settings",
-    label: "Web Settings",
+    label: "Settings",
     icon: <Settings className="w-4 h-4" />,
     children: [
       {
-        id: "upload-logo",
-        label: "Upload Logo",
-        icon: <Upload className="w-4 h-4" />,
-        path: "/web-settings/upload-logo",
+        id: "logo-social",
+        label: "Logo & Social",
+        icon: <Link2 className="w-4 h-4" />,
+        path: "/web-settings/logo-&-social",
       },
       {
-        id: "social-links",
-        label: "Social Media Links",
-        icon: <Link2 className="w-4 h-4" />,
-        path: "/web-settings/social-links",
+        id: "slider",
+        label: "Slider",
+        icon: <Image className="w-4 h-4" />,
+        path: "/web-settings/slider",
       },
     ],
   },

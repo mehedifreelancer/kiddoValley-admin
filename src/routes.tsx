@@ -9,9 +9,11 @@ import Category from "./modules/master-data/category/Category";
 import Order from "./modules/order/order";
 import OrderList from "./modules/order/OrderList";
 import { Product } from "./modules/product/Product";
+import Slider from "./modules/slider/Slider";
 import StockIn from "./modules/stock-in/StockIn";
 import Stock from "./modules/stock/stock";
 import SupplierList from "./modules/supplier/supplier";
+import { WebSettings } from "./modules/web-settings/WebSettings";
 
 // Placeholder components for missing routes
 const Customer = () => <div>Customer Page</div>;
@@ -50,8 +52,8 @@ export const router = createBrowserRouter([
       {
         path: "web-settings",
         children: [
-          { path: "upload-logo", element: <UploadLogo /> },
-          { path: "social-links", element: <SocialLinks /> },
+          { path: "logo-&-social", element: <WebSettings /> },
+          { path: "slider", element: <Slider /> },
         ],
       },
     ],
