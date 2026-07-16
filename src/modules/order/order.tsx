@@ -884,7 +884,7 @@ export const Order: React.FC = () => {
               <Calendar
                 value={deliveryDate}
                 onChange={(e) => setDeliveryDate(e.value as Date)}
-                className="w-full border-b         border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600
+                className="w-full border-b border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600
  "
                 showIcon
               />

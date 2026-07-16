@@ -60,7 +60,7 @@ export const StockIn: React.FC = () => {
   // Stock in items
   const [stockInItems, setStockInItems] = useState<StockInItem[]>([]);
 
-  // All stock items (from left table)
+  // All stock items (from left table) – used for availability checks (optional)
   const [allStockItems, setAllStockItems] = useState<FlatStockItem[]>([]);
 
   // Search state
@@ -92,11 +92,29 @@ export const StockIn: React.FC = () => {
     setAllStockItems(data);
   }, []);
 
-  // Add item to stock-in list
+  // Update quantity in stock-in table (used by InputNumber and addItemToStockIn)
+  const updateQuantity = useCallback((stockId: number, newQty: number) => {
+    setStockInItems((prev) =>
+      prev.map((item) => {
+        if (item.stockId !== stockId) return item;
+        const qty = Math.max(1, newQty);
+        return {
+          ...item,
+          quantity: qty,
+          total: item.buyingPrice * qty,
+        };
+      }),
+    );
+  }, []);
+
+  // Add item to stock-in list (with quantity increment if already exists)
   const addItemToStockIn = useCallback(
     (stock: FlatStockItem) => {
-      if (stockInItems.some((item) => item.stockId === stock.id)) {
-        toast.info("Item already added");
+      const existing = stockInItems.find((item) => item.stockId === stock.id);
+      if (existing) {
+        const newQty = existing.quantity + 1;
+        updateQuantity(stock.id, newQty);
+        toast.success(`Quantity increased to ${newQty}`);
         return;
       }
       const newItem: StockInItem = {
@@ -111,24 +129,10 @@ export const StockIn: React.FC = () => {
         total: stock.buyingPrice,
       };
       setStockInItems((prev) => [...prev, newItem]);
+      toast.success(`Added ${stock.variant.productName}`);
     },
-    [stockInItems],
+    [stockInItems, updateQuantity],
   );
-
-  // Update quantity in stock-in table
-  const updateQuantity = useCallback((stockId: number, newQty: number) => {
-    setStockInItems((prev) =>
-      prev.map((item) => {
-        if (item.stockId !== stockId) return item;
-        const qty = Math.max(1, newQty);
-        return {
-          ...item,
-          quantity: qty,
-          total: item.buyingPrice * qty,
-        };
-      }),
-    );
-  }, []);
 
   const removeItem = useCallback((stockId: number) => {
     setStockInItems((prev) => prev.filter((item) => item.stockId !== stockId));
@@ -349,28 +353,15 @@ export const StockIn: React.FC = () => {
         onSearchChange={setSearchTerm}
       />
 
-      {/* Right – Stock In */}
+      {/* Right Column – Stock In */}
       <div className="flex flex-col gap-2">
+        {/* Panel 1: Stock In (table + totals) */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 max-h-[550px] overflow-scroll">
           <Toolbar title="Stock In">
             <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-2">
-                <Dropdown
-                  value={selectedSupplier}
-                  options={suppliers}
-                  onChange={(e) => setSelectedSupplier(e.value)}
-                  optionLabel="name"
-                  placeholder="Select Supplier"
-                  className="w-48"
-                  showClear
-                />
-                <Calendar
-                  value={stockInDate}
-                  onChange={(e) => setStockInDate(e.value as Date)}
-                  showIcon
-                  className="w-40"
-                />
-              </div>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {stockInItems.length} item{stockInItems.length !== 1 ? "s" : ""}
+              </span>
               <Button
                 size="xs"
                 variant="danger"
@@ -405,7 +396,7 @@ export const StockIn: React.FC = () => {
               />
               <Column
                 field="buyingPrice"
-                header="Unit Price"
+                header="U. Buying Price"
                 body={(row) => `${row.buyingPrice} TK`}
                 headerClassName="column-header"
                 bodyClassName="column-body"
@@ -459,15 +450,44 @@ export const StockIn: React.FC = () => {
           </div>
         </div>
 
-        {/* Next Button */}
-        <div className="flex justify-end">
-          <Button
-            variant="primary"
-            onClick={handleNext}
-            className="flex items-center gap-2"
-          >
-            Next <span className="ml-1">→</span>
-          </Button>
+        {/* Panel 2: Supplier Information */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <Toolbar title="Supplier Information">
+            <Button
+              variant="primary"
+              onClick={handleNext}
+              className="flex items-center gap-2"
+            >
+              Next <span className="ml-1">→</span>
+            </Button>
+          </Toolbar>
+          <div className="grid grid-cols-2 gap-3 p-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Supplier *
+              </label>
+              <Dropdown
+                value={selectedSupplier}
+                options={suppliers}
+                onChange={(e) => setSelectedSupplier(e.value)}
+                optionLabel="name"
+                placeholder="Select Supplier"
+                className="w-full"
+                showClear
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Stock In Date
+              </label>
+              <Calendar
+                value={stockInDate}
+                onChange={(e) => setStockInDate(e.value as Date)}
+                showIcon
+                className="w-full border-b border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
