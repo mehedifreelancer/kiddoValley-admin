@@ -5,11 +5,12 @@ import AuthGuard from "./components/guards/AuthGuard";
 import Components from "./components/ui/Components";
 import SignIn from "./modules/auth/SignIn";
 import Dashboard from "./modules/dashboard/dashboard";
+import HeroSliderManagement from "./modules/hero-slider/HeroSliderManagement";
 import Category from "./modules/master-data/category/Category";
 import Order from "./modules/order/order";
 import OrderList from "./modules/order/OrderList";
 import { Product } from "./modules/product/Product";
-import Slider from "./modules/slider/Slider";
+import Slider from "./modules/hero-banner-slider/HeroBannerSlider";
 import StockIn from "./modules/stock-in/StockIn";
 import Stock from "./modules/stock/stock";
 import SupplierList from "./modules/supplier/supplier";
@@ -54,6 +55,7 @@ export const router = createBrowserRouter([
         children: [
           { path: "logo-&-social", element: <WebSettings /> },
           { path: "slider", element: <Slider /> },
+          { path: "hero-slider", element: <HeroSliderManagement /> },
         ],
       },
     ],

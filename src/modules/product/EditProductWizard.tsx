@@ -1,4 +1,3 @@
-// modules/master-data/product/EditProductWizard.tsx
 import {
   Camera,
   CheckCircle,
@@ -117,18 +116,15 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // ---------- Step 1 state (product) ----------
+  // ---------- Step 1 state ----------
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<any>(null);
   const [productName, setProductName] = useState("");
   const [forceOrderPriority, setForceOrderPriority] = useState(0);
   const [videoUrl, setVideoUrl] = useState("");
   const [productDetails, setProductDetails] = useState("");
-  const [thumbnailImage, setThumbnailImage] = useState<any>(null);
+  const [thumbnail, setThumbnail] = useState<string | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
-  const [existingThumbnailId, setExistingThumbnailId] = useState<number | null>(
-    null,
-  );
   const [formErrors, setFormErrors] = useState<any>({});
 
   // ---------- Step 2: variants ----------
@@ -153,11 +149,10 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
   const [variantBarcode, setVariantBarcode] = useState("");
   const [showVariantForm, setShowVariantForm] = useState(false);
   const [isEditingMode, setIsEditingMode] = useState(false);
-  // Variant images (for the add/edit form)
   const [variantImages, setVariantImages] = useState<any[]>([]);
   const [variantImageFiles, setVariantImageFiles] = useState<File[]>([]);
 
-  // ---------- Step 3: price sets (pending stocks) ----------
+  // ---------- Step 3: price sets ----------
   const [pendingStocks, setPendingStocks] = useState<{
     [variantId: number]: Array<{
       id: string;
@@ -175,7 +170,6 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     };
   }>({});
 
-  // Helper: check if buying price is unique for a variant (exclude optional tempId)
   const isBuyingPriceUnique = (
     variantId: number,
     buyingPrice: number,
@@ -183,7 +177,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
   ): boolean => {
     const variant = variants.find((v) => v.id === variantId);
     const existingPrices =
-      variant?.stocks?.map((s) => s.buyingOrMakingPrice) || [];
+      variant?.stocks?.map((s: any) => s.buyingOrMakingPrice) || [];
     const pendingPrices = (pendingStocks[variantId] || [])
       .filter((p) => p.id !== excludeTempId)
       .map((p) => p.buyingPrice);
@@ -191,7 +185,6 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     return !allPrices.includes(buyingPrice);
   };
 
-  // Add a temporary price set row
   const addTempStock = (variantId: number) => {
     const formData = newPriceSet[variantId];
     if (!formData || formData.buyingPrice <= 0 || formData.sellingPrice <= 0) {
@@ -336,12 +329,9 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
         setSelectedCategory(
           categories.find((c) => c.id === product.categoryId) || null,
         );
-        const existingImg = product.images?.[0] || null;
-        setThumbnailImage(existingImg);
-        setExistingThumbnailId(existingImg?.id || null);
+        setThumbnail(product.thumbnail || null);
         setThumbnailFile(null);
 
-        // Load variants
         const res = await api.get(`/variant/product/${productId}`);
         const variantData = (res.data.data || []).map((v: any) => ({
           ...v,
@@ -375,15 +365,15 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     }
   };
 
-  // ---------- Step 1: Update product (basic info + thumbnail) ----------
+  // ---------- Step 1: Update product ----------
   const handleStep1Next = async () => {
     if (submitting) return;
 
     const errors: any = {};
     if (!productName.trim()) errors.name = "Product name required";
     if (!selectedCategory) errors.category = "Category required";
-    if (!thumbnailImage && !thumbnailFile)
-      errors.images = "Thumbnail image is required";
+    if (!thumbnail && !thumbnailFile)
+      errors.thumbnail = "Thumbnail image is required";
     setFormErrors(errors);
     if (Object.keys(errors).length) return;
 
@@ -395,10 +385,11 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
       formData.append("forceOrderPriority", String(forceOrderPriority));
       if (videoUrl) formData.append("videoUrl", videoUrl);
       if (productDetails) formData.append("description", productDetails);
-      const existingImages = thumbnailImage ? [thumbnailImage] : [];
-      formData.append("existingImages", JSON.stringify(existingImages));
-      if (thumbnailFile) formData.append("images", thumbnailFile);
-
+      if (thumbnailFile) {
+        formData.append("thumbnail", thumbnailFile);
+      } else if (thumbnail) {
+        formData.append("existingThumbnail", thumbnail);
+      }
       await updateProduct(productId, formData);
       toast.success("Product basic info updated");
       setStep(2);
@@ -498,7 +489,6 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
 
   const deleteVariant = async (id: number) => {
     const variant = variants.find((v) => v.id === id);
-    // Check if any stock batch has positive quantity
     const hasStockWithQuantity = variant?.stocks?.some(
       (stock: any) => stock.currentQty > 0,
     );
@@ -524,16 +514,19 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
       toast.error(err.response?.data?.message || "Failed to delete variant");
     }
   };
-  // ---------- Variant image upload (list) ----------
+
   const handleVariantImageUploadList = async (
     variantId: number,
     files: FileList | null,
   ) => {
     if (!files || files.length === 0) return;
-    const formData = new FormData();
     const variant = variants.find((v) => v.id === variantId);
-    const existingImages = variant?.images || [];
-    formData.append("existingImages", JSON.stringify(existingImages));
+    if (!variant) return;
+    const cleanImages = (variant.images || []).filter(
+      (img: any) => !img.imgUrl.startsWith("blob:"),
+    );
+    const formData = new FormData();
+    formData.append("existingImages", JSON.stringify(cleanImages));
     Array.from(files).forEach((file) => formData.append("images", file));
     try {
       setSubmitting(true);
@@ -556,7 +549,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     const variant = variants.find((v) => v.id === variantId);
     if (!variant) return;
     const remainingImages = (variant.images || []).filter(
-      (img: any) => img.imgUrl !== imageUrl,
+      (img: any) => img.imgUrl !== imageUrl && !img.imgUrl.startsWith("blob:"),
     );
     const formData = new FormData();
     formData.append("existingImages", JSON.stringify(remainingImages));
@@ -623,21 +616,16 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
 
   // ---------- Thumbnail handlers ----------
   const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      const mockUrl = URL.createObjectURL(file);
-      setThumbnailImage({ imgUrl: mockUrl, isNew: true });
+    const file = e.target.files?.[0];
+    if (file) {
+      setThumbnail(URL.createObjectURL(file));
       setThumbnailFile(file);
     }
   };
 
   const removeThumbnail = () => {
-    setThumbnailImage(null);
+    setThumbnail(null);
     setThumbnailFile(null);
-    if (existingThumbnailId) {
-      // Will be removed via existingImages array in update
-    }
   };
 
   // ---------- Helpers ----------
@@ -654,6 +642,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     delete newAttrs[key];
     setCurrentAttributes(newAttrs);
   };
+
   const handleAddValueToExisting = async () => {
     if (!existingAttrName || !newValueInput.trim())
       return toast.error("Select attribute and enter value(s)");
@@ -674,6 +663,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
       toast.error("Failed");
     }
   };
+
   const handleAddNewAttribute = async () => {
     if (!newAttributeName || !newAttributeValues)
       return toast.error("Provide name and values");
@@ -693,9 +683,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     for (const variant of variants) {
       const existingCount = variant.stocks?.length || 0;
       const pendingCount = pendingStocks[variant.id]?.length || 0;
-      if (existingCount + pendingCount === 0) {
-        return true;
-      }
+      if (existingCount + pendingCount === 0) return true;
     }
     return false;
   };
@@ -706,8 +694,8 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
       setSubmitting(true);
       await saveAllPendingStocks();
       toast.success("Product updated successfully!");
-      onProductSaved(); // refresh parent list
-      onClose(); // close modal
+      onProductSaved();
+      onClose();
     } catch (err: any) {
       toast.error(err.message || "Failed to save changes");
     } finally {
@@ -791,13 +779,13 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
               Thumbnail Image *
             </label>
             <div className="relative w-full h-32 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors overflow-hidden">
-              {thumbnailImage ? (
+              {thumbnail ? (
                 <div className="relative w-full h-full flex items-center justify-center">
                   <img
-                    src={thumbnailImage.imgUrl}
+                    src={thumbnail}
                     alt="Thumbnail"
                     className="max-w-full max-h-full object-contain cursor-pointer"
-                    onClick={() => window.open(thumbnailImage.imgUrl, "_blank")}
+                    onClick={() => window.open(thumbnail, "_blank")}
                     title="Click to view full image"
                   />
                   <button
@@ -836,8 +824,10 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
                 className="hidden"
               />
             </div>
-            {formErrors.images && (
-              <p className="text-red-500 text-xs mt-1">{formErrors.images}</p>
+            {formErrors.thumbnail && (
+              <p className="text-red-500 text-xs mt-1">
+                {formErrors.thumbnail}
+              </p>
             )}
           </div>
           <div className="modal-sticky-footer">
@@ -1556,7 +1546,6 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
               <Button variant="outline" onClick={() => setStep(2)}>
                 <ChevronLeft className="w-4 h-4" /> Back
               </Button>
-
               <Button
                 variant="success"
                 onClick={handleSaveAllChanges}
@@ -1580,13 +1569,21 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
             <div className="flex mb-6">
               <button
-                className={`cursor-pointer flex-1 pb-2 text-center ${attributeTab === "addValue" ? "border-b-2 border-blue-500 text-blue-600" : "border-b-2 text-gray-500"} text-sm`}
+                className={`cursor-pointer flex-1 pb-2 text-center ${
+                  attributeTab === "addValue"
+                    ? "border-b-2 border-blue-500 text-blue-600"
+                    : "border-b-2 text-gray-500"
+                } text-sm`}
                 onClick={() => setAttributeTab("addValue")}
               >
                 Add Value to Existing
               </button>
               <button
-                className={`cursor-pointer flex-1 pb-2 text-center ${attributeTab === "newAttr" ? "border-b-2 border-blue-500 text-blue-600" : "border-b-2 text-gray-500"} text-sm`}
+                className={`cursor-pointer flex-1 pb-2 text-center ${
+                  attributeTab === "newAttr"
+                    ? "border-b-2 border-blue-500 text-blue-600"
+                    : "border-b-2 text-gray-500"
+                } text-sm`}
                 onClick={() => setAttributeTab("newAttr")}
               >
                 Add New Attribute

@@ -44,7 +44,6 @@ function generateEAN13(): string {
 
 const StepIndicator = ({ current }: { current: number }) => (
   <div className="z-1 sticky top-[-5px] flex items-center justify-between bg-white dark:bg-gray-800 py-2 shadow-sm mb-5">
-    {/* Step 1 */}
     <div className="flex-1 text-center">
       <div
         className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
@@ -57,8 +56,6 @@ const StepIndicator = ({ current }: { current: number }) => (
       </div>
       <div className="text-sm mt-1">Basic Info</div>
     </div>
-
-    {/* Connector 1 → 2 - solid line */}
     <div
       className={`flex-1 border-t-2 ${
         current > 1
@@ -66,8 +63,6 @@ const StepIndicator = ({ current }: { current: number }) => (
           : "border-gray-300 dark:border-gray-600"
       }`}
     />
-
-    {/* Step 2 */}
     <div className="flex-1 text-center">
       <div
         className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${
@@ -88,8 +83,6 @@ const StepIndicator = ({ current }: { current: number }) => (
       </div>
       <div className="text-sm mt-1">Variants</div>
     </div>
-
-    {/* Connector 2 → 3 - solid line */}
     <div
       className={`flex-1 border-t-2 ${
         current > 2
@@ -97,8 +90,6 @@ const StepIndicator = ({ current }: { current: number }) => (
           : "border-gray-300 dark:border-gray-600"
       }`}
     />
-
-    {/* Step 3 */}
     <div className="flex-1 text-center">
       <div
         className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${
@@ -134,11 +125,8 @@ export const CreateProductWizard = ({
   const [forceOrderPriority, setForceOrderPriority] = useState(0);
   const [videoUrl, setVideoUrl] = useState("");
   const [productDetails, setProductDetails] = useState("");
-  const [thumbnailImage, setThumbnailImage] = useState<any>(null);
+  const [thumbnail, setThumbnail] = useState<string | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
-  const [existingThumbnailId, setExistingThumbnailId] = useState<number | null>(
-    null,
-  );
   const [formErrors, setFormErrors] = useState<any>({});
   const [originalProduct, setOriginalProduct] = useState<any>(null);
 
@@ -165,7 +153,7 @@ export const CreateProductWizard = ({
   const [showVariantForm, setShowVariantForm] = useState(false);
   const [isEditingMode, setIsEditingMode] = useState(false);
 
-  // Step 3: pending price sets (temporary, not yet saved)
+  // Step 3: pending price sets
   const [pendingStocks, setPendingStocks] = useState<{
     [variantId: number]: Array<{
       id: string;
@@ -183,7 +171,6 @@ export const CreateProductWizard = ({
     };
   }>({});
 
-  // Helper: check if buying price is unique for a variant (exclude optional tempId)
   const isBuyingPriceUnique = (
     variantId: number,
     buyingPrice: number,
@@ -191,7 +178,7 @@ export const CreateProductWizard = ({
   ): boolean => {
     const variant = variants.find((v) => v.id === variantId);
     const existingPrices =
-      variant?.stocks?.map((s) => s.buyingOrMakingPrice) || [];
+      variant?.stocks?.map((s: any) => s.buyingOrMakingPrice) || [];
     const pendingPrices = (pendingStocks[variantId] || [])
       .filter((p) => p.id !== excludeTempId)
       .map((p) => p.buyingPrice);
@@ -199,7 +186,6 @@ export const CreateProductWizard = ({
     return !allPrices.includes(buyingPrice);
   };
 
-  // Add a temporary price set row (with uniqueness check)
   const addTempStock = (variantId: number) => {
     const formData = newPriceSet[variantId];
     if (!formData || formData.buyingPrice <= 0 || formData.sellingPrice <= 0) {
@@ -317,7 +303,7 @@ export const CreateProductWizard = ({
     }
   };
 
-  // ---- rest of the component (unchanged) ----
+  // Load categories and attributes
   useEffect(() => {
     const loadCategories = async () => {
       try {
@@ -353,9 +339,7 @@ export const CreateProductWizard = ({
           setSelectedCategory(
             categories.find((c) => c.id === product.categoryId) || null,
           );
-          const existingImg = product.images?.[0] || null;
-          setThumbnailImage(existingImg);
-          setExistingThumbnailId(existingImg?.id || null);
+          setThumbnail(product.thumbnail || null);
           setThumbnailFile(null);
         } catch (err) {
           console.error(err);
@@ -404,8 +388,8 @@ export const CreateProductWizard = ({
     const errors: any = {};
     if (!productName.trim()) errors.name = "Product name required";
     if (!selectedCategory) errors.category = "Category required";
-    if (!thumbnailImage && !thumbnailFile)
-      errors.images = "Thumbnail image is required";
+    if (!thumbnail && !thumbnailFile)
+      errors.thumbnail = "Thumbnail image is required";
     setFormErrors(errors);
     if (Object.keys(errors).length) return;
 
@@ -420,9 +404,7 @@ export const CreateProductWizard = ({
       if (selectedCategory?.id !== originalProduct.categoryId)
         hasChanges = true;
       if (thumbnailFile) hasChanges = true;
-      const currentThumbUrl = thumbnailImage?.imgUrl;
-      const originalThumbUrl = originalProduct.images?.[0]?.imgUrl;
-      if (currentThumbUrl !== originalThumbUrl) hasChanges = true;
+      if (thumbnail !== originalProduct.thumbnail) hasChanges = true;
     }
 
     if (!productId) {
@@ -434,7 +416,7 @@ export const CreateProductWizard = ({
         formData.append("forceOrderPriority", String(forceOrderPriority));
         if (videoUrl) formData.append("videoUrl", videoUrl);
         if (productDetails) formData.append("description", productDetails);
-        if (thumbnailFile) formData.append("images", thumbnailFile);
+        if (thumbnailFile) formData.append("thumbnail", thumbnailFile);
         const newProduct = await createProduct(formData);
         setProductId(newProduct.id);
         setOriginalProduct(newProduct);
@@ -457,16 +439,16 @@ export const CreateProductWizard = ({
           formData.append("forceOrderPriority", String(forceOrderPriority));
           if (videoUrl) formData.append("videoUrl", videoUrl);
           if (productDetails) formData.append("description", productDetails);
-          const existingImages = thumbnailImage ? [thumbnailImage] : [];
-          formData.append("existingImages", JSON.stringify(existingImages));
-          if (thumbnailFile) formData.append("images", thumbnailFile);
+          if (thumbnailFile) {
+            formData.append("thumbnail", thumbnailFile);
+          } else if (thumbnail) {
+            formData.append("existingThumbnail", thumbnail);
+          }
           await updateProduct(productId, formData);
           toast.success("Product updated");
           const updatedProduct = await getProductById(productId);
           setOriginalProduct(updatedProduct);
-          const updatedImg = updatedProduct.images?.[0] || null;
-          setThumbnailImage(updatedImg);
-          setExistingThumbnailId(updatedImg?.id || null);
+          setThumbnail(updatedProduct.thumbnail || null);
           setThumbnailFile(null);
         } catch (err: any) {
           toast.error(err.message || "Failed to update product");
@@ -562,7 +544,6 @@ export const CreateProductWizard = ({
 
   const deleteVariant = async (id: number) => {
     const variant = variants.find((v) => v.id === id);
-    // Check if any stock batch has positive quantity
     const hasStockWithQuantity = variant?.stocks?.some(
       (stock: any) => stock.currentQty > 0,
     );
@@ -594,10 +575,13 @@ export const CreateProductWizard = ({
     files: FileList | null,
   ) => {
     if (!files || files.length === 0) return;
-    const formData = new FormData();
     const variant = variants.find((v) => v.id === variantId);
-    const existingImages = variant?.images || [];
-    formData.append("existingImages", JSON.stringify(existingImages));
+    if (!variant) return;
+    const cleanImages = (variant.images || []).filter(
+      (img: any) => !img.imgUrl.startsWith("blob:"),
+    );
+    const formData = new FormData();
+    formData.append("existingImages", JSON.stringify(cleanImages));
     Array.from(files).forEach((file) => formData.append("images", file));
     try {
       setSubmitting(true);
@@ -617,7 +601,7 @@ export const CreateProductWizard = ({
     const variant = variants.find((v) => v.id === variantId);
     if (!variant) return;
     const remainingImages = (variant.images || []).filter(
-      (img: any) => img.imgUrl !== imageUrl,
+      (img: any) => img.imgUrl !== imageUrl && !img.imgUrl.startsWith("blob:"),
     );
     const formData = new FormData();
     formData.append("existingImages", JSON.stringify(remainingImages));
@@ -683,21 +667,16 @@ export const CreateProductWizard = ({
   };
 
   const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      const mockUrl = URL.createObjectURL(file);
-      setThumbnailImage({ imgUrl: mockUrl, isNew: true });
+    const file = e.target.files?.[0];
+    if (file) {
+      setThumbnail(URL.createObjectURL(file));
       setThumbnailFile(file);
     }
   };
 
   const removeThumbnail = () => {
-    setThumbnailImage(null);
+    setThumbnail(null);
     setThumbnailFile(null);
-    if (existingThumbnailId) {
-      // Will be removed via existingImages array in update
-    }
   };
 
   const formatVariantName = (variant: any) => productName;
@@ -713,6 +692,7 @@ export const CreateProductWizard = ({
     delete newAttrs[key];
     setCurrentAttributes(newAttrs);
   };
+
   const handleAddValueToExisting = async () => {
     if (!existingAttrName || !newValueInput.trim())
       return toast.error("Select attribute and enter value(s)");
@@ -733,6 +713,7 @@ export const CreateProductWizard = ({
       toast.error("Failed");
     }
   };
+
   const handleAddNewAttribute = async () => {
     if (!newAttributeName || !newAttributeValues)
       return toast.error("Provide name and values");
@@ -763,9 +744,7 @@ export const CreateProductWizard = ({
     for (const variant of variants) {
       const existingCount = variant.stocks?.length || 0;
       const pendingCount = pendingStocks[variant.id]?.length || 0;
-      if (existingCount + pendingCount === 0) {
-        return true;
-      }
+      if (existingCount + pendingCount === 0) return true;
     }
     return false;
   };
@@ -777,8 +756,8 @@ export const CreateProductWizard = ({
       setSubmitting(true);
       await saveAllPendingStocks();
       toast.success("Product saved to draft successfully!");
-      onProductSaved(); // refresh parent list
-      onClose(); // close modal
+      onProductSaved();
+      onClose();
     } catch (err: any) {
       toast.error(err.message || "Failed to save draft");
     } finally {
@@ -794,8 +773,8 @@ export const CreateProductWizard = ({
       await saveAllPendingStocks();
       await api.patch(`/products/publish/${productId}`);
       toast.success("Product registered successfully!");
-      onProductSaved(); // refresh parent list
-      onClose(); // close modal
+      onProductSaved();
+      onClose();
     } catch (err: any) {
       toast.error(
         err.message ||
@@ -872,13 +851,13 @@ export const CreateProductWizard = ({
               Thumbnail Image *
             </label>
             <div className="relative w-full h-32 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors overflow-hidden">
-              {thumbnailImage ? (
+              {thumbnail ? (
                 <div className="relative w-full h-full flex items-center justify-center">
                   <img
-                    src={thumbnailImage.imgUrl}
+                    src={thumbnail}
                     alt="Thumbnail"
                     className="max-w-full max-h-full object-contain cursor-pointer"
-                    onClick={() => window.open(thumbnailImage.imgUrl, "_blank")}
+                    onClick={() => window.open(thumbnail, "_blank")}
                     title="Click to view full image"
                   />
                   <button
@@ -917,8 +896,10 @@ export const CreateProductWizard = ({
                 className="hidden"
               />
             </div>
-            {formErrors.images && (
-              <p className="text-red-500 text-xs mt-1">{formErrors.images}</p>
+            {formErrors.thumbnail && (
+              <p className="text-red-500 text-xs mt-1">
+                {formErrors.thumbnail}
+              </p>
             )}
           </div>
           <div className="modal-sticky-footer">
@@ -931,7 +912,7 @@ export const CreateProductWizard = ({
 
       {step === 2 && (
         <div className="space-y-6">
-          <div className="z-1 sticky top-[-1px] flex justify-between items-center bg-gray-200 dark:bg-gray-800  p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+          <div className="z-1 sticky top-[-1px] flex justify-between items-center bg-gray-200 dark:bg-gray-800 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
             <span className="text-sm text-gray-700 dark:text-gray-300">
               💡 Do you have variants such as color, size, etc? Add variant from
               here.
@@ -1601,7 +1582,6 @@ export const CreateProductWizard = ({
               <Button variant="outline" onClick={() => setStep(2)}>
                 <ChevronLeft className="w-4 h-4" /> Back
               </Button>
-
               <Button
                 variant="secondary"
                 onClick={handleSaveDraft}
@@ -1638,13 +1618,21 @@ export const CreateProductWizard = ({
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
             <div className="flex mb-6">
               <button
-                className={`cursor-pointer flex-1 pb-2 text-center ${attributeTab === "addValue" ? "border-b-2 border-blue-500 text-blue-600" : "border-b-2 text-gray-500"} text-sm`}
+                className={`cursor-pointer flex-1 pb-2 text-center ${
+                  attributeTab === "addValue"
+                    ? "border-b-2 border-blue-500 text-blue-600"
+                    : "border-b-2 text-gray-500"
+                } text-sm`}
                 onClick={() => setAttributeTab("addValue")}
               >
                 Add Value to Existing
               </button>
               <button
-                className={`cursor-pointer flex-1 pb-2 text-center ${attributeTab === "newAttr" ? "border-b-2 border-blue-500 text-blue-600" : "border-b-2 text-gray-500"} text-sm`}
+                className={`cursor-pointer flex-1 pb-2 text-center ${
+                  attributeTab === "newAttr"
+                    ? "border-b-2 border-blue-500 text-blue-600"
+                    : "border-b-2 text-gray-500"
+                } text-sm`}
                 onClick={() => setAttributeTab("newAttr")}
               >
                 Add New Attribute

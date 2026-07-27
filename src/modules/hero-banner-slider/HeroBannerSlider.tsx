@@ -12,8 +12,8 @@ import {
   deleteSlider,
   getSliders,
   reorderSliders,
-} from "./slider.service";
-import { SliderImage } from "./slider.types";
+} from "./hero-banner-slider.service";
+import { SliderImage } from "./hero-banner-slider.types";
 
 const ItemType = "SLIDER_IMAGE";
 

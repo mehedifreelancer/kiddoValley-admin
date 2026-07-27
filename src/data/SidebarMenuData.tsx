@@ -87,6 +87,12 @@ export const sidebarMenuData: MenuItem[] = [
         icon: <Image className="w-4 h-4" />,
         path: "/web-settings/slider",
       },
+      {
+        id: "hero-slider",
+        label: "Hero Slider",
+        icon: <Image className="w-4 h-4" />,
+        path: "/web-settings/hero-slider",
+      },
     ],
   },
   {
