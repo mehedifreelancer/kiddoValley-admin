@@ -83,11 +83,7 @@ const Button: React.FC<ButtonProps> = ({
   };
 
   return (
-    <button
-      className={buttonClasses}
-      disabled={disabled || loading}
-      {...props}
-    >
+    <button className={buttonClasses} disabled={disabled || loading} {...props}>
       {loading && (
         <span className="absolute inset-0 flex items-center justify-center">
           <Loader size={getLoaderSize()} color={getLoaderColor()} />
@@ -100,7 +96,9 @@ const Button: React.FC<ButtonProps> = ({
         {icon && iconPosition === "left" && (
           <span className="icon-left">{icon}</span>
         )}
-        {children}
+        <span className="text-nowrap flex items-center justify-between">
+          {children}
+        </span>
         {icon && iconPosition === "right" && (
           <span className="icon-right">{icon}</span>
         )}

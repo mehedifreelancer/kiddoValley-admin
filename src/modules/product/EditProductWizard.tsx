@@ -1,3 +1,6 @@
+// modules/master-data/product/EditProductWizard.tsx
+"use client";
+
 import {
   Camera,
   CheckCircle,
@@ -14,10 +17,11 @@ import { Column } from "primereact/column";
 import { DataTable } from "primereact/datatable";
 import { Dropdown } from "primereact/dropdown";
 import { Editor } from "primereact/editor";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Barcode from "react-barcode";
 import { toast } from "react-hot-toast";
 import api from "../../apiConfig";
+import AttributePrioritySelector from "../../components/AttributePrioritySelector";
 import Button from "../../components/ui/Button";
 import InputField from "../../components/ui/InputField";
 import { getCategories } from "../master-data/category/category.service";
@@ -96,6 +100,25 @@ const StepIndicator = ({ current }: { current: number }) => (
       >
         3
       </div>
+      <div className="text-sm mt-1">Priority</div>
+    </div>
+    <div
+      className={`flex-1 border-t-2 ${
+        current > 3
+          ? "border-green-500"
+          : "border-gray-300 dark:border-gray-600"
+      }`}
+    />
+    <div className="flex-1 text-center">
+      <div
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+          current === 4
+            ? "bg-blue-500 text-white border-blue-500"
+            : "bg-gray-200 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600"
+        }`}
+      >
+        4
+      </div>
       <div className="text-sm mt-1">Pricing</div>
     </div>
   </div>
@@ -152,7 +175,26 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
   const [variantImages, setVariantImages] = useState<any[]>([]);
   const [variantImageFiles, setVariantImageFiles] = useState<File[]>([]);
 
-  // ---------- Step 3: price sets ----------
+  // ---------- Step 3: Attribute Priority ----------
+  const [productAttributePriority, setProductAttributePriority] = useState<
+    string[]
+  >([]);
+  const usedAttributeNames = useMemo(() => {
+    const keys = new Set<string>();
+    variants.forEach((v) => {
+      if (v.attributes && typeof v.attributes === "object") {
+        Object.keys(v.attributes).forEach((k) => keys.add(k));
+      }
+    });
+    return Array.from(keys);
+  }, [variants]);
+
+  // Load existing priority from product when loaded
+  useEffect(() => {
+    // We'll load it in the main product load effect below
+  }, []);
+
+  // ---------- Step 4: price sets ----------
   const [pendingStocks, setPendingStocks] = useState<{
     [variantId: number]: Array<{
       id: string;
@@ -332,6 +374,14 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
         setThumbnail(product.thumbnail || null);
         setThumbnailFile(null);
 
+        // ✅ Load attributePriority from product
+        if (
+          product.attributePriority &&
+          Array.isArray(product.attributePriority)
+        ) {
+          setProductAttributePriority(product.attributePriority);
+        }
+
         const res = await api.get(`/variant/product/${productId}`);
         const variantData = (res.data.data || []).map((v: any) => ({
           ...v,
@@ -390,6 +440,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
       } else if (thumbnail) {
         formData.append("existingThumbnail", thumbnail);
       }
+      // We don't send priority here; it will be saved in handleSaveAllChanges
       await updateProduct(productId, formData);
       toast.success("Product basic info updated");
       setStep(2);
@@ -400,7 +451,20 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     }
   };
 
-  // ---------- Variant management ----------
+  // ---------- Navigation between steps ----------
+  const goToStep3 = () => {
+    if (variants.length === 0) {
+      toast.error("Please add at least one variant before setting priority.");
+      return;
+    }
+    setStep(3);
+  };
+
+  const goToStep4 = () => {
+    setStep(4);
+  };
+
+  // ---------- Variant management (unchanged) ----------
   const resetVariantForm = () => {
     setCurrentAttributes({});
     setVariantImages([]);
@@ -629,8 +693,6 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
   };
 
   // ---------- Helpers ----------
-  const formatVariantName = (variant: any) => productName;
-
   const handleValueSelect = (value: string) => {
     if (!selectedAttrName || !value) return;
     setCurrentAttributes((prev) => ({ ...prev, [selectedAttrName]: value }));
@@ -692,7 +754,26 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     if (submitting) return;
     try {
       setSubmitting(true);
+
+      // 1. Update product attributePriority if changed
+      // Compare current productAttributePriority with the one loaded from product.
+      // We need to know if it changed. We'll just send it always if it's not empty.
+      // Better to fetch the product again? We can keep it simple: if there are any priority items, send update.
+      // But we also need to handle the case when it's cleared. So we'll send the state anyway.
+      // We'll call updateProduct with attributePriority only if it changed.
+      // We can keep a reference to original priority when loading.
+      // We'll use a ref or compare with loaded. For simplicity, we'll send the state.
+      const formData = new FormData();
+      formData.append(
+        "attributePriority",
+        JSON.stringify(productAttributePriority),
+      );
+      // We don't need other fields because they are already updated in step 1.
+      await updateProduct(productId, formData);
+
+      // 2. Save pending stocks
       await saveAllPendingStocks();
+
       toast.success("Product updated successfully!");
       onProductSaved();
       onClose();
@@ -721,7 +802,16 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
   }
 
   return (
-    <div className="max-w-6xl mx-auto rounded-md">
+    <div className="max-w-6xl mx-auto rounded-md relative">
+      {/* Close button */}
+      <button
+        onClick={onClose}
+        className="absolute top-2 right-2 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors z-10"
+        aria-label="Close wizard"
+      >
+        <X size={20} className="text-gray-600 dark:text-gray-400" />
+      </button>
+
       <StepIndicator current={step} />
 
       {step === 1 && (
@@ -1122,14 +1212,44 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
             <Button variant="outline" onClick={() => setStep(1)}>
               <ChevronLeft className="w-4 h-4" /> Back
             </Button>
-            <Button variant="primary" onClick={() => setStep(3)}>
-              Pricing <ChevronRight className="w-4 h-4 mt-1" />
+            <Button variant="primary" onClick={goToStep3}>
+              Priority <ChevronRight className="w-4 h-4 mt-1" />
             </Button>
           </div>
         </div>
       )}
 
       {step === 3 && (
+        <div className="space-y-6">
+          <div className="p-4 border rounded-md border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50">
+            <h4 className="font-medium text-lg mb-2">
+              Attribute Priority (Order of display)
+            </h4>
+            <p className="text-sm text-gray-500 mb-4">
+              Drag to reorder the attributes. The first attribute will be the
+              primary filter on product cards. If no priority is set, category
+              default will be used.
+            </p>
+            <AttributePrioritySelector
+              value={productAttributePriority}
+              onChange={setProductAttributePriority}
+              availableAttributes={usedAttributeNames} // Only used attributes
+              disabled={submitting}
+            />
+          </div>
+
+          <div className="modal-sticky-footer gap-4">
+            <Button variant="outline" onClick={() => setStep(2)}>
+              <ChevronLeft className="w-4 h-4" /> Back
+            </Button>
+            <Button variant="primary" onClick={goToStep4}>
+              Pricing <ChevronRight className="w-4 h-4 mt-1" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === 4 && (
         <div className="space-y-5">
           {variants.map((variant) => {
             const existingStocks = variant.stocks || [];
@@ -1299,7 +1419,6 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
                             </div>
                           );
                         }
-                        // For existing stock – delete only if currentQty === 0
                         return (
                           <div className="flex gap-2">
                             <button
@@ -1543,7 +1662,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
           })}
           <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-700 modal-sticky-footer">
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setStep(2)}>
+              <Button variant="outline" onClick={() => setStep(3)}>
                 <ChevronLeft className="w-4 h-4" /> Back
               </Button>
               <Button

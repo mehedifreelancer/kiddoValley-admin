@@ -28,6 +28,7 @@ export interface ProductItem {
   createdAt: string;
   updatedAt: string;
   isPublished: boolean;
+  attributePriority?: string[]; // ✅ নতুন
   category?: Category;
 }
 

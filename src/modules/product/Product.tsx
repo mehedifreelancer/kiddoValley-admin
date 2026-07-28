@@ -399,18 +399,24 @@ export const Product = () => {
 
   // Product list column templates
   const imageBody = (rowData: ProductItem) => {
-    if (!rowData.images?.length)
+    if (!rowData.thumbnail) {
       return <span className="text-gray-400">—</span>;
-    const img = rowData.images[0];
+    }
     return (
-      <img
-        src={img.imgUrl}
-        alt="thumbnail"
-        className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-600"
-      />
+      <a
+        href={rowData.thumbnail}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-600 hover:opacity-80 transition-opacity"
+      >
+        <img
+          src={rowData.thumbnail}
+          alt="thumbnail"
+          className="w-full h-full object-cover"
+        />
+      </a>
     );
   };
-
   const categoryBody = (rowData: ProductItem) => (
     <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 rounded-full text-xs font-medium">
       {rowData.category?.name}

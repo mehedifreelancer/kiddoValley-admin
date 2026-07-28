@@ -1,3 +1,6 @@
+// modules/master-data/product/CreateProductWizard.tsx
+"use client";
+
 import {
   Camera,
   CheckCircle,
@@ -14,10 +17,12 @@ import { Column } from "primereact/column";
 import { DataTable } from "primereact/datatable";
 import { Dropdown } from "primereact/dropdown";
 import { Editor } from "primereact/editor";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Barcode from "react-barcode";
 import { toast } from "react-hot-toast";
+
 import api from "../../apiConfig";
+import AttributePrioritySelector from "../../components/AttributePrioritySelector";
 import Button from "../../components/ui/Button";
 import InputField from "../../components/ui/InputField";
 import { getCategories } from "../master-data/category/category.service";
@@ -100,6 +105,25 @@ const StepIndicator = ({ current }: { current: number }) => (
       >
         3
       </div>
+      <div className="text-sm mt-1">Priority</div>
+    </div>
+    <div
+      className={`flex-1 border-t-2 ${
+        current > 3
+          ? "border-green-500"
+          : "border-gray-300 dark:border-gray-600"
+      }`}
+    />
+    <div className="flex-1 text-center">
+      <div
+        className={`inline-flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+          current === 4
+            ? "bg-blue-500 text-white border-blue-500"
+            : "bg-gray-200 dark:bg-gray-700 text-gray-500 border-gray-300 dark:border-gray-600"
+        }`}
+      >
+        4
+      </div>
       <div className="text-sm mt-1">Pricing</div>
     </div>
   </div>
@@ -153,7 +177,34 @@ export const CreateProductWizard = ({
   const [showVariantForm, setShowVariantForm] = useState(false);
   const [isEditingMode, setIsEditingMode] = useState(false);
 
-  // Step 3: pending price sets
+  // Step 3: Attribute Priority (new)
+  const [productAttributePriority, setProductAttributePriority] = useState<
+    string[]
+  >([]);
+  // We'll compute used attributes dynamically from variants
+  const usedAttributeNames = useMemo(() => {
+    const keys = new Set<string>();
+    variants.forEach((v) => {
+      if (v.attributes && typeof v.attributes === "object") {
+        Object.keys(v.attributes).forEach((k) => keys.add(k));
+      }
+    });
+    return Array.from(keys);
+  }, [variants]);
+
+  // When variants change, filter productAttributePriority to only used keys
+  useEffect(() => {
+    if (productAttributePriority.length > 0) {
+      const filtered = productAttributePriority.filter((key) =>
+        usedAttributeNames.includes(key),
+      );
+      if (filtered.length !== productAttributePriority.length) {
+        setProductAttributePriority(filtered);
+      }
+    }
+  }, [usedAttributeNames]);
+
+  // Step 4: pending price sets
   const [pendingStocks, setPendingStocks] = useState<{
     [variantId: number]: Array<{
       id: string;
@@ -171,6 +222,7 @@ export const CreateProductWizard = ({
     };
   }>({});
 
+  // ===== Stock helpers =====
   const isBuyingPriceUnique = (
     variantId: number,
     buyingPrice: number,
@@ -295,7 +347,7 @@ export const CreateProductWizard = ({
         }
       }
       setPendingStocks({});
-      await fetchVariants();
+      await fetchVariants(productId!);
     } catch (err) {
       throw err;
     } finally {
@@ -303,7 +355,7 @@ export const CreateProductWizard = ({
     }
   };
 
-  // Load categories and attributes
+  // ===== Load categories and attributes =====
   useEffect(() => {
     const loadCategories = async () => {
       try {
@@ -319,6 +371,7 @@ export const CreateProductWizard = ({
       try {
         const res = await api.get("/attributes");
         setAvailableAttributes(res.data.data);
+        // We no longer set allAttributeNames globally; we compute from variants
       } catch {
         toast.error("Failed to load attributes");
       }
@@ -341,6 +394,12 @@ export const CreateProductWizard = ({
           );
           setThumbnail(product.thumbnail || null);
           setThumbnailFile(null);
+          if (
+            product.attributePriority &&
+            Array.isArray(product.attributePriority)
+          ) {
+            setProductAttributePriority(product.attributePriority);
+          }
         } catch (err) {
           console.error(err);
         }
@@ -349,6 +408,7 @@ export const CreateProductWizard = ({
     }
   }, [productId, step, categories]);
 
+  // ===== Variant CRUD =====
   const createDefaultVariant = async (prodId: number) => {
     const formData = new FormData();
     formData.append("productId", String(prodId));
@@ -359,29 +419,36 @@ export const CreateProductWizard = ({
     });
   };
 
-  const fetchVariants = async () => {
-    if (!productId) return;
+  // fetchVariants now accepts productId directly
+  const fetchVariants = async (prodId?: number) => {
+    const id = prodId || productId;
+    if (!id) return;
     try {
-      let res = await api.get(`/variant/product/${productId}`);
+      let res = await api.get(`/variant/product/${id}`);
       let dbVariants = (res.data.data || []).map((v: any) => ({
         ...v,
         images: v.images || [],
       }));
       if (dbVariants.length === 0) {
-        await createDefaultVariant(productId);
-        res = await api.get(`/variant/product/${productId}`);
+        await createDefaultVariant(id);
+        res = await api.get(`/variant/product/${id}`);
         dbVariants = (res.data.data || []).map((v: any) => ({
           ...v,
           images: v.images || [],
         }));
       }
       setVariants(dbVariants);
+      if (dbVariants.length === 0) {
+        toast.error("Failed to load variants. Please try again.");
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Fetch variants error:", err);
       toast.error("Failed to load variants");
     }
   };
 
+  // ===== Step 1 Next =====
+  // ===== Step 1 Next (আপডেটেড) =====
   const handleStep1Next = async () => {
     if (submitting) return;
 
@@ -407,9 +474,11 @@ export const CreateProductWizard = ({
       if (thumbnail !== originalProduct.thumbnail) hasChanges = true;
     }
 
-    if (!productId) {
-      try {
-        setSubmitting(true);
+    try {
+      setSubmitting(true);
+
+      if (!productId) {
+        // --- Create new product ---
         const formData = new FormData();
         formData.append("name", productName);
         formData.append("categoryId", selectedCategory.id);
@@ -417,22 +486,24 @@ export const CreateProductWizard = ({
         if (videoUrl) formData.append("videoUrl", videoUrl);
         if (productDetails) formData.append("description", productDetails);
         if (thumbnailFile) formData.append("thumbnail", thumbnailFile);
+        if (productAttributePriority && productAttributePriority.length > 0) {
+          formData.append(
+            "attributePriority",
+            JSON.stringify(productAttributePriority),
+          );
+        }
         const newProduct = await createProduct(formData);
         setProductId(newProduct.id);
         setOriginalProduct(newProduct);
         toast.success("Product saved");
+        onProductSaved(); // ✅ রিফ্রেশ লিস্ট
+
         await createDefaultVariant(newProduct.id);
-        await fetchVariants();
+        await fetchVariants(newProduct.id);
         setStep(2);
-      } catch (err: any) {
-        toast.error(err.message || "Failed to save product");
-      } finally {
-        setSubmitting(false);
-      }
-    } else {
-      if (hasChanges) {
-        try {
-          setSubmitting(true);
+      } else {
+        // --- Editing existing product ---
+        if (hasChanges) {
           const formData = new FormData();
           formData.append("name", productName);
           formData.append("categoryId", selectedCategory.id);
@@ -444,23 +515,48 @@ export const CreateProductWizard = ({
           } else if (thumbnail) {
             formData.append("existingThumbnail", thumbnail);
           }
+          if (productAttributePriority && productAttributePriority.length > 0) {
+            formData.append(
+              "attributePriority",
+              JSON.stringify(productAttributePriority),
+            );
+          } else {
+            formData.append("attributePriority", JSON.stringify([]));
+          }
           await updateProduct(productId, formData);
           toast.success("Product updated");
           const updatedProduct = await getProductById(productId);
           setOriginalProduct(updatedProduct);
           setThumbnail(updatedProduct.thumbnail || null);
           setThumbnailFile(null);
-        } catch (err: any) {
-          toast.error(err.message || "Failed to update product");
-        } finally {
-          setSubmitting(false);
+          onProductSaved(); // ✅ রিফ্রেশ লিস্ট
         }
+
+        // ✅ ভেরিয়েন্ট ফেচ করে স্টেপ ২-এ যাই (যদি ইতিমধ্যে লোড করা থাকে, তাও ঠিক আছে)
+        await fetchVariants(productId);
+        setStep(2);
       }
-      setStep(2);
-      await fetchVariants();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save product");
+    } finally {
+      setSubmitting(false);
     }
   };
 
+  // ===== Navigation between steps =====
+  const goToStep3 = () => {
+    if (variants.length === 0) {
+      toast.error("Please add at least one variant before setting priority.");
+      return;
+    }
+    setStep(3);
+  };
+
+  const goToStep4 = () => {
+    setStep(4);
+  };
+
+  // ===== Other variant functions =====
   const deleteDefaultVariantIfExists = async () => {
     const defaultVariant = variants.find(
       (v) => Object.keys(v.attributes || {}).length === 0,
@@ -533,7 +629,7 @@ export const CreateProductWizard = ({
         toast.success("Variant added");
         await deleteDefaultVariantIfExists();
       }
-      await fetchVariants();
+      await fetchVariants(productId);
       closeVariantForm();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to save variant");
@@ -563,7 +659,7 @@ export const CreateProductWizard = ({
     try {
       await api.delete(`/variant/${id}`);
       toast.success("Variant deleted");
-      await fetchVariants();
+      await fetchVariants(productId!);
       if (editingVariantId === id) closeVariantForm();
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to delete variant");
@@ -589,7 +685,7 @@ export const CreateProductWizard = ({
         headers: { "Content-Type": "multipart/form-data" },
       });
       toast.success("Images added");
-      await fetchVariants();
+      await fetchVariants(productId!);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to upload images");
     } finally {
@@ -611,7 +707,7 @@ export const CreateProductWizard = ({
         headers: { "Content-Type": "multipart/form-data" },
       });
       toast.success("Image removed");
-      await fetchVariants();
+      await fetchVariants(productId!);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to remove image");
     } finally {
@@ -679,8 +775,7 @@ export const CreateProductWizard = ({
     setThumbnailFile(null);
   };
 
-  const formatVariantName = (variant: any) => productName;
-
+  // ===== Attribute helpers =====
   const handleValueSelect = (value: string) => {
     if (!selectedAttrName || !value) return;
     setCurrentAttributes((prev) => ({ ...prev, [selectedAttrName]: value }));
@@ -729,17 +824,7 @@ export const CreateProductWizard = ({
     }
   };
 
-  useEffect(() => {
-    if (step === 2 && productId) {
-      fetchVariants();
-    }
-  }, [step, productId]);
-
-  const isDefaultVariant =
-    isEditingMode &&
-    editingVariantId &&
-    Object.keys(currentAttributes).length === 0;
-
+  // ===== Step 4 helpers =====
   const hasMissingPriceSet = () => {
     for (const variant of variants) {
       const existingCount = variant.stocks?.length || 0;
@@ -749,12 +834,29 @@ export const CreateProductWizard = ({
     return false;
   };
 
+  // modules/master-data/product/CreateProductWizard.tsx
+  // শুধুমাত্র পরিবর্তিত অংশ দেখানো হলো – বাকি সব আগের মতোই থাকবে
+
+  // ===== Save draft / publish (আপডেটেড) =====
   const handleSaveDraft = async () => {
     if (!productId) return;
     if (submitting) return;
     try {
       setSubmitting(true);
+      // ১. পেন্ডিং স্টক সেভ করো
       await saveAllPendingStocks();
+
+      // ২. প্রোডাক্টের attributePriority আপডেট করো (যদি priority সেট করা থাকে)
+      if (productAttributePriority && productAttributePriority.length > 0) {
+        const formData = new FormData();
+        formData.append(
+          "attributePriority",
+          JSON.stringify(productAttributePriority),
+        );
+        // অন্যান্য ফিল্ড পাঠানোর দরকার নেই – শুধু priority আপডেট
+        await updateProduct(productId, formData);
+      }
+
       toast.success("Product saved to draft successfully!");
       onProductSaved();
       onClose();
@@ -770,7 +872,20 @@ export const CreateProductWizard = ({
     if (submitting) return;
     try {
       setSubmitting(true);
+      // ১. পেন্ডিং স্টক সেভ করো
       await saveAllPendingStocks();
+
+      // ২. প্রোডাক্টের attributePriority আপডেট করো (যদি priority সেট করা থাকে)
+      if (productAttributePriority && productAttributePriority.length > 0) {
+        const formData = new FormData();
+        formData.append(
+          "attributePriority",
+          JSON.stringify(productAttributePriority),
+        );
+        await updateProduct(productId, formData);
+      }
+
+      // ৩. পাবলিশ করো
       await api.patch(`/products/publish/${productId}`);
       toast.success("Product registered successfully!");
       onProductSaved();
@@ -792,8 +907,14 @@ export const CreateProductWizard = ({
     return existing + pending;
   };
 
+  const isDefaultVariant =
+    isEditingMode &&
+    editingVariantId &&
+    Object.keys(currentAttributes).length === 0;
+
+  // ===== Render =====
   return (
-    <div className="max-w-6xl mx-auto rounded-md">
+    <div className="max-w-6xl mx-auto rounded-md relative">
       <StepIndicator current={step} />
 
       {step === 1 && (
@@ -1195,14 +1316,44 @@ export const CreateProductWizard = ({
             <Button variant="outline" onClick={() => setStep(1)}>
               <ChevronLeft className="w-4 h-4" /> Back
             </Button>
-            <Button variant="primary" onClick={() => setStep(3)}>
-              Pricing <ChevronRight className="w-4 h-4 mt-1" />
+            <Button variant="primary" onClick={goToStep3}>
+              Priority <ChevronRight className="w-4 h-4 mt-1" />
             </Button>
           </div>
         </div>
       )}
 
       {step === 3 && (
+        <div className="space-y-6">
+          <div className="p-4 border rounded-md border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50">
+            <h4 className="font-medium text-lg mb-2">
+              Attribute Priority (Order of display)
+            </h4>
+            <p className="text-sm text-gray-500 mb-4">
+              Drag to reorder the attributes. The first attribute will be the
+              primary filter on product cards. If no priority is set, category
+              default will be used.
+            </p>
+            <AttributePrioritySelector
+              value={productAttributePriority}
+              onChange={setProductAttributePriority}
+              availableAttributes={usedAttributeNames} // ✅ Only show used attributes
+              disabled={submitting}
+            />
+          </div>
+
+          <div className="modal-sticky-footer gap-4">
+            <Button variant="outline" onClick={() => setStep(2)}>
+              <ChevronLeft className="w-4 h-4" /> Back
+            </Button>
+            <Button variant="primary" onClick={goToStep4}>
+              Pricing <ChevronRight className="w-4 h-4 mt-1" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === 4 && (
         <div className="space-y-5">
           {variants.map((variant) => {
             const existingStocks = variant.stocks || [];
@@ -1579,7 +1730,7 @@ export const CreateProductWizard = ({
           })}
           <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-700 modal-sticky-footer">
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setStep(2)}>
+              <Button variant="outline" onClick={() => setStep(3)}>
                 <ChevronLeft className="w-4 h-4" /> Back
               </Button>
               <Button
