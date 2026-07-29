@@ -1,50 +1,52 @@
 import api from "../../apiConfig";
+import { CreateOrderPayload } from "./order.types";
 
-// ---------- Order creation flows ----------
+// অর্ডার তৈরি (status new)
+export const createOrder = (payload: CreateOrderPayload) =>
+  api.post("/orders", payload).then((res) => res.data);
 
-// 1. Confirm order – DB only (no Pathao, no email from backend)
-export const createOrder = (payload: any) => {
-  return api.post("/orders/confirm", payload);
-};
+// অর্ডার তৈরি + কনফর্ম (status confirmed + Pathao)
+export const createAndConfirmOrder = (payload: CreateOrderPayload) =>
+  api.post("/orders/confirm-and-pack", payload).then((res) => res.data);
 
-// 2. Confirm & Pack – DB + Pathao + mandatory email (backend)
-export const confirmAndPack = (payload: any) => {
-  return api.post("/orders/confirm-and-pack", payload);
-};
-export const checkCustomerExists = async (phone: string) => {
-  try {
-    const response = await api.get(`/customers/${phone}`);
-    return response.data.success && response.data.data !== null;
-  } catch {
-    return false;
-  }
-};
-// ---------- Order list (pagination + search) ----------
-export const getOrders = async (
+// কাস্টমার চেক (ফোন নম্বর দিয়ে)
+export const checkCustomerExists = (phone: string) =>
+  api.get(`/customers/check?phone=${phone}`).then((res) => res.data);
+
+// অর্ডার কনফর্ম (ইতিমধ্যে তৈরি অর্ডার -> confirmed + Pathao)
+export const confirmOrder = (id: number) =>
+  api.put(`/orders/${id}/confirm`).then((res) => res.data);
+
+// অর্ডার আপডেট (শুধু কাস্টমার ইনফো, 'new' স্ট্যাটাসে)
+export const updateOrder = (id: number, payload: any) =>
+  api.put(`/orders/${id}`, payload).then((res) => res.data);
+
+// অর্ডার বাতিল (status cancelled)
+export const cancelOrder = (id: number) =>
+  api.delete(`/orders/${id}`).then((res) => res.data);
+
+// অর্ডার ডিলিট (শুধু cancelled হলে)
+export const deleteOrder = (id: number) =>
+  api.delete(`/orders/${id}/delete`).then((res) => res.data);
+
+// অর্ডার ডিটেইলস
+export const getOrderDetails = (id: number) =>
+  api.get(`/orders/${id}`).then((res) => res.data);
+
+// অর্ডার লিস্ট
+export const getOrders = (
   page: number,
   limit: number,
   search: string,
   sortBy: string,
-  sortOrder: "asc" | "desc",
-) => {
-  const response = await api.get("/orders/orders", {
-    params: { page, limit, search, sortBy, sortOrder },
-  });
-  return response.data;
-};
+  sortOrder: string,
+) =>
+  api
+    .get(
+      `orders?page=${page}&limit=${limit}&search=${search}&sortBy=${sortBy}&sortOrder=${sortOrder}`,
+    )
+    .then((res) => res.data);
 
-// ---------- Batch sync Pathao statuses ----------
-export const syncPathaoStatuses = async (orderIds: number[]) => {
-  const response = await api.post("/orders/sync-statuses", { orderIds });
-  return response.data;
-};
-
-// ---------- Pack existing order (for OrderList) ----------
-export const packOrder = (orderId: number) => {
-  return api.post(`/orders/${orderId}/pack`);
-};
-
-// ---------- Reprint order ----------
-export const reprintOrder = (orderId: number) => {
-  return api.get(`/orders/${orderId}/reprint`);
-};
+// (ঐচ্ছিক) পাথাও স্ট্যাটাস সিঙ্ক
+export const syncPathaoStatuses = (orderIds: number[]) =>
+  api.post("/orders/sync-statuses", { orderIds }).then((res) => res.data);

@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowUpDown, Delete, Plus, Trash2 } from "lucide-react";
+import { ArrowUpDown, Delete, Plus, Save, Trash2 } from "lucide-react";
 import { Calendar } from "primereact/calendar";
 import { Column } from "primereact/column";
 import { DataTable } from "primereact/datatable";
 import { InputNumber } from "primereact/inputnumber";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
+import { useNavigate, useParams } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import InputField from "../../components/ui/InputField";
 import Modal from "../../components/ui/Modal";
@@ -16,13 +17,12 @@ import { parseWithGroq } from "../geminie/groq.service";
 import { StockTable, StockTableColumn } from "../stock/StockTable";
 import { getStockList } from "../stock/stock.service";
 import { FlatStockItem } from "../stock/stock.types";
-import { orderPayloadSchema } from "./order.schems";
 import {
   checkCustomerExists,
-  createAndConfirmOrder,
-  createOrder,
+  getOrderDetails,
+  updateOrder,
 } from "./order.service";
-import { CreateOrderPayload, OrderItem } from "./order.types";
+import { OrderItem } from "./order.types";
 
 // ---------- Thumbnails ----------
 const VariantThumbnails = ({ images }: { images: any[] }) => {
@@ -60,14 +60,15 @@ const formatProfit = (sellingPrice: number, buyingPrice: number) => {
   return `${profit.toFixed(2)} TK (${percent.toFixed(1)}%)`;
 };
 
-// ---------- Print receipt helper ----------
-const handlePrintReceipt = (order: any) => {
-  console.log("Print receipt for order:", order.invoiceNo);
-  toast.info("Printing receipt (mock)");
-};
-
 // ---------- Main Component ----------
-export const Order: React.FC = () => {
+const EditOrder: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [orderData, setOrderData] = useState<any>(null);
+  const [isNew, setIsNew] = useState(false);
+
   // Customer form
   const [accountName, setAccountName] = useState("");
   const [recipientName, setRecipientName] = useState("");
@@ -83,7 +84,7 @@ export const Order: React.FC = () => {
   const [checking, setChecking] = useState(false);
   const phoneCheckTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  // ----- State -----
+  // Order items state
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [allStockItems, setAllStockItems] = useState<FlatStockItem[]>([]);
   const [reservedQuantities, setReservedQuantities] = useState<
@@ -93,7 +94,7 @@ export const Order: React.FC = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Modals
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showEditConfirmModal, setShowEditConfirmModal] = useState(false);
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
   const [rawText, setRawText] = useState("");
@@ -105,6 +106,69 @@ export const Order: React.FC = () => {
   // Sorting state
   const [sortField, setSortField] = useState("currentQty");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+
+  // ---------- Load Order Data ----------
+  useEffect(() => {
+    if (id) {
+      fetchOrder();
+    }
+  }, [id]);
+
+  const fetchOrder = async () => {
+    try {
+      const result = await getOrderDetails(Number(id));
+      const data = result.data;
+      setOrderData(data);
+      const newStatus = data.orderStatus === "new";
+      setIsNew(newStatus);
+
+      setAccountName(data.customerName || "");
+      setRecipientName(data.customerName || "");
+      setCustomerPhone(data.customerPhone || "");
+      setCustomerPhone2(data.customerPhone2 || "");
+      setCustomerAddress(data.customerAddress || "");
+      setGender(data.gender || undefined);
+      setHasBaby(data.hasBaby ?? undefined);
+      setPreferredToy(data.preferredToy || "");
+      setDeliveryDate(
+        data.deliveryDate ? new Date(data.deliveryDate) : new Date(),
+      );
+
+      if (data.soldItems && data.soldItems.length > 0) {
+        // Convert soldItems to OrderItem format
+        const items: OrderItem[] = data.soldItems.map((item: any) => ({
+          stockId: item.stockId || 0,
+          batchNo: "N/A",
+          productName: item.productName,
+          sku: item.variantSku,
+          buyingPrice: 0,
+          sellingPrice: item.unitPrice,
+          discountPercent: 0,
+          quantity: item.quantity,
+          // ⚠️ maxQuantity will be updated later when stock loads; temporarily set to quantity
+          maxQuantity: item.quantity,
+          total: item.totalPrice,
+          discountAmount: 0,
+          finalPrice: item.totalPrice,
+          profitTk: 0,
+          profitPercent: 0,
+        }));
+        setOrderItems(items);
+
+        // Initialize reserved quantities
+        const reserved: Record<number, number> = {};
+        items.forEach((item) => {
+          reserved[item.stockId] = item.quantity;
+        });
+        setReservedQuantities(reserved);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load order");
+      navigate("/order-list");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ---------- Customer check ----------
   const checkCustomer = async (phone: string) => {
@@ -131,20 +195,22 @@ export const Order: React.FC = () => {
     }, 500);
   };
 
-  // ---------- Order item functions ----------
+  // ---------- Order item functions (WITH FALLBACK) ----------
   const getAvailableQty = (stock: FlatStockItem) => {
     const reserved = reservedQuantities[stock.id] || 0;
     return stock.currentQty - reserved;
   };
 
+  // 🔧 FIX: updateQuantity now uses fallback if stock not found in allStockItems
   const updateQuantity = (stockId: number, newQty: number) => {
     setOrderItems((prev) =>
       prev.map((item) => {
         if (item.stockId !== stockId) return item;
         const stock = allStockItems.find((s) => s.id === stockId);
-        if (!stock) return item;
+        // Fallback: if stock not loaded, use item.maxQuantity as current stock
+        const currentQty = stock ? stock.currentQty : item.maxQuantity;
         const reserved = reservedQuantities[stockId] || 0;
-        const maxAvailable = stock.currentQty - reserved + item.quantity;
+        const maxAvailable = currentQty - reserved + item.quantity;
         const qty = Math.min(Math.max(1, newQty), maxAvailable);
         if (qty !== newQty && newQty > qty) {
           toast.warn(`Only ${maxAvailable} units available`);
@@ -171,7 +237,35 @@ export const Order: React.FC = () => {
     );
   };
 
+  // 🔧 FIX: increaseQuantity uses fallback and toasts properly
+  const increaseQuantity = (stockId: number) => {
+    if (!isNew) {
+      toast.error("Cannot modify items in a non-editable order");
+      return;
+    }
+    const item = orderItems.find((i) => i.stockId === stockId);
+    if (!item) {
+      toast.error("Item not found in order");
+      return;
+    }
+    const stock = allStockItems.find((s) => s.id === stockId);
+    // Fallback: use item.maxQuantity if stock not loaded
+    const currentQty = stock ? stock.currentQty : item.maxQuantity;
+    const reserved = reservedQuantities[stockId] || 0;
+    const maxAllowed = currentQty - reserved + item.quantity;
+    const newQty = Math.min(item.quantity + 1, maxAllowed);
+    if (newQty === item.quantity) {
+      toast.info(`Max quantity (${maxAllowed}) reached`);
+      return;
+    }
+    updateQuantity(stockId, newQty);
+  };
+
   const addItemToOrder = (stock: FlatStockItem) => {
+    if (!isNew) {
+      toast.error("Cannot add items to a non-editable order");
+      return;
+    }
     const available = getAvailableQty(stock);
     if (available <= 0) {
       toast.error(
@@ -205,25 +299,11 @@ export const Order: React.FC = () => {
     }));
   };
 
-  const increaseQuantity = (stockId: number) => {
-    const item = orderItems.find((i) => i.stockId === stockId);
-    if (!item) {
-      toast.error("Item not found in order");
-      return;
-    }
-    const stock = allStockItems.find((s) => s.id === stockId);
-    if (!stock) return;
-    const reserved = reservedQuantities[stockId] || 0;
-    const maxAllowed = stock.currentQty - reserved + item.quantity;
-    const newQty = Math.min(item.quantity + 1, maxAllowed);
-    if (newQty === item.quantity) {
-      toast.info(`Max quantity (${maxAllowed}) reached`);
-      return;
-    }
-    updateQuantity(stockId, newQty);
-  };
-
   const addOrIncrementStock = (stock: FlatStockItem) => {
+    if (!isNew) {
+      toast.error("Cannot modify items in a non-editable order");
+      return;
+    }
     const existing = orderItems.find((item) => item.stockId === stock.id);
     if (existing) {
       increaseQuantity(stock.id);
@@ -233,6 +313,10 @@ export const Order: React.FC = () => {
   };
 
   const removeItem = (stockId: number) => {
+    if (!isNew) {
+      toast.error("Cannot remove items from a non-editable order");
+      return;
+    }
     const item = orderItems.find((i) => i.stockId === stockId);
     if (item) {
       setReservedQuantities((prev) => ({
@@ -244,6 +328,10 @@ export const Order: React.FC = () => {
   };
 
   const clearAllItems = () => {
+    if (!isNew) {
+      toast.error("Cannot clear items from a non-editable order");
+      return;
+    }
     if (orderItems.length === 0) {
       toast.info("No items to clear.");
       return;
@@ -254,6 +342,10 @@ export const Order: React.FC = () => {
   };
 
   const handleAddToOrder = (stock: FlatStockItem) => {
+    if (!isNew) {
+      toast.error("Cannot modify items in a non-editable order");
+      return;
+    }
     const available = getAvailableQty(stock);
     if (available <= 0) {
       toast.error(
@@ -319,6 +411,16 @@ export const Order: React.FC = () => {
 
   const handleStockDataChange = (data: FlatStockItem[]) => {
     setAllStockItems(data);
+    // Optionally, update maxQuantity for existing items when stock data loads
+    setOrderItems((prev) =>
+      prev.map((item) => {
+        const stock = data.find((s) => s.id === item.stockId);
+        if (stock) {
+          return { ...item, maxQuantity: stock.currentQty };
+        }
+        return item;
+      }),
+    );
   };
 
   const totalItems = orderItems.reduce((sum, i) => sum + i.quantity, 0);
@@ -334,7 +436,77 @@ export const Order: React.FC = () => {
     customerPhone.trim() !== "" &&
     customerAddress.trim() !== "";
 
+  // ---------- Save Handler ----------
+  const performSave = async () => {
+    if (!isNew) {
+      toast.error("Only new orders can be edited");
+      return false;
+    }
+    if (!isCustomerFormValid()) {
+      toast.error(
+        "Please fill in account name, recipient name, phone, and address",
+      );
+      return false;
+    }
+    if (orderItems.length === 0) {
+      toast.error("Order must have at least one item");
+      return false;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        customerName: recipientName,
+        accountName,
+        customerPhone,
+        customerPhone2,
+        customerAddress,
+        gender,
+        hasBaby,
+        preferredToy,
+        deliveryDate: deliveryDate.toISOString(),
+        items: orderItems.map((item) => ({
+          stockId: item.stockId,
+          quantity: item.quantity,
+          unitPrice: item.sellingPrice,
+          totalPrice: item.total,
+        })),
+        subtotal: orderItems.reduce((sum, i) => sum + i.total, 0),
+        discountTotal: totalDiscount,
+        total: totalBill,
+      };
+
+      await updateOrder(Number(id), payload);
+      toast.success("Order updated successfully!");
+      navigate("/order-list");
+      return true;
+    } catch (error: any) {
+      if (
+        error.response?.data?.message?.includes("not found") ||
+        error.response?.data?.message?.includes("cancelled") ||
+        error.response?.data?.message?.includes(
+          "Only 'new' orders can be edited",
+        )
+      ) {
+        toast.error(
+          "Order is no longer editable. It may have been confirmed or cancelled.",
+        );
+        fetchOrder();
+      } else {
+        toast.error(error.response?.data?.message || "Update failed");
+      }
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ---------- Next handler ----------
   const handleNext = () => {
+    if (!isNew) {
+      toast.error("Only new orders can be saved");
+      return;
+    }
     if (!isCustomerFormValid()) {
       toast.error(
         "Please fill in account name, recipient name, phone, and address",
@@ -345,123 +517,17 @@ export const Order: React.FC = () => {
       toast.error("Please add at least one item");
       return;
     }
-    setShowConfirmModal(true);
-  };
-
-  const buildPayload = (): CreateOrderPayload => ({
-    customerName: recipientName,
-    accountName,
-    customerPhone,
-    customerPhone2,
-    customerAddress,
-    gender,
-    hasBaby,
-    preferredToy,
-    deliveryDate: deliveryDate.toISOString(),
-    items: orderItems.map((item) => ({
-      stockId: item.stockId,
-      quantity: item.quantity,
-      unitPrice: item.sellingPrice,
-      totalPrice: item.total,
-    })),
-    subtotal: orderItems.reduce((sum, i) => sum + i.total, 0),
-    discountTotal: totalDiscount,
-    total: totalBill,
-  });
-
-  // ---------- HANDLERS (সব sendEmail বাদ) ----------
-  // ১. শুধু অর্ডার তৈরি (status 'new') – পাথাও নেই
-  const handleConfirmOnly = async () => {
-    const payload = buildPayload();
-    const result = orderPayloadSchema.safeParse(payload);
-    if (!result.success) {
-      // ✅ সঠিক পদ্ধতি: result.error.issues ব্যবহার করুন
-      const errorMessages = result.error.issues
-        .map((e) => e.message)
-        .join("\n");
-      toast.error(`Validation failed:\n${errorMessages}`);
-      console.error("Validation errors:", result.error.issues);
-      return;
-    }
-    try {
-      await createOrder(payload);
-      toast.success("Order created (status: new)!");
-      resetForm();
-      setShowConfirmModal(false);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to create order");
-    }
-  };
-
-  // ২. অর্ডার তৈরি + কনফর্ম (status 'confirmed' + পাথাও)
-  const handleConfirmAndBook = async () => {
-    const payload = buildPayload();
-    const result = orderPayloadSchema.safeParse(payload);
-    if (!result.success) {
-      const errorMessages = result.error.issues
-        .map((e) => e.message)
-        .join("\n");
-      toast.error(`Validation failed:\n${errorMessages}`);
-      console.error("Validation errors:", result.error.issues);
-      return;
-    }
-    try {
-      await createAndConfirmOrder(payload);
-      toast.success("Order created and confirmed (Pathao booked)!");
-      resetForm();
-      setShowConfirmModal(false);
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Failed to create and confirm order",
-      );
-    }
-  };
-
-  // ৩. অর্ডার তৈরি + কনফর্ম + প্রিন্ট
-  const handleConfirmBookAndPrint = async () => {
-    const payload = buildPayload();
-    const result = orderPayloadSchema.safeParse(payload);
-    if (!result.success) {
-      const errorMessages = result.error.issues
-        .map((e) => e.message)
-        .join("\n");
-      toast.error(`Validation failed:\n${errorMessages}`);
-      console.error("Validation errors:", result.error.issues);
-      return;
-    }
-    try {
-      const response = await createAndConfirmOrder(payload);
-      toast.success("Order created, confirmed, and booked!");
-      handlePrintReceipt(response.data);
-      resetForm();
-      setShowConfirmModal(false);
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Failed to create and confirm order",
-      );
-    }
-  };
-
-  // রিসেট ফাংশন
-  const resetForm = () => {
-    setOrderItems([]);
-    setReservedQuantities({});
-    setAccountName("");
-    setRecipientName("");
-    setCustomerPhone("");
-    setCustomerPhone2("");
-    setCustomerAddress("");
-    setGender(undefined);
-    setHasBaby(undefined);
-    setPreferredToy("");
-    setDeliveryDate(new Date());
-    setCustomerExists(null);
+    setShowEditConfirmModal(true);
   };
 
   // ---------- AI Fillup ----------
   const [loadingAI, setLoadingAI] = useState(false);
 
   const handleAIFillup = async () => {
+    if (!isNew) {
+      toast.error("AI Fillup is only available for new orders");
+      return;
+    }
     if (!rawText.trim()) {
       toast.error("Please paste some customer text first");
       return;
@@ -581,7 +647,7 @@ export const Order: React.FC = () => {
             variant="outline"
             onClick={() => handleAddToOrder(row)}
             className="flex items-center gap-1 p-button-sm"
-            disabled={available <= 0}
+            disabled={!isNew || available <= 0}
           >
             <Plus className="w-4 h-4" />
             Select
@@ -640,6 +706,7 @@ export const Order: React.FC = () => {
       max={row.maxQuantity}
       size={2}
       className="w-20"
+      disabled={!isNew}
     />
   );
   const orderLineTotalBody = (row: OrderItem) => (
@@ -653,6 +720,7 @@ export const Order: React.FC = () => {
       variant="danger"
       onClick={() => removeItem(row.stockId)}
       className="p-button-sm flex items-center gap-1"
+      disabled={!isNew}
     >
       <Trash2 className="w-4 h-4" />
     </Button>
@@ -674,8 +742,21 @@ export const Order: React.FC = () => {
   // ---------- Render ----------
   const reservedKey = JSON.stringify(reservedQuantities);
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (!orderData) {
+    return <div>Order not found</div>;
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 p-2">
+      {/* Left – Stock Table */}
       <StockTable
         key={reservedKey}
         title="Stock List"
@@ -700,20 +781,41 @@ export const Order: React.FC = () => {
       {/* Right Column – Current Order */}
       <div className="flex flex-col gap-2">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 max-h-[550px] overflow-scroll">
-          <Toolbar title="Current Order">
+          <Toolbar title="Edit Order">
             <div className="flex items-center justify-between w-full">
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                {orderItems.length} item{orderItems.length !== 1 ? "s" : ""}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {orderItems.length} item{orderItems.length !== 1 ? "s" : ""}
+                </span>
+                {!isNew && (
+                  <span className="text-xs text-red-500 font-medium">
+                    (Read-only – order is {orderData.orderStatus})
+                  </span>
+                )}
               </div>
-              <Button
-                size="xs"
-                variant="danger"
-                onClick={clearAllItems}
-                className="flex items-center gap-1"
-              >
-                <Delete className="w-4 h-4" />
-                Clear
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="xs"
+                  variant="danger"
+                  onClick={clearAllItems}
+                  className="flex items-center gap-1"
+                  disabled={!isNew}
+                >
+                  <Delete className="w-4 h-4" />
+                  Clear
+                </Button>
+                <Button
+                  size="xs"
+                  variant="primary"
+                  onClick={performSave}
+                  disabled={!isNew || saving}
+                  loading={saving}
+                  className="flex items-center gap-1"
+                >
+                  <Save className="w-4 h-4" />
+                  Save
+                </Button>
+              </div>
             </div>
           </Toolbar>
 
@@ -819,13 +921,18 @@ export const Order: React.FC = () => {
                 <span className="text-xs text-gray-400">Checking...</span>
               )}
               <div className="flex-1"></div>
-              <Button variant="outline" onClick={() => setShowAIModal(true)}>
+              <Button
+                variant="outline"
+                onClick={() => setShowAIModal(true)}
+                disabled={!isNew}
+              >
                 AI Fillup
               </Button>
               <Button
                 variant="primary"
                 onClick={handleNext}
                 className="flex items-center gap-2"
+                disabled={!isNew}
               >
                 Next <span className="ml-1">→</span>
               </Button>
@@ -837,6 +944,7 @@ export const Order: React.FC = () => {
                 label="Recipient Name *"
                 value={recipientName}
                 onChange={(e) => setRecipientName(e.target.value)}
+                disabled={!isNew}
                 required
                 className="w-full"
               />
@@ -844,6 +952,9 @@ export const Order: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Phone *{" "}
+                {!isNew && (
+                  <span className="text-xs text-red-500">(read-only)</span>
+                )}
                 {customerExists !== null && (
                   <span
                     className={`ml-2 text-xs font-semibold px-2 py-0.5 rounded-full ${
@@ -865,6 +976,7 @@ export const Order: React.FC = () => {
                 value={customerPhone}
                 onChange={(e: any) => handlePhoneChange(e.target.value)}
                 placeholder="Enter phone number"
+                disabled={!isNew}
                 required
                 className="w-full"
               />
@@ -874,6 +986,7 @@ export const Order: React.FC = () => {
                 label="Secondary Phone"
                 value={customerPhone2}
                 onChange={(e) => setCustomerPhone2(e.target.value)}
+                disabled={!isNew}
                 className="w-full"
               />
             </div>
@@ -884,6 +997,7 @@ export const Order: React.FC = () => {
               <Calendar
                 value={deliveryDate}
                 onChange={(e) => setDeliveryDate(e.value as Date)}
+                disabled={!isNew}
                 className="w-full border-b border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600"
                 showIcon
               />
@@ -893,6 +1007,7 @@ export const Order: React.FC = () => {
                 label="Address *"
                 value={customerAddress}
                 onChange={(e) => setCustomerAddress(e.target.value)}
+                disabled={!isNew}
                 required
                 className="w-full"
               />
@@ -902,6 +1017,7 @@ export const Order: React.FC = () => {
                 label="Account Name *"
                 value={accountName}
                 onChange={(e) => setAccountName(e.target.value)}
+                disabled={!isNew}
                 required
                 className="w-full"
               />
@@ -911,6 +1027,7 @@ export const Order: React.FC = () => {
                 label="Gender"
                 value={gender || ""}
                 onChange={(e) => setGender(e.target.value)}
+                disabled={!isNew}
                 className="w-full"
               />
             </div>
@@ -1009,7 +1126,7 @@ export const Order: React.FC = () => {
             <Button
               variant="primary"
               onClick={handleAIFillup}
-              disabled={loadingAI}
+              disabled={loadingAI || !isNew}
             >
               {loadingAI ? "Loading..." : "Fill & Close"}
             </Button>
@@ -1017,121 +1134,49 @@ export const Order: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Confirmation Modal */}
+      {/* ===== Edit Confirmation Modal ===== */}
       <Modal
-        isOpen={showConfirmModal}
-        onClose={() => setShowConfirmModal(false)}
-        title="Confirm Order"
-        size="xl"
+        isOpen={showEditConfirmModal}
+        onClose={() => setShowEditConfirmModal(false)}
+        title="Confirm Update"
+        size="md"
       >
-        <div className="p-1 space-y-3">
-          <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded text-[14px]">
-            <h4 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
-              Customer Details
-              {customerExists !== null && (
-                <span
-                  className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                    customerExists
-                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                      : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-                  }`}
-                >
-                  {customerExists ? "Returning" : "New"}
-                </span>
-              )}
-            </h4>
-            <p className="text-gray-600 dark:text-gray-300">
-              Account Holder: {accountName}
-            </p>
-            <p className="text-gray-600 dark:text-gray-300">
-              Recipient: {recipientName}
-            </p>
-            <p className="text-gray-600 dark:text-gray-300">
-              Phone: {customerPhone}
-            </p>
-            {customerPhone2 && (
-              <p className="text-gray-600 dark:text-gray-300">
-                Alt Phone: {customerPhone2}
-              </p>
-            )}
-            <p className="text-gray-600 dark:text-gray-300">
-              Address: {customerAddress}
-            </p>
-            {gender && (
-              <p className="text-gray-600 dark:text-gray-300">
-                Gender: {gender}
-              </p>
-            )}
-            {hasBaby !== undefined && (
-              <p className="text-gray-600 dark:text-gray-300">
-                Has Baby: {hasBaby ? "Yes" : "No"}
-              </p>
-            )}
-            {preferredToy && (
-              <p className="text-gray-600 dark:text-gray-300">
-                Preferred Toy: {preferredToy}
-              </p>
-            )}
-            <p className="text-gray-600 dark:text-gray-300">
-              Delivery Date: {deliveryDate.toLocaleDateString()}
-            </p>
-          </div>
-
-          {/* Order Items Table */}
-          <div className="table-container">
-            <DataTable rowClassName="table-row" value={orderItems} size="small">
-              <Column
-                field="productName"
-                header="Product"
-                headerClassName="column-header"
-                bodyClassName="column-body"
-              />
-              <Column
-                field="sku"
-                header="SKU"
-                headerClassName="column-header"
-                bodyClassName="column-body"
-              />
-              <Column
-                field="quantity"
-                header="Qty"
-                headerClassName="column-header"
-                bodyClassName="column-body"
-              />
-              <Column
-                field="finalPrice"
-                header="Selling Price"
-                body={(row) => `${row.finalPrice.toFixed(2)} TK`}
-                headerClassName="column-header"
-                bodyClassName="column-body"
-                footer={() => (
-                  <div className="font-bold text-gray-800 dark:text-gray-200 flex text-[13px] ml-[-30px]">
-                    <span className="mr-2">Total:</span>
-                    <span className="text-green-600 dark:text-green-400">
-                      {totalBill.toFixed(2)} TK
-                    </span>
-                  </div>
-                )}
-              />
-            </DataTable>
-          </div>
-
-          {/* Footer buttons – ৪টি বাটন */}
-          <div className="flex justify-end gap-3 mt-4 pt-4 border-t dark:border-gray-700">
+        <div className="p-4">
+          <p className="text-gray-700 dark:text-gray-300">
+            Are you sure you want to update this order?
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            This will save all changes and you will be redirected to the order
+            list.
+          </p>
+          <div className="flex justify-end gap-3 mt-6 pt-4 border-t dark:border-gray-700">
             <Button
               variant="outline"
-              onClick={() => setShowConfirmModal(false)}
+              onClick={() => setShowEditConfirmModal(false)}
             >
               Cancel
             </Button>
-            <Button variant="success" onClick={handleConfirmOnly}>
-              Create New (Only)
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowEditConfirmModal(false);
+                navigate("/order-list");
+              }}
+            >
+              Back
             </Button>
-            <Button variant="primary" onClick={handleConfirmAndBook}>
-              Confirm & Book
-            </Button>
-            <Button variant="primary" onClick={handleConfirmBookAndPrint}>
-              Confirm Book & Print
+            <Button
+              variant="primary"
+              onClick={async () => {
+                const success = await performSave();
+                if (success) {
+                  setShowEditConfirmModal(false);
+                }
+              }}
+              loading={saving}
+              disabled={saving}
+            >
+              Save
             </Button>
           </div>
         </div>
@@ -1140,4 +1185,4 @@ export const Order: React.FC = () => {
   );
 };
 
-export default Order;
+export default EditOrder;

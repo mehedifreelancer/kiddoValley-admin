@@ -1,16 +1,16 @@
-// router.tsx
 import { createBrowserRouter } from "react-router-dom";
 import App from "./App";
 import AuthGuard from "./components/guards/AuthGuard";
 import Components from "./components/ui/Components";
 import SignIn from "./modules/auth/SignIn";
 import Dashboard from "./modules/dashboard/dashboard";
+import Slider from "./modules/hero-banner-slider/HeroBannerSlider";
 import HeroSliderManagement from "./modules/hero-slider/HeroSliderManagement";
 import Category from "./modules/master-data/category/Category";
+import EditOrder from "./modules/order/EditOrder"; // ✅ নতুন
 import Order from "./modules/order/order";
 import OrderList from "./modules/order/OrderList";
 import { Product } from "./modules/product/Product";
-import Slider from "./modules/hero-banner-slider/HeroBannerSlider";
 import StockIn from "./modules/stock-in/StockIn";
 import Stock from "./modules/stock/stock";
 import SupplierList from "./modules/supplier/supplier";
@@ -40,6 +40,7 @@ export const router = createBrowserRouter([
       { path: "stock-in", element: <StockIn /> },
       { path: "create-order", element: <Order /> },
       { path: "order-list", element: <OrderList /> },
+      { path: "order-edit/:id", element: <EditOrder /> }, // ✅ নতুন রুট
       { path: "purchase", element: <Purchase /> },
       { path: "report", element: <Report /> },
       {
