@@ -135,7 +135,6 @@ const EditOrder: React.FC = () => {
       );
 
       if (data.soldItems && data.soldItems.length > 0) {
-        // Convert soldItems to OrderItem format
         const items: OrderItem[] = data.soldItems.map((item: any) => ({
           stockId: item.stockId || 0,
           batchNo: "N/A",
@@ -145,8 +144,7 @@ const EditOrder: React.FC = () => {
           sellingPrice: item.unitPrice,
           discountPercent: 0,
           quantity: item.quantity,
-          // ⚠️ maxQuantity will be updated later when stock loads; temporarily set to quantity
-          maxQuantity: item.quantity,
+          maxQuantity: item.quantity, // temporary, updated later
           total: item.totalPrice,
           discountAmount: 0,
           finalPrice: item.totalPrice,
@@ -154,8 +152,6 @@ const EditOrder: React.FC = () => {
           profitPercent: 0,
         }));
         setOrderItems(items);
-
-        // Initialize reserved quantities
         const reserved: Record<number, number> = {};
         items.forEach((item) => {
           reserved[item.stockId] = item.quantity;
@@ -195,19 +191,18 @@ const EditOrder: React.FC = () => {
     }, 500);
   };
 
-  // ---------- Order item functions (WITH FALLBACK) ----------
+  // ---------- Order item functions (with fallback) ----------
   const getAvailableQty = (stock: FlatStockItem) => {
     const reserved = reservedQuantities[stock.id] || 0;
     return stock.currentQty - reserved;
   };
 
-  // 🔧 FIX: updateQuantity now uses fallback if stock not found in allStockItems
+  // updateQuantity with fallback
   const updateQuantity = (stockId: number, newQty: number) => {
     setOrderItems((prev) =>
       prev.map((item) => {
         if (item.stockId !== stockId) return item;
         const stock = allStockItems.find((s) => s.id === stockId);
-        // Fallback: if stock not loaded, use item.maxQuantity as current stock
         const currentQty = stock ? stock.currentQty : item.maxQuantity;
         const reserved = reservedQuantities[stockId] || 0;
         const maxAvailable = currentQty - reserved + item.quantity;
@@ -237,7 +232,6 @@ const EditOrder: React.FC = () => {
     );
   };
 
-  // 🔧 FIX: increaseQuantity uses fallback and toasts properly
   const increaseQuantity = (stockId: number) => {
     if (!isNew) {
       toast.error("Cannot modify items in a non-editable order");
@@ -249,7 +243,6 @@ const EditOrder: React.FC = () => {
       return;
     }
     const stock = allStockItems.find((s) => s.id === stockId);
-    // Fallback: use item.maxQuantity if stock not loaded
     const currentQty = stock ? stock.currentQty : item.maxQuantity;
     const reserved = reservedQuantities[stockId] || 0;
     const maxAllowed = currentQty - reserved + item.quantity;
@@ -411,7 +404,6 @@ const EditOrder: React.FC = () => {
 
   const handleStockDataChange = (data: FlatStockItem[]) => {
     setAllStockItems(data);
-    // Optionally, update maxQuantity for existing items when stock data loads
     setOrderItems((prev) =>
       prev.map((item) => {
         const stock = data.find((s) => s.id === item.stockId);

@@ -106,6 +106,9 @@ export const Order: React.FC = () => {
   const [sortField, setSortField] = useState("currentQty");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
+  // ---------- Loading state for confirmation buttons ----------
+  const [submitting, setSubmitting] = useState(false);
+
   // ---------- Customer check ----------
   const checkCustomer = async (phone: string) => {
     if (!phone || phone.length < 11) {
@@ -369,13 +372,12 @@ export const Order: React.FC = () => {
     total: totalBill,
   });
 
-  // ---------- HANDLERS (সব sendEmail বাদ) ----------
+  // ---------- HANDLERS with loading state ----------
   // ১. শুধু অর্ডার তৈরি (status 'new') – পাথাও নেই
   const handleConfirmOnly = async () => {
     const payload = buildPayload();
     const result = orderPayloadSchema.safeParse(payload);
     if (!result.success) {
-      // ✅ সঠিক পদ্ধতি: result.error.issues ব্যবহার করুন
       const errorMessages = result.error.issues
         .map((e) => e.message)
         .join("\n");
@@ -383,6 +385,7 @@ export const Order: React.FC = () => {
       console.error("Validation errors:", result.error.issues);
       return;
     }
+    setSubmitting(true);
     try {
       await createOrder(payload);
       toast.success("Order created (status: new)!");
@@ -390,6 +393,8 @@ export const Order: React.FC = () => {
       setShowConfirmModal(false);
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to create order");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -405,6 +410,7 @@ export const Order: React.FC = () => {
       console.error("Validation errors:", result.error.issues);
       return;
     }
+    setSubmitting(true);
     try {
       await createAndConfirmOrder(payload);
       toast.success("Order created and confirmed (Pathao booked)!");
@@ -414,6 +420,8 @@ export const Order: React.FC = () => {
       toast.error(
         error.response?.data?.message || "Failed to create and confirm order",
       );
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -429,6 +437,7 @@ export const Order: React.FC = () => {
       console.error("Validation errors:", result.error.issues);
       return;
     }
+    setSubmitting(true);
     try {
       const response = await createAndConfirmOrder(payload);
       toast.success("Order created, confirmed, and booked!");
@@ -439,6 +448,8 @@ export const Order: React.FC = () => {
       toast.error(
         error.response?.data?.message || "Failed to create and confirm order",
       );
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1116,7 +1127,7 @@ export const Order: React.FC = () => {
             </DataTable>
           </div>
 
-          {/* Footer buttons – ৪টি বাটন */}
+          {/* Footer buttons – ৪টি বাটন (Cancel, Create New, Confirm & Book, Confirm Book & Print) */}
           <div className="flex justify-end gap-3 mt-4 pt-4 border-t dark:border-gray-700">
             <Button
               variant="outline"
@@ -1124,13 +1135,28 @@ export const Order: React.FC = () => {
             >
               Cancel
             </Button>
-            <Button variant="success" onClick={handleConfirmOnly}>
+            <Button
+              variant="success"
+              onClick={handleConfirmOnly}
+              loading={submitting}
+              disabled={submitting}
+            >
               Create New (Only)
             </Button>
-            <Button variant="primary" onClick={handleConfirmAndBook}>
+            <Button
+              variant="primary"
+              onClick={handleConfirmAndBook}
+              loading={submitting}
+              disabled={submitting}
+            >
               Confirm & Book
             </Button>
-            <Button variant="primary" onClick={handleConfirmBookAndPrint}>
+            <Button
+              variant="primary"
+              onClick={handleConfirmBookAndPrint}
+              loading={submitting}
+              disabled={submitting}
+            >
               Confirm Book & Print
             </Button>
           </div>

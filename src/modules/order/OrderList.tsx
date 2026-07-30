@@ -1,3 +1,5 @@
+"use client";
+
 import {
   CheckCircle,
   Edit,
@@ -46,7 +48,7 @@ interface OrderItem {
   total: number;
   subtotal: number;
   discount: number;
-  orderStatus: string; // new, confirmed, cancelled
+  orderStatus: string;
   isWebsiteOrder: boolean;
   isSuspicious: boolean;
   paymentStatus: string;
@@ -135,6 +137,22 @@ export const OrderList: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [syncing, setSyncing] = useState(false);
 
+  // Loading states for actions
+  const [confirmLoading, setConfirmLoading] = useState<number | null>(null);
+  const [cancelLoading, setCancelLoading] = useState<number | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState<number | null>(null);
+
+  // Modal states
+  const [showConfirmModal, setShowConfirmModal] = useState<OrderItem | null>(
+    null,
+  );
+  const [showCancelModal, setShowCancelModal] = useState<OrderItem | null>(
+    null,
+  );
+  const [showDeleteModal, setShowDeleteModal] = useState<OrderItem | null>(
+    null,
+  );
+
   // Details Modal
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
@@ -202,41 +220,46 @@ export const OrderList: React.FC = () => {
     setPage(1);
   };
 
-  // ---------- Actions ----------
-  const handleConfirm = async (id: number) => {
+  // ---------- Actions (with Modal) ----------
+  const handleConfirm = async (order: OrderItem) => {
+    setConfirmLoading(order.id);
     try {
-      await confirmOrder(id);
+      await confirmOrder(order.id);
       toast.success("Order confirmed and Pathao booked!");
       fetchOrders();
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Confirm failed");
+    } finally {
+      setConfirmLoading(null);
+      setShowConfirmModal(null);
     }
   };
 
-  const handleCancel = async (id: number) => {
-    if (!window.confirm("Are you sure you want to cancel this order?")) return;
+  const handleCancel = async (order: OrderItem) => {
+    setCancelLoading(order.id);
     try {
-      await cancelOrder(id);
+      await cancelOrder(order.id);
       toast.success("Order cancelled!");
       fetchOrders();
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Cancel failed");
+    } finally {
+      setCancelLoading(null);
+      setShowCancelModal(null);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (
-      !window.confirm(
-        "Permanently delete this cancelled order? This action cannot be undone!",
-      )
-    )
-      return;
+  const handleDelete = async (order: OrderItem) => {
+    setDeleteLoading(order.id);
     try {
-      await deleteOrder(id);
+      await deleteOrder(order.id);
       toast.success("Order deleted permanently!");
       fetchOrders();
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Delete failed");
+    } finally {
+      setDeleteLoading(null);
+      setShowDeleteModal(null);
     }
   };
 
@@ -258,7 +281,6 @@ export const OrderList: React.FC = () => {
   };
 
   // ---------- Column Templates ----------
-  // Invoice number as link to EditOrder page (react-router-dom Link)
   const invoiceBody = (row: OrderItem) => (
     <Link
       to={`/order-edit/${row.id}`}
@@ -320,7 +342,6 @@ export const OrderList: React.FC = () => {
     );
   };
 
-  // ✅ Delivery Status Column
   const deliveryStatusBody = (row: OrderItem) => (
     <span className="text-xs">{row.deliveryStatus || "—"}</span>
   );
@@ -335,27 +356,32 @@ export const OrderList: React.FC = () => {
     </span>
   );
 
-  // ---------- Actions Column (আইকন) ----------
+  // ---------- Actions Column (Button + Modal) ----------
   const actionsBody = (row: OrderItem) => {
     const { id, orderStatus } = row;
 
     if (orderStatus === "cancelled") {
       return (
         <div className="flex gap-2 items-center">
-          <button
-            onClick={() => handleDelete(id)}
-            className="text-red-600 hover:text-red-800 transition-colors"
-            title="Delete"
+          <Button
+            size="xs"
+            variant="danger"
+            onClick={() => setShowDeleteModal(row)}
+            loading={deleteLoading === id}
+            icon={<Trash2 size={14} />}
+            iconPosition="left"
           >
-            <Trash2 size={16} />
-          </button>
-          <button
+            Delete
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
             onClick={() => handleDetails(id)}
-            className="text-blue-600 hover:text-blue-800 transition-colors"
-            title="Details"
+            icon={<Eye size={14} />}
+            iconPosition="left"
           >
-            <Eye size={16} />
-          </button>
+            Details
+          </Button>
         </div>
       );
     }
@@ -363,34 +389,45 @@ export const OrderList: React.FC = () => {
     if (orderStatus === "new") {
       return (
         <div className="flex gap-2 items-center flex-wrap">
-          <button
-            onClick={() => handleConfirm(id)}
-            className="text-green-600 hover:text-green-800 transition-colors"
-            title="Confirm & Book"
+          <Button
+            size="xs"
+            variant="success"
+            onClick={() => setShowConfirmModal(row)}
+            loading={confirmLoading === id}
+            icon={<CheckCircle size={14} />}
+            iconPosition="left"
           >
-            <CheckCircle size={16} />
-          </button>
-          <Link
-            to={`/order-edit/${id}`}
-            className="text-blue-600 hover:text-blue-800 transition-colors"
-            title="Edit"
-          >
-            <Edit size={16} />
+            Confirm
+          </Button>
+          <Link to={`/order-edit/${id}`}>
+            <Button
+              size="xs"
+              variant="outline"
+              icon={<Edit size={14} />}
+              iconPosition="left"
+            >
+              Edit
+            </Button>
           </Link>
-          <button
-            onClick={() => handleCancel(id)}
-            className="text-red-600 hover:text-red-800 transition-colors"
-            title="Cancel"
+          <Button
+            size="xs"
+            variant="danger"
+            onClick={() => setShowCancelModal(row)}
+            loading={cancelLoading === id}
+            icon={<XCircle size={14} />}
+            iconPosition="left"
           >
-            <XCircle size={16} />
-          </button>
-          <button
+            Cancel
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
             onClick={() => handleDetails(id)}
-            className="text-blue-600 hover:text-blue-800 transition-colors"
-            title="Details"
+            icon={<Eye size={14} />}
+            iconPosition="left"
           >
-            <Eye size={16} />
-          </button>
+            Details
+          </Button>
         </div>
       );
     }
@@ -398,27 +435,34 @@ export const OrderList: React.FC = () => {
     if (orderStatus === "confirmed") {
       return (
         <div className="flex gap-2 items-center flex-wrap">
-          <button
+          <Button
+            size="xs"
+            variant="outline"
             onClick={() => handleReprint(row)}
-            className="text-gray-600 hover:text-gray-800 transition-colors"
-            title="Reprint"
+            icon={<Printer size={14} />}
+            iconPosition="left"
           >
-            <Printer size={16} />
-          </button>
-          <button
-            onClick={() => handleCancel(id)}
-            className="text-red-600 hover:text-red-800 transition-colors"
-            title="Cancel"
+            Reprint
+          </Button>
+          <Button
+            size="xs"
+            variant="danger"
+            onClick={() => setShowCancelModal(row)}
+            loading={cancelLoading === id}
+            icon={<XCircle size={14} />}
+            iconPosition="left"
           >
-            <XCircle size={16} />
-          </button>
-          <button
+            Cancel
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
             onClick={() => handleDetails(id)}
-            className="text-blue-600 hover:text-blue-800 transition-colors"
-            title="Details"
+            icon={<Eye size={14} />}
+            iconPosition="left"
           >
-            <Eye size={16} />
-          </button>
+            Details
+          </Button>
         </div>
       );
     }
@@ -442,9 +486,10 @@ export const OrderList: React.FC = () => {
             variant="primary"
             onClick={handleSync}
             disabled={syncing || orders.length === 0}
-            className="flex items-center gap-1"
+            loading={syncing}
+            icon={<RefreshCw size={14} />}
+            iconPosition="left"
           >
-            <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
             Sync
           </Button>
         </div>
@@ -545,13 +590,130 @@ export const OrderList: React.FC = () => {
             <Column
               header="Actions"
               body={actionsBody}
-              style={{ width: "120px" }}
+              style={{ width: "300px" }}
               headerClassName="column-header"
               bodyClassName="column-body"
             />
           </DataTable>
         </div>
       </div>
+
+      {/* ===== Confirm Modal ===== */}
+      <Modal
+        isOpen={!!showConfirmModal}
+        onClose={() => setShowConfirmModal(null)}
+        title="Confirm & Book Order"
+        size="sm"
+      >
+        {showConfirmModal && (
+          <div className="p-4">
+            <p className="text-gray-700 dark:text-gray-300">
+              Are you sure you want to confirm and book order{" "}
+              <span className="font-semibold">
+                {showConfirmModal.invoiceNo}
+              </span>
+              ?
+            </p>
+            <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
+              ⚠️ This will create a Pathao courier order. This action cannot be
+              undone.
+            </p>
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t dark:border-gray-700">
+              <Button
+                variant="outline"
+                onClick={() => setShowConfirmModal(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="success"
+                onClick={() => handleConfirm(showConfirmModal)}
+                loading={confirmLoading === showConfirmModal.id}
+                icon={<CheckCircle size={16} />}
+                iconPosition="left"
+              >
+                Confirm & Book
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ===== Cancel Modal ===== */}
+      <Modal
+        isOpen={!!showCancelModal}
+        onClose={() => setShowCancelModal(null)}
+        title="Cancel Order"
+        size="sm"
+      >
+        {showCancelModal && (
+          <div className="p-4">
+            <p className="text-gray-700 dark:text-gray-300">
+              Are you sure you want to cancel order{" "}
+              <span className="font-semibold">{showCancelModal.invoiceNo}</span>
+              ?
+            </p>
+            <p className="text-sm text-red-600 dark:text-red-400 mt-2">
+              ⚠️ This will restore stock and cancel Pathao courier (if exists).
+            </p>
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t dark:border-gray-700">
+              <Button
+                variant="outline"
+                onClick={() => setShowCancelModal(null)}
+              >
+                No, Keep It
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => handleCancel(showCancelModal)}
+                loading={cancelLoading === showCancelModal.id}
+                icon={<XCircle size={16} />}
+                iconPosition="left"
+              >
+                Yes, Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ===== Delete Modal ===== */}
+      <Modal
+        isOpen={!!showDeleteModal}
+        onClose={() => setShowDeleteModal(null)}
+        title="Delete Order Permanently"
+        size="sm"
+      >
+        {showDeleteModal && (
+          <div className="p-4">
+            <p className="text-gray-700 dark:text-gray-300">
+              Permanently delete cancelled order{" "}
+              <span className="font-semibold">{showDeleteModal.invoiceNo}</span>
+              ?
+            </p>
+            <p className="text-sm text-red-600 dark:text-red-400 mt-2">
+              ⚠️ This action cannot be undone. All order data will be removed.
+            </p>
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t dark:border-gray-700">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteModal(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => handleDelete(showDeleteModal)}
+                loading={deleteLoading === showDeleteModal.id}
+                icon={<Trash2 size={16} />}
+                iconPosition="left"
+              >
+                Yes, Delete
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* ===== Details Modal ===== */}
       <Modal
