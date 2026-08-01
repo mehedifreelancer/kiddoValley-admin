@@ -1,14 +1,23 @@
+// modules/web-settings/webSettings.schema.ts
 import { z } from "zod";
 
-export const socialLinksSchema = z.object({
-  facebook: z.string().url().or(z.literal("")),
-  instagram: z.string().url().or(z.literal("")),
-  youtube: z.string().url().or(z.literal("")),
-  website: z.string().url().or(z.literal("")),
-});
+const urlSchema = z
+  .string()
+  .url("Must be a valid URL (including http:// or https://)")
+  .or(z.literal(""));
 
 export const webSettingsSchema = z.object({
-  logoUrl: z.string().nullable(),
-  socialLinks: socialLinksSchema,
-  footerText: z.string().max(500, "Footer text is too long"),
+  logoUrl: z.string().nullable().optional(),
+  socialLinks: z.object({
+    facebook: urlSchema,
+    instagram: urlSchema,
+    youtube: urlSchema,
+    website: urlSchema,
+  }),
+  footerText: z
+    .string()
+    .max(500, "Footer text too long (max 500 characters)")
+    .optional(),
 });
+
+export type WebSettingsFormData = z.infer<typeof webSettingsSchema>;

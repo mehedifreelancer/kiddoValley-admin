@@ -1,3 +1,5 @@
+"use client";
+
 import { Upload, X } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
@@ -5,6 +7,7 @@ import Button from "../../components/ui/Button";
 import InputField from "../../components/ui/InputField";
 import Panel from "../../components/ui/Panel";
 import Toolbar from "../../components/ui/Toolbar";
+import { webSettingsSchema } from "./webSettings.schema";
 import { getWebSettings, updateWebSettings } from "./webSettings.service";
 import {
   SocialLinks,
@@ -12,25 +15,15 @@ import {
 } from "./webSettings.types";
 
 export const WebSettings: React.FC = () => {
-  const [loading, setLoading] = useState(false);
-
-  // Shared state
+  const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<WebSettingsType>({
     logoUrl: null,
     socialLinks: { facebook: "", instagram: "", youtube: "", website: "" },
     footerText: "",
   });
-
-  // Logo specific
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [submittingLogo, setSubmittingLogo] = useState(false);
-
-  // Social specific
-  const [submittingSocial, setSubmittingSocial] = useState(false);
-
-  // Footer specific
-  const [submittingFooter, setSubmittingFooter] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Load settings
   useEffect(() => {
@@ -40,6 +33,7 @@ export const WebSettings: React.FC = () => {
         const data = await getWebSettings();
         setSettings(data);
         if (data.logoUrl) setLogoPreview(data.logoUrl);
+        else setLogoPreview(null);
       } catch (error) {
         toast.error("Failed to load settings");
       } finally {
@@ -49,7 +43,7 @@ export const WebSettings: React.FC = () => {
     fetchSettings();
   }, []);
 
-  // ---- Handlers ----
+  // Handlers
   const handleSocialChange = (field: keyof SocialLinks, value: string) => {
     setSettings((prev) => ({
       ...prev,
@@ -75,80 +69,46 @@ export const WebSettings: React.FC = () => {
     setSettings((prev) => ({ ...prev, logoUrl: null }));
   };
 
-  // ---- Save functions ----
-  const saveLogo = async () => {
-    if (!logoFile && !settings.logoUrl) {
-      toast.info("No logo to save");
+  // ✅ Zod দিয়ে ভ্যালিডেট করুন
+  const validateAndSave = async () => {
+    const formDataToValidate = {
+      logoUrl: settings.logoUrl,
+      socialLinks: settings.socialLinks,
+      footerText: settings.footerText,
+    };
+
+    try {
+      webSettingsSchema.parse(formDataToValidate);
+    } catch (error: any) {
+      // ✅ Zod error-এ `issues` ব্যবহার করুন
+      const issues = error.issues || error.errors || [];
+      const errorMessages = issues.map((e: any) => e.message).join(", ");
+      toast.error(`Validation failed: ${errorMessages}`);
       return;
     }
-    setSubmittingLogo(true);
+
+    setSubmitting(true);
     try {
       const formData = new FormData();
-      if (logoFile) formData.append("logo", logoFile);
+
+      if (logoFile) {
+        formData.append("logo", logoFile);
+      } else if (!settings.logoUrl) {
+        formData.append("logoUrl", "");
+      }
+
+      formData.append("socialLinks", JSON.stringify(settings.socialLinks));
+      formData.append("footerText", settings.footerText);
+
       const updated = await updateWebSettings(formData);
       setSettings(updated);
       if (updated.logoUrl) setLogoPreview(updated.logoUrl);
-      toast.success("Logo updated successfully!");
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to update logo");
-    } finally {
-      setSubmittingLogo(false);
-    }
-  };
-
-  const saveSocial = async () => {
-    setSubmittingSocial(true);
-    try {
-      const formData = new FormData();
-      formData.append("socialLinks", JSON.stringify(settings.socialLinks));
-      const updated = await updateWebSettings(formData);
-      setSettings(updated);
-      toast.success("Social links updated successfully!");
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Failed to update social links",
-      );
-    } finally {
-      setSubmittingSocial(false);
-    }
-  };
-
-  const saveFooter = async () => {
-    setSubmittingFooter(true);
-    try {
-      const formData = new FormData();
-      formData.append("footerText", settings.footerText);
-      const updated = await updateWebSettings(formData);
-      setSettings(updated);
-      toast.success("Footer text updated successfully!");
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to update footer");
-    } finally {
-      setSubmittingFooter(false);
-    }
-  };
-
-  const saveAll = async () => {
-    setSubmittingLogo(true);
-    setSubmittingSocial(true);
-    setSubmittingFooter(true);
-    try {
-      const formData = new FormData();
-      if (logoFile) formData.append("logo", logoFile);
-      formData.append("socialLinks", JSON.stringify(settings.socialLinks));
-      formData.append("footerText", settings.footerText);
-      const updated = await updateWebSettings(formData);
-      setSettings(updated);
-      if (updated.logoUrl) setLogoPreview(updated.logoUrl);
+      else setLogoPreview(null);
       toast.success("All settings saved successfully!");
     } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Failed to save all settings",
-      );
+      toast.error(error.response?.data?.message || "Failed to save settings");
     } finally {
-      setSubmittingLogo(false);
-      setSubmittingSocial(false);
-      setSubmittingFooter(false);
+      setSubmitting(false);
     }
   };
 
@@ -157,18 +117,17 @@ export const WebSettings: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl  mx-auto ">
+    <div className="max-w-4xl mx-auto">
       <Toolbar title="Web Settings">
         <Button
           variant="success"
-          onClick={saveAll}
-          loading={submittingLogo || submittingSocial || submittingFooter}
+          onClick={validateAndSave}
+          loading={submitting}
         >
-          Save
+          Save All
         </Button>
       </Toolbar>
 
-      {/* Panel 1: Logo */}
       <Panel
         title="Logo"
         className="mb-4 border-l-4 border-blue-500"
@@ -216,62 +175,60 @@ export const WebSettings: React.FC = () => {
         </div>
       </Panel>
 
-      {/* Panel 2: Social Links */}
       <Panel
         title="Social Links"
         className="mb-4 border-l-4 border-green-500"
         titleClassName="text-green-700 dark:text-green-300 font-semibold"
       >
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InputField
-              label="Facebook URL"
-              value={settings.socialLinks.facebook}
-              onChange={(e) => handleSocialChange("facebook", e.target.value)}
-              placeholder="https://facebook.com/yourpage"
-            />
-            <InputField
-              label="Instagram URL"
-              value={settings.socialLinks.instagram}
-              onChange={(e) => handleSocialChange("instagram", e.target.value)}
-              placeholder="https://instagram.com/yourprofile"
-            />
-            <InputField
-              label="YouTube URL"
-              value={settings.socialLinks.youtube}
-              onChange={(e) => handleSocialChange("youtube", e.target.value)}
-              placeholder="https://youtube.com/c/yourchannel"
-            />
-            <InputField
-              label="Website URL"
-              value={settings.socialLinks.website}
-              onChange={(e) => handleSocialChange("website", e.target.value)}
-              placeholder="https://yourwebsite.com"
-            />
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <InputField
+            label="Facebook URL"
+            value={settings.socialLinks.facebook}
+            onChange={(e) => handleSocialChange("facebook", e.target.value)}
+            placeholder="https://facebook.com/yourpage"
+          />
+          <InputField
+            label="Instagram URL"
+            value={settings.socialLinks.instagram}
+            onChange={(e) => handleSocialChange("instagram", e.target.value)}
+            placeholder="https://instagram.com/yourprofile"
+          />
+          <InputField
+            label="YouTube URL"
+            value={settings.socialLinks.youtube}
+            onChange={(e) => handleSocialChange("youtube", e.target.value)}
+            placeholder="https://youtube.com/c/yourchannel"
+          />
+          <InputField
+            label="Website URL"
+            value={settings.socialLinks.website}
+            onChange={(e) => handleSocialChange("website", e.target.value)}
+            placeholder="https://yourwebsite.com"
+          />
         </div>
+        <p className="text-xs text-gray-400 mt-2">
+          ⚠️ Each social link must be a valid URL (including http:// or
+          https://)
+        </p>
       </Panel>
 
-      {/* Panel 3: Footer Text */}
       <Panel
         title="Tiny Footer Text"
         className="border-l-4 border-purple-500"
         titleClassName="text-purple-700 dark:text-purple-300 font-semibold"
       >
         <div className="space-y-4">
-          <div>
-            <textarea
-              value={settings.footerText}
-              onChange={(e) => handleFooterChange(e.target.value)}
-              rows={4}
-              className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm"
-              placeholder="e.g., © 2025 Kiddo Valley. All rights reserved."
-              maxLength={500}
-            />
-            <p className="text-xs text-gray-400 mt-1">
-              {settings.footerText.length}/500 characters
-            </p>
-          </div>
+          <textarea
+            value={settings.footerText}
+            onChange={(e) => handleFooterChange(e.target.value)}
+            rows={4}
+            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm"
+            placeholder="e.g., © 2025 Kiddo Valley. All rights reserved."
+            maxLength={500}
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            {settings.footerText.length}/500 characters
+          </p>
         </div>
       </Panel>
     </div>
