@@ -1,11 +1,11 @@
-import { Outlet } from "react-router";
-import Sidebar from "./components/common/Sidebar";
-import Header from "./components/common/Header";
-import { GlobalProvider, useGlobal } from "./context/GlobalContext";
 import { motion } from "framer-motion";
-import ToasterProvider from "./components/ui/ToasterProvider";
-import { useTheme } from "./hooks/useTheme"; // Import useTheme
 import { useEffect } from "react";
+import { Outlet } from "react-router";
+import Header from "./components/common/Header";
+import Sidebar from "./components/common/Sidebar";
+import ToasterProvider from "./components/ui/ToasterProvider";
+import { GlobalProvider, useGlobal } from "./context/GlobalContext";
+import { useTheme } from "./hooks/useTheme"; // Import useTheme
 
 // Create a separate component that uses the context
 function AppContent() {
@@ -26,7 +26,7 @@ function AppContent() {
       <Sidebar />
       <motion.div
         className="flex-1 flex flex-col overflow-hidden"
-        animate={{ paddingLeft: isSidebarPinned ? 4 : 75 }}
+        animate={{ paddingLeft: isSidebarPinned ? 6 : 76 }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
       >
         <Header />

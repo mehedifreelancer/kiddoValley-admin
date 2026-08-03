@@ -3,7 +3,8 @@ import App from "./App";
 import AuthGuard from "./components/guards/AuthGuard";
 import Components from "./components/ui/Components";
 import SignIn from "./modules/auth/SignIn";
-import Dashboard from "./modules/dashboard/dashboard";
+import CustomerList from "./modules/customer/Customer";
+import Dashboard from "./modules/dashboard/Dashboard";
 import Slider from "./modules/hero-banner-slider/HeroBannerSlider";
 import HeroSliderManagement from "./modules/hero-slider/HeroSliderManagement";
 import Category from "./modules/master-data/category/Category";
@@ -15,14 +16,13 @@ import StockIn from "./modules/stock-in/StockIn";
 import Stock from "./modules/stock/stock";
 import SupplierList from "./modules/supplier/supplier";
 import { WebSettings } from "./modules/web-settings/WebSettings";
+import Report from "./modules/dashboard/Dashboard";
 
 // Placeholder components for missing routes
-const Customer = () => <div>Customer Page</div>;
 const Sells = () => <div>Sells Page</div>;
 const Purchase = () => <div>Purchase Page</div>;
 const UploadLogo = () => <div>Upload Logo Page</div>;
 const SocialLinks = () => <div>Social Media Links Page</div>;
-const Report = () => <div>Report Page</div>;
 
 export const router = createBrowserRouter([
   {
@@ -34,7 +34,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Dashboard /> },
-      { path: "customer", element: <Customer /> },
+      { path: "customer", element: <CustomerList /> },
       { path: "supplier", element: <SupplierList /> },
       { path: "stock", element: <Stock /> },
       { path: "stock-in", element: <StockIn /> },

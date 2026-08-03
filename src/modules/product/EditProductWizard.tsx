@@ -1,4 +1,3 @@
-// modules/master-data/product/EditProductWizard.tsx
 "use client";
 
 import {
@@ -188,11 +187,6 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     });
     return Array.from(keys);
   }, [variants]);
-
-  // Load existing priority from product when loaded
-  useEffect(() => {
-    // We'll load it in the main product load effect below
-  }, []);
 
   // ---------- Step 4: price sets ----------
   const [pendingStocks, setPendingStocks] = useState<{
@@ -433,14 +427,13 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
       formData.append("name", productName);
       formData.append("categoryId", selectedCategory.id);
       formData.append("forceOrderPriority", String(forceOrderPriority));
-      if (videoUrl) formData.append("videoUrl", videoUrl);
-      if (productDetails) formData.append("description", productDetails);
+      formData.append("videoUrl", videoUrl);
+      formData.append("description", productDetails);
       if (thumbnailFile) {
         formData.append("thumbnail", thumbnailFile);
       } else if (thumbnail) {
         formData.append("existingThumbnail", thumbnail);
       }
-      // We don't send priority here; it will be saved in handleSaveAllChanges
       await updateProduct(productId, formData);
       toast.success("Product basic info updated");
       setStep(2);
@@ -464,7 +457,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     setStep(4);
   };
 
-  // ---------- Variant management (unchanged) ----------
+  // ---------- Variant management ----------
   const resetVariantForm = () => {
     setCurrentAttributes({});
     setVariantImages([]);
@@ -750,34 +743,46 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     return false;
   };
 
+  // ========== ✅ FIXED: handleSaveAllChanges ==========
   const handleSaveAllChanges = async () => {
     if (submitting) return;
     try {
       setSubmitting(true);
 
-      // 1. Update product attributePriority if changed
-      // Compare current productAttributePriority with the one loaded from product.
-      // We need to know if it changed. We'll just send it always if it's not empty.
-      // Better to fetch the product again? We can keep it simple: if there are any priority items, send update.
-      // But we also need to handle the case when it's cleared. So we'll send the state anyway.
-      // We'll call updateProduct with attributePriority only if it changed.
-      // We can keep a reference to original priority when loading.
-      // We'll use a ref or compare with loaded. For simplicity, we'll send the state.
+      // 1. Product basic info + attributePriority
       const formData = new FormData();
+      formData.append("name", productName);
+      formData.append("categoryId", selectedCategory?.id || "");
+      formData.append("forceOrderPriority", String(forceOrderPriority));
+      if (videoUrl) formData.append("videoUrl", videoUrl);
+      if (productDetails) formData.append("description", productDetails);
+      if (thumbnailFile) {
+        formData.append("thumbnail", thumbnailFile);
+      } else if (thumbnail && !thumbnail.startsWith("blob:")) {
+        formData.append("existingThumbnail", thumbnail);
+      }
+      // ✅ attributePriority পাঠান
       formData.append(
         "attributePriority",
         JSON.stringify(productAttributePriority),
       );
-      // We don't need other fields because they are already updated in step 1.
+
+      console.log("🔄 Saving product with data:", {
+        name: productName,
+        categoryId: selectedCategory?.id,
+        attributePriority: productAttributePriority,
+        thumbnail: thumbnailFile ? "new file" : thumbnail,
+      });
       await updateProduct(productId, formData);
 
-      // 2. Save pending stocks
+      // 2. Pending stocks
       await saveAllPendingStocks();
 
       toast.success("Product updated successfully!");
       onProductSaved();
       onClose();
     } catch (err: any) {
+      console.error("❌ Save failed:", err);
       toast.error(err.message || "Failed to save changes");
     } finally {
       setSubmitting(false);
@@ -803,7 +808,6 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
 
   return (
     <div className="max-w-6xl mx-auto rounded-md relative">
-      {/* Close button */}
       <button
         onClick={onClose}
         className="absolute top-2 right-2 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors z-10"
@@ -1233,7 +1237,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
             <AttributePrioritySelector
               value={productAttributePriority}
               onChange={setProductAttributePriority}
-              availableAttributes={usedAttributeNames} // Only used attributes
+              availableAttributes={usedAttributeNames}
               disabled={submitting}
             />
           </div>
