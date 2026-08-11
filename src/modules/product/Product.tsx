@@ -123,6 +123,8 @@ export const Product = () => {
   const [globalFilter, setGlobalFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<any[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true); // ✅ নতুন state
+
   const [variantsMap, setVariantsMap] = useState<{
     [productId: number]: VariantItem[];
   }>({});
@@ -201,6 +203,7 @@ export const Product = () => {
       toast.error("Failed to fetch products");
     } finally {
       setLoading(false);
+      setInitialLoading(false); // ✅ প্রথম লোড শেষ
     }
   };
 
@@ -524,10 +527,10 @@ export const Product = () => {
     );
   };
 
-  if (loading && products.length === 0) {
+  if (initialLoading && products.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
       </div>
     );
   }

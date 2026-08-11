@@ -16,7 +16,7 @@ import { Column } from "primereact/column";
 import { DataTable } from "primereact/datatable";
 import { Dropdown } from "primereact/dropdown";
 import { Editor } from "primereact/editor";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Barcode from "react-barcode";
 import { toast } from "react-hot-toast";
 import api from "../../apiConfig";
@@ -24,7 +24,11 @@ import AttributePrioritySelector from "../../components/AttributePrioritySelecto
 import Button from "../../components/ui/Button";
 import InputField from "../../components/ui/InputField";
 import { getCategories } from "../master-data/category/category.service";
-import { getProductById, updateProduct } from "./product.service";
+import {
+  getProductById,
+  updateProduct,
+  updateStockDiscount,
+} from "./product.service";
 
 function generateEAN13(): string {
   const prefix = "890";
@@ -138,7 +142,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // ---------- Step 1 state ----------
+  // Step 1 state
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<any>(null);
   const [productName, setProductName] = useState("");
@@ -148,8 +152,9 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
   const [thumbnail, setThumbnail] = useState<string | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [formErrors, setFormErrors] = useState<any>({});
+  const [productWeight, setProductWeight] = useState<number>(0);
 
-  // ---------- Step 2: variants ----------
+  // Step 2: variants
   const [variants, setVariants] = useState<any[]>([]);
   const [editingVariantId, setEditingVariantId] = useState<number | null>(null);
   const [currentAttributes, setCurrentAttributes] = useState<
@@ -174,7 +179,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
   const [variantImages, setVariantImages] = useState<any[]>([]);
   const [variantImageFiles, setVariantImageFiles] = useState<File[]>([]);
 
-  // ---------- Step 3: Attribute Priority ----------
+  // Step 3: Attribute Priority
   const [productAttributePriority, setProductAttributePriority] = useState<
     string[]
   >([]);
@@ -188,7 +193,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     return Array.from(keys);
   }, [variants]);
 
-  // ---------- Step 4: price sets ----------
+  // Step 4: price sets
   const [pendingStocks, setPendingStocks] = useState<{
     [variantId: number]: Array<{
       id: string;
@@ -206,6 +211,22 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     };
   }>({});
 
+  // Edit state – Discount edit using uncontrolled input
+  const [editingStockId, setEditingStockId] = useState<number | null>(null);
+  const [editVariantId, setEditVariantId] = useState<number | null>(null);
+  const discountInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Focus input on edit mode
+  useEffect(() => {
+    if (editingStockId !== null) {
+      const t = setTimeout(() => {
+        discountInputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [editingStockId]);
+
+  // ===== Stock helpers =====
   const isBuyingPriceUnique = (
     variantId: number,
     buyingPrice: number,
@@ -233,6 +254,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
       );
       return;
     }
+
     const newId = `temp-${Date.now()}-${Math.random()}`;
     setPendingStocks((prev) => ({
       ...prev,
@@ -367,8 +389,8 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
         );
         setThumbnail(product.thumbnail || null);
         setThumbnailFile(null);
+        setProductWeight(product.weight || 0);
 
-        // ✅ Load attributePriority from product
         if (
           product.attributePriority &&
           Array.isArray(product.attributePriority)
@@ -409,7 +431,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     }
   };
 
-  // ---------- Step 1: Update product ----------
+  // Step 1: Update product
   const handleStep1Next = async () => {
     if (submitting) return;
 
@@ -427,6 +449,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
       formData.append("name", productName);
       formData.append("categoryId", selectedCategory.id);
       formData.append("forceOrderPriority", String(forceOrderPriority));
+      formData.append("weight", String(productWeight));
       formData.append("videoUrl", videoUrl);
       formData.append("description", productDetails);
       if (thumbnailFile) {
@@ -444,7 +467,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     }
   };
 
-  // ---------- Navigation between steps ----------
+  // Navigation
   const goToStep3 = () => {
     if (variants.length === 0) {
       toast.error("Please add at least one variant before setting priority.");
@@ -457,7 +480,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     setStep(4);
   };
 
-  // ---------- Variant management ----------
+  // Variant management
   const resetVariantForm = () => {
     setCurrentAttributes({});
     setVariantImages([]);
@@ -501,6 +524,19 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     setVariantImageFiles([]);
   };
 
+  // Delete default variant (empty attributes) if exists
+  const deleteDefaultVariantIfExists = async () => {
+    const defaultVariant = variants.find(
+      (v) => Object.keys(v.attributes || {}).length === 0,
+    );
+    if (!defaultVariant) return;
+    try {
+      await api.delete(`/variant/${defaultVariant.id}`);
+    } catch (err: any) {
+      // ignore silently
+    }
+  };
+
   const saveVariant = async () => {
     if (submitting) return;
     if (!isEditingMode && Object.keys(currentAttributes).length === 0) {
@@ -534,6 +570,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
           headers: { "Content-Type": "multipart/form-data" },
         });
         toast.success("Variant added");
+        await deleteDefaultVariantIfExists();
       }
       await fetchVariants();
       closeVariantForm();
@@ -671,7 +708,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     );
   };
 
-  // ---------- Thumbnail handlers ----------
+  // Thumbnail handlers
   const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -685,7 +722,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     setThumbnailFile(null);
   };
 
-  // ---------- Helpers ----------
+  // Helpers
   const handleValueSelect = (value: string) => {
     if (!selectedAttrName || !value) return;
     setCurrentAttributes((prev) => ({ ...prev, [selectedAttrName]: value }));
@@ -743,17 +780,57 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
     return false;
   };
 
-  // ========== ✅ FIXED: handleSaveAllChanges ==========
+  // Edit functions – uncontrolled discount input
+  const startEditStock = (row: any, variantId: number) => {
+    setEditingStockId(row.id);
+    setEditVariantId(variantId);
+    // set initial value in ref after render
+    setTimeout(() => {
+      if (discountInputRef.current) {
+        const initialVal = row.discountPercent ?? row.discount ?? 0;
+        discountInputRef.current.value = String(initialVal);
+        discountInputRef.current.focus();
+        discountInputRef.current.select();
+      }
+    }, 0);
+  };
+
+  const cancelEditStock = () => {
+    setEditingStockId(null);
+    setEditVariantId(null);
+  };
+
+  const saveEditStock = async () => {
+    if (editingStockId === null || editVariantId === null) return;
+    const newDiscount = parseFloat(discountInputRef.current?.value || "0");
+    if (isNaN(newDiscount) || newDiscount < 0) {
+      toast.error("Please enter a valid discount (0 or greater)");
+      return;
+    }
+    try {
+      setSubmitting(true);
+      // Use service function (or direct api call)
+      await updateStockDiscount(editingStockId, newDiscount);
+      toast.success("Discount updated successfully");
+      await fetchVariants();
+      cancelEditStock();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to update discount");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSaveAllChanges = async () => {
     if (submitting) return;
     try {
       setSubmitting(true);
 
-      // 1. Product basic info + attributePriority
       const formData = new FormData();
       formData.append("name", productName);
       formData.append("categoryId", selectedCategory?.id || "");
       formData.append("forceOrderPriority", String(forceOrderPriority));
+      formData.append("weight", String(productWeight));
       if (videoUrl) formData.append("videoUrl", videoUrl);
       if (productDetails) formData.append("description", productDetails);
       if (thumbnailFile) {
@@ -761,28 +838,19 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
       } else if (thumbnail && !thumbnail.startsWith("blob:")) {
         formData.append("existingThumbnail", thumbnail);
       }
-      // ✅ attributePriority পাঠান
       formData.append(
         "attributePriority",
         JSON.stringify(productAttributePriority),
       );
-
-      console.log("🔄 Saving product with data:", {
-        name: productName,
-        categoryId: selectedCategory?.id,
-        attributePriority: productAttributePriority,
-        thumbnail: thumbnailFile ? "new file" : thumbnail,
-      });
       await updateProduct(productId, formData);
 
-      // 2. Pending stocks
       await saveAllPendingStocks();
 
       toast.success("Product updated successfully!");
       onProductSaved();
       onClose();
     } catch (err: any) {
-      console.error("❌ Save failed:", err);
+      console.error("Save failed:", err);
       toast.error(err.message || "Failed to save changes");
     } finally {
       setSubmitting(false);
@@ -853,11 +921,22 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
               onChange={(e) => setForceOrderPriority(Number(e.target.value))}
             />
             <InputField
+              label="Weight (kg)"
+              type="number"
+              step="0.1"
+              min="0"
+              value={productWeight !== undefined ? String(productWeight) : ""}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                setProductWeight(isNaN(val) ? 0 : val);
+              }}
+            />
+          </div>
+            <InputField
               label="Video URL"
               value={videoUrl}
               onChange={(e) => setVideoUrl(e.target.value)}
             />
-          </div>
           <div>
             <label className="block text-sm font-medium mb-2">
               Description
@@ -1136,6 +1215,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
 
           <DataTable
             value={variants}
+            dataKey="id"
             stripedRows
             emptyMessage="No variants found"
             rowClassName={() => "table-row"}
@@ -1286,11 +1366,16 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
                       Barcode: {variant.barcode}
                     </p>
                   )}
+                  <p className="text-xs text-gray-500">
+                    Weight: {productWeight} kg
+                  </p>
                 </div>
 
                 {hasPriceSets ? (
                   <DataTable
                     value={allRows}
+                    dataKey="id"
+                    key={editingStockId || "default"}
                     stripedRows
                     emptyMessage="No price sets added yet"
                     rowClassName={() => "table-row"}
@@ -1298,51 +1383,21 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
                   >
                     <Column
                       header="Buying Price"
-                      body={(row) =>
-                        row._isTemp && row.isEditing ? (
-                          <input
-                            type="number"
-                            value={row.buyingPrice}
-                            onChange={(e) =>
-                              updateTempStock(
-                                variant.id,
-                                row.id,
-                                "buyingPrice",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
-                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                        ) : (
-                          <span className="text-xs">
-                            {row.buyingOrMakingPrice || row.buyingPrice}
-                          </span>
-                        )
-                      }
+                      body={(row) => (
+                        <span className="text-xs">
+                          {row._isTemp
+                            ? row.buyingPrice
+                            : row.buyingOrMakingPrice || row.buyingPrice}
+                        </span>
+                      )}
                       headerClassName="column-header text-xs"
                       bodyClassName="column-body text-xs py-1"
                     />
                     <Column
                       header="MRP"
-                      body={(row) =>
-                        row._isTemp && row.isEditing ? (
-                          <input
-                            type="number"
-                            value={row.sellingPrice}
-                            onChange={(e) =>
-                              updateTempStock(
-                                variant.id,
-                                row.id,
-                                "sellingPrice",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
-                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                        ) : (
-                          <span className="text-xs">{row.sellingPrice}</span>
-                        )
-                      }
+                      body={(row) => (
+                        <span className="text-xs">{row.sellingPrice}</span>
+                      )}
                       headerClassName="column-header text-xs"
                       bodyClassName="column-body text-xs py-1"
                     />
@@ -1352,6 +1407,25 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
                         const discountValue = row._isTemp
                           ? row.discount
                           : (row.discountPercent ?? row.discount);
+                        const isEditing =
+                          editingStockId !== null &&
+                          editVariantId === variant.id &&
+                          row.id === editingStockId &&
+                          !row._isTemp;
+
+                        if (isEditing) {
+                          return (
+                            <input
+                              ref={discountInputRef}
+                              type="number"
+                              min="0"
+                              step="any"
+                              defaultValue={discountValue}
+                              className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              placeholder="Discount %"
+                            />
+                          );
+                        }
                         if (
                           discountValue === 0 ||
                           discountValue === null ||
@@ -1363,21 +1437,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
                             </div>
                           );
                         }
-                        return row._isTemp && row.isEditing ? (
-                          <input
-                            type="number"
-                            value={discountValue}
-                            onChange={(e) =>
-                              updateTempStock(
-                                variant.id,
-                                row.id,
-                                "discount",
-                                parseFloat(e.target.value) || 0,
-                              )
-                            }
-                            className="w-full px-2 py-1 text-xs border rounded dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                        ) : (
+                        return (
                           <span className="text-xs">{discountValue}%</span>
                         );
                       }}
@@ -1423,8 +1483,39 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
                             </div>
                           );
                         }
+                        const isEditing =
+                          editingStockId !== null &&
+                          editVariantId === variant.id &&
+                          row.id === editingStockId;
+                        if (isEditing) {
+                          return (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={saveEditStock}
+                                className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                title="Save"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={cancelEditStock}
+                                className="p-1 text-gray-600 hover:bg-gray-50 rounded transition-colors"
+                                title="Cancel"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          );
+                        }
                         return (
                           <div className="flex gap-2">
+                            <button
+                              onClick={() => startEditStock(row, variant.id)}
+                              className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title="Edit discount"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
                             <button
                               onClick={async () => {
                                 if (row.currentQty > 0) {
@@ -1433,12 +1524,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
                                   );
                                   return;
                                 }
-                                if (
-                                  !confirm(
-                                    "Delete this price set? This action cannot be undone.",
-                                  )
-                                )
-                                  return;
+                                if (!confirm("Delete this price set?")) return;
                                 try {
                                   setSubmitting(true);
                                   await api.delete(`/stock/${row.id}`);
@@ -1447,7 +1533,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
                                 } catch (err: any) {
                                   toast.error(
                                     err.response?.data?.message ||
-                                      "Failed to delete price set",
+                                      "Failed to delete",
                                   );
                                 } finally {
                                   setSubmitting(false);
@@ -1461,7 +1547,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
                           </div>
                         );
                       }}
-                      style={{ width: "100px" }}
+                      style={{ width: "130px" }}
                       headerClassName="column-header text-xs"
                       bodyClassName="column-body text-xs py-1"
                     />
@@ -1475,6 +1561,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
 
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                   <div className="grid grid-cols-3 gap-3">
+                    {/* Buying Price, MRP, Discount form inputs – unchanged */}
                     <div>
                       <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Buying Price *
@@ -1655,8 +1742,7 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
                       </Button>
                       <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-20 w-56 p-2 text-xs text-white bg-gray-800 rounded shadow-lg whitespace-normal">
                         Add multiple price sets for different purchase costs or
-                        MRPs. Unsaved rows can be removed. All changes are saved
-                        when you click Save All Changes.
+                        MRPs.
                       </div>
                     </div>
                   </div>

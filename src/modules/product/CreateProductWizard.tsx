@@ -1,4 +1,3 @@
-// modules/master-data/product/CreateProductWizard.tsx
 "use client";
 
 import {
@@ -154,6 +153,9 @@ export const CreateProductWizard = ({
   const [formErrors, setFormErrors] = useState<any>({});
   const [originalProduct, setOriginalProduct] = useState<any>(null);
 
+  // ✅ NEW: Product weight (kg)
+  const [productWeight, setProductWeight] = useState<number>(0);
+
   // Step 2: variants and inline form
   const [variants, setVariants] = useState<any[]>([]);
   const [editingVariantId, setEditingVariantId] = useState<number | null>(null);
@@ -177,11 +179,10 @@ export const CreateProductWizard = ({
   const [showVariantForm, setShowVariantForm] = useState(false);
   const [isEditingMode, setIsEditingMode] = useState(false);
 
-  // Step 3: Attribute Priority (new)
+  // Step 3: Attribute Priority
   const [productAttributePriority, setProductAttributePriority] = useState<
     string[]
   >([]);
-  // We'll compute used attributes dynamically from variants
   const usedAttributeNames = useMemo(() => {
     const keys = new Set<string>();
     variants.forEach((v) => {
@@ -192,7 +193,6 @@ export const CreateProductWizard = ({
     return Array.from(keys);
   }, [variants]);
 
-  // When variants change, filter productAttributePriority to only used keys
   useEffect(() => {
     if (productAttributePriority.length > 0) {
       const filtered = productAttributePriority.filter((key) =>
@@ -371,7 +371,6 @@ export const CreateProductWizard = ({
       try {
         const res = await api.get("/attributes");
         setAvailableAttributes(res.data.data);
-        // We no longer set allAttributeNames globally; we compute from variants
       } catch {
         toast.error("Failed to load attributes");
       }
@@ -394,6 +393,8 @@ export const CreateProductWizard = ({
           );
           setThumbnail(product.thumbnail || null);
           setThumbnailFile(null);
+          // ✅ Load product weight
+          setProductWeight(product.weight || 0);
           if (
             product.attributePriority &&
             Array.isArray(product.attributePriority)
@@ -419,7 +420,6 @@ export const CreateProductWizard = ({
     });
   };
 
-  // fetchVariants now accepts productId directly
   const fetchVariants = async (prodId?: number) => {
     const id = prodId || productId;
     if (!id) return;
@@ -447,8 +447,7 @@ export const CreateProductWizard = ({
     }
   };
 
-  // ===== Step 1 Next =====
-  // ===== Step 1 Next (আপডেটেড) =====
+  // ===== Step 1 Next (exactly as original, only weight added) =====
   const handleStep1Next = async () => {
     if (submitting) return;
 
@@ -472,6 +471,8 @@ export const CreateProductWizard = ({
         hasChanges = true;
       if (thumbnailFile) hasChanges = true;
       if (thumbnail !== originalProduct.thumbnail) hasChanges = true;
+      // ✅ weight change check
+      if (productWeight !== (originalProduct.weight || 0)) hasChanges = true;
     }
 
     try {
@@ -483,6 +484,8 @@ export const CreateProductWizard = ({
         formData.append("name", productName);
         formData.append("categoryId", selectedCategory.id);
         formData.append("forceOrderPriority", String(forceOrderPriority));
+        // ✅ weight added
+        formData.append("weight", String(productWeight));
         if (videoUrl) formData.append("videoUrl", videoUrl);
         if (productDetails) formData.append("description", productDetails);
         if (thumbnailFile) formData.append("thumbnail", thumbnailFile);
@@ -496,7 +499,7 @@ export const CreateProductWizard = ({
         setProductId(newProduct.id);
         setOriginalProduct(newProduct);
         toast.success("Product saved");
-        onProductSaved(); // ✅ রিফ্রেশ লিস্ট
+        onProductSaved(); // ✅ রিফ্রেশ লিস্ট (মডেল বন্ধ হয় না)
 
         await createDefaultVariant(newProduct.id);
         await fetchVariants(newProduct.id);
@@ -508,6 +511,7 @@ export const CreateProductWizard = ({
           formData.append("name", productName);
           formData.append("categoryId", selectedCategory.id);
           formData.append("forceOrderPriority", String(forceOrderPriority));
+          formData.append("weight", String(productWeight));
           if (videoUrl) formData.append("videoUrl", videoUrl);
           if (productDetails) formData.append("description", productDetails);
           if (thumbnailFile) {
@@ -529,10 +533,8 @@ export const CreateProductWizard = ({
           setOriginalProduct(updatedProduct);
           setThumbnail(updatedProduct.thumbnail || null);
           setThumbnailFile(null);
-          onProductSaved(); // ✅ রিফ্রেশ লিস্ট
+          onProductSaved();
         }
-
-        // ✅ ভেরিয়েন্ট ফেচ করে স্টেপ ২-এ যাই (যদি ইতিমধ্যে লোড করা থাকে, তাও ঠিক আছে)
         await fetchVariants(productId);
         setStep(2);
       }
@@ -543,7 +545,7 @@ export const CreateProductWizard = ({
     }
   };
 
-  // ===== Navigation between steps =====
+  // ===== Navigation =====
   const goToStep3 = () => {
     if (variants.length === 0) {
       toast.error("Please add at least one variant before setting priority.");
@@ -556,7 +558,7 @@ export const CreateProductWizard = ({
     setStep(4);
   };
 
-  // ===== Other variant functions =====
+  // ===== Variant functions (unchanged from original) =====
   const deleteDefaultVariantIfExists = async () => {
     const defaultVariant = variants.find(
       (v) => Object.keys(v.attributes || {}).length === 0,
@@ -834,26 +836,19 @@ export const CreateProductWizard = ({
     return false;
   };
 
-  // modules/master-data/product/CreateProductWizard.tsx
-  // শুধুমাত্র পরিবর্তিত অংশ দেখানো হলো – বাকি সব আগের মতোই থাকবে
-
-  // ===== Save draft / publish (আপডেটেড) =====
   const handleSaveDraft = async () => {
     if (!productId) return;
     if (submitting) return;
     try {
       setSubmitting(true);
-      // ১. পেন্ডিং স্টক সেভ করো
       await saveAllPendingStocks();
 
-      // ২. প্রোডাক্টের attributePriority আপডেট করো (যদি priority সেট করা থাকে)
       if (productAttributePriority && productAttributePriority.length > 0) {
         const formData = new FormData();
         formData.append(
           "attributePriority",
           JSON.stringify(productAttributePriority),
         );
-        // অন্যান্য ফিল্ড পাঠানোর দরকার নেই – শুধু priority আপডেট
         await updateProduct(productId, formData);
       }
 
@@ -872,10 +867,8 @@ export const CreateProductWizard = ({
     if (submitting) return;
     try {
       setSubmitting(true);
-      // ১. পেন্ডিং স্টক সেভ করো
       await saveAllPendingStocks();
 
-      // ২. প্রোডাক্টের attributePriority আপডেট করো (যদি priority সেট করা থাকে)
       if (productAttributePriority && productAttributePriority.length > 0) {
         const formData = new FormData();
         formData.append(
@@ -885,7 +878,6 @@ export const CreateProductWizard = ({
         await updateProduct(productId, formData);
       }
 
-      // ৩. পাবলিশ করো
       await api.patch(`/products/publish/${productId}`);
       toast.success("Product registered successfully!");
       onProductSaved();
@@ -951,12 +943,21 @@ export const CreateProductWizard = ({
               value={forceOrderPriority}
               onChange={(e) => setForceOrderPriority(Number(e.target.value))}
             />
+            {/* ✅ Weight input added here */}
+            <InputField
+              label="Weight (kg)"
+              type="number"
+              step="0.1"
+              min="0"
+              value={productWeight === 0 ? "" : productWeight}
+              onChange={(e) => setProductWeight(parseFloat(e.target.value) || 0)}
+            />
+          </div>
             <InputField
               label="Video URL"
               value={videoUrl}
               onChange={(e) => setVideoUrl(e.target.value)}
             />
-          </div>
           <div>
             <label className="block text-sm font-medium mb-2">
               Description
@@ -1337,7 +1338,7 @@ export const CreateProductWizard = ({
             <AttributePrioritySelector
               value={productAttributePriority}
               onChange={setProductAttributePriority}
-              availableAttributes={usedAttributeNames} // ✅ Only show used attributes
+              availableAttributes={usedAttributeNames}
               disabled={submitting}
             />
           </div>

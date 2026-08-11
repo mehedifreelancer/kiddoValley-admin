@@ -21,8 +21,6 @@ export const getProductById = async (id: number): Promise<ProductItem> => {
   return response.data.data;
 };
 
-// ⚠️ DEPRECATED: barcode is now stored on Variant, not Product.
-// Use variant service to find variant by barcode.
 export const getProductByBarcode = async (
   barcode: string,
 ): Promise<ProductItem> => {
@@ -40,7 +38,6 @@ export const getCategoriesForDropdown = async (): Promise<Category[]> => {
   return response.data.data || [];
 };
 
-// ✅ CREATE - Send FormData (no barcode field)
 export const createProduct = async (
   formData: FormData,
 ): Promise<ProductItem> => {
@@ -49,11 +46,10 @@ export const createProduct = async (
     data: { product: ProductItem };
   }>("products/create", formData, {
     headers: { "Content-Type": "multipart/form-data" },
-  }); 
+  });
   return response.data.data.product;
 };
 
-// ✅ UPDATE - Send FormData (no barcode field)
 export const updateProduct = async (
   id: number,
   formData: FormData,
@@ -70,9 +66,16 @@ export const deleteProduct = async (id: number): Promise<void> => {
   await api.delete(`products/delete/${id}`);
 };
 
-// Optional: generate a random barcode (now used for variants)
 export const generateBarcode = (): string => {
   return Math.floor(Math.random() * 1000000000000)
     .toString()
     .padStart(12, "0");
+};
+
+// ✅ NEW: Update stock discount
+export const updateStockDiscount = async (
+  stockId: number,
+  discountPercent: number,
+): Promise<void> => {
+  await api.patch(`/stock/${stockId}/discount`, { discountPercent });
 };
