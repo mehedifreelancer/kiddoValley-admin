@@ -91,7 +91,7 @@ const Button: React.FC<ButtonProps> = ({
       )}
 
       <span
-        className={`flex items-center justify-center gap-2 ${loading ? "opacity-0" : "opacity-100"}`}
+        className={`flex items-center justify-center  ${loading ? "opacity-0" : "opacity-100"}`}
       >
         {icon && iconPosition === "left" && (
           <span className="icon-left">{icon}</span>

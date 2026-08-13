@@ -75,3 +75,10 @@ export interface OrderTrafficData {
   timeSlots: string[];
   dayNames: string[];
 }
+// dashboard.types.ts
+export interface TopDefectProduct {
+  productName: string;
+  defectRefundCount: number; // কতবার defect রিফান্ড হয়েছে
+  totalSoldQuantity: number; // মোট বিক্রি
+  defectPercentage: number; // শতাংশ
+}

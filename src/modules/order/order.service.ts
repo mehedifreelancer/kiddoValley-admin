@@ -1,5 +1,38 @@
 import api from "../../apiConfig";
 import { CreateOrderPayload } from "./order.types";
+export interface OrderItem {
+  id: number;
+  invoiceNo: string;
+  customerName: string;
+  customerPhone: string;
+  customerPhone2?: string;
+  customerAddress: string;
+  total: number;
+  subtotal: number;
+  discount: number;
+  orderStatus: string;
+  isWebsiteOrder: boolean;
+  isSuspicious: boolean;
+  paymentStatus: string;
+  deliveryStatus?: string;
+  pathaoInvoiceId?: string;
+  pathaoConsignmentId?: string;
+  pathaoLastSyncedAt?: string;
+  deliveryDate?: string;
+  createdAt: string;
+  hasRefund?: boolean;
+  refundStatus?: string;
+  totalRefunded?: number;
+  soldItems?: any[];
+}
+
+export interface RefundPayload {
+  type: "partial" | "full";
+  reason: string;
+  imageUrl?: string;
+  transactionId?: string;
+  items?: { soldItemId: number; quantity: number; amount: number }[];
+}
 
 // অর্ডার তৈরি (status new)
 export const createOrder = (payload: CreateOrderPayload) =>
@@ -50,3 +83,11 @@ export const getOrders = (
 // (ঐচ্ছিক) পাথাও স্ট্যাটাস সিঙ্ক
 export const syncPathaoStatuses = (orderIds: number[]) =>
   api.post("/orders/sync-statuses", { orderIds }).then((res) => res.data);
+
+export const processRefund = async (
+  orderId: number,
+  payload: RefundPayload,
+): Promise<any> => {
+  const response = await api.post(`/orders/${orderId}/refund`, payload);
+  return response.data;
+};

@@ -4,7 +4,10 @@ import AuthGuard from "./components/guards/AuthGuard";
 import Components from "./components/ui/Components";
 import SignIn from "./modules/auth/SignIn";
 import CustomerList from "./modules/customer/Customer";
-import Dashboard from "./modules/dashboard/Dashboard";
+import {
+  default as Dashboard,
+  default as Report,
+} from "./modules/dashboard/Dashboard";
 import Slider from "./modules/hero-banner-slider/HeroBannerSlider";
 import HeroSliderManagement from "./modules/hero-slider/HeroSliderManagement";
 import Category from "./modules/master-data/category/Category";
@@ -12,11 +15,11 @@ import EditOrder from "./modules/order/EditOrder"; // ✅ নতুন
 import Order from "./modules/order/order";
 import OrderList from "./modules/order/OrderList";
 import { Product } from "./modules/product/Product";
+import SellsReport from "./modules/reports/SellsReport";
 import StockIn from "./modules/stock-in/StockIn";
 import Stock from "./modules/stock/stock";
 import SupplierList from "./modules/supplier/supplier";
 import { WebSettings } from "./modules/web-settings/WebSettings";
-import Report from "./modules/dashboard/Dashboard";
 
 // Placeholder components for missing routes
 const Sells = () => <div>Sells Page</div>;
@@ -34,6 +37,10 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Dashboard /> },
+      {
+        path: "report",
+        children: [{ path: "sells-report", element: <SellsReport /> }],
+      },
       { path: "customer", element: <CustomerList /> },
       { path: "supplier", element: <SupplierList /> },
       { path: "stock", element: <Stock /> },

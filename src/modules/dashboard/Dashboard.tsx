@@ -7,12 +7,12 @@ import { CategorySalesChart } from "../../components/shared/charts/CategorySales
 import { OrderStatusChart } from "../../components/shared/charts/OrderStatusChart";
 import { OrderTrafficHeatmap } from "../../components/shared/charts/OrderTrafficHeatmap";
 import { OverviewStats } from "../../components/shared/charts/OverviewStats";
-import { PaymentStatusChart } from "../../components/shared/charts/PaymentStatusChart";
 import { ProductSalesChart } from "../../components/shared/charts/ProductSalesChart";
 import { RetentionChart } from "../../components/shared/charts/RetentionChart";
 import { SalesTrendChart } from "../../components/shared/charts/SalesTrendChart";
 import { SalesVsProfitChart } from "../../components/shared/charts/SalesVsProfitChart";
 import { TopCustomersTable } from "../../components/shared/charts/TopCustomersTable";
+import { TopDefectProducts } from "../../components/shared/charts/TopDefectProducts";
 import { TopProductsTable } from "../../components/shared/charts/TopProductsTable";
 import Toolbar from "../../components/ui/Toolbar";
 
@@ -22,12 +22,12 @@ import {
   fetchOrderStatus,
   fetchOrderTraffic,
   fetchOverview,
-  fetchPaymentStatus,
   fetchProductSales,
   fetchRetention,
   fetchSalesTrend,
   fetchSalesVsProfit,
   fetchTopCustomers,
+  fetchTopDefectProducts, // ✅ new import
   fetchTopProfitProducts,
 } from "./dashboard.service";
 
@@ -48,10 +48,10 @@ export const Dashboard: React.FC = () => {
   const [customers, setCustomers] = useState([]);
   const [salesVsProfit, setSalesVsProfit] = useState([]);
   const [retention, setRetention] = useState(null);
-  const [payment, setPayment] = useState([]);
   const [orderStatuses, setOrderStatuses] = useState([]);
   const [profitProducts, setProfitProducts] = useState([]);
   const [orderTraffic, setOrderTraffic] = useState(null);
+  const [defectProducts, setDefectProducts] = useState([]); // ✅ new state
 
   const fetchAll = async (start?: string, end?: string) => {
     setLoading(true);
@@ -66,10 +66,10 @@ export const Dashboard: React.FC = () => {
         customersRes,
         salesVsProfitRes,
         retentionRes,
-        paymentRes,
         orderRes,
         profitRes,
         trafficRes,
+        defectRes, // ✅ new
       ] = await Promise.all([
         fetchOverview(start, end),
         fetchSalesTrend(start, end),
@@ -79,10 +79,10 @@ export const Dashboard: React.FC = () => {
         fetchTopCustomers(start, end),
         fetchSalesVsProfit(start, end),
         fetchRetention(start, end),
-        fetchPaymentStatus(start, end),
         fetchOrderStatus(start, end),
         fetchTopProfitProducts(start, end),
         fetchOrderTraffic(start, end),
+        fetchTopDefectProducts(start, end), // ✅ call
       ]);
 
       setOverview(overviewRes);
@@ -93,10 +93,10 @@ export const Dashboard: React.FC = () => {
       setCustomers(customersRes);
       setSalesVsProfit(salesVsProfitRes);
       setRetention(retentionRes);
-      setPayment(paymentRes);
       setOrderStatuses(orderRes);
       setProfitProducts(profitRes);
       setOrderTraffic(trafficRes);
+      setDefectProducts(defectRes.data); // ✅ set state
     } catch (err: any) {
       setError(err.message || "ডেটা লোড করতে ব্যর্থ হয়েছে");
     } finally {
@@ -248,10 +248,12 @@ export const Dashboard: React.FC = () => {
         {/* 4. Sales vs Profit */}
         <SalesVsProfitChart data={salesVsProfit} />
 
-        {/* 5. Retention + Payment + Order Status */}
+        {/* 5. Retention + Defect Products + Order Status */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
           <RetentionChart data={retention} />
-          <PaymentStatusChart data={payment} />
+          <TopDefectProducts data={defectProducts} />
+
+          {/* ✅ PaymentStatus সরিয়ে এটি বসেছে */}
           <OrderStatusChart data={orderStatuses} />
         </div>
 

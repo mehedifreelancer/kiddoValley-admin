@@ -2,6 +2,7 @@
 
 import {
   CheckCircle,
+  DollarSign,
   Edit,
   Eye,
   Printer,
@@ -16,6 +17,7 @@ import { toast } from "react-hot-toast";
 import { Link } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import DataTableSearch from "../../components/ui/DataTableSearch";
+import InputField from "../../components/ui/InputField";
 import Modal from "../../components/ui/Modal";
 import Toolbar from "../../components/ui/Toolbar";
 import {
@@ -24,42 +26,10 @@ import {
   deleteOrder,
   getOrderDetails,
   getOrders,
+  OrderItem,
+  processRefund,
   syncPathaoStatuses,
 } from "./order.service";
-
-// ---------- Types ----------
-interface SoldItem {
-  id: number;
-  productName: string;
-  variantSku: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  variantAttributes?: any;
-}
-
-interface OrderItem {
-  id: number;
-  invoiceNo: string;
-  customerName: string;
-  customerPhone: string;
-  customerPhone2?: string;
-  customerAddress: string;
-  total: number;
-  subtotal: number;
-  discount: number;
-  orderStatus: string;
-  isWebsiteOrder: boolean;
-  isSuspicious: boolean;
-  paymentStatus: string;
-  deliveryStatus?: string;
-  pathaoInvoiceId?: string;
-  pathaoConsignmentId?: string;
-  pathaoLastSyncedAt?: string;
-  deliveryDate?: string;
-  createdAt: string;
-  soldItems?: SoldItem[];
-}
 
 // ---------- Print Helper ----------
 const handlePrintReceipt = (order: OrderItem) => {
@@ -141,6 +111,7 @@ export const OrderList: React.FC = () => {
   const [confirmLoading, setConfirmLoading] = useState<number | null>(null);
   const [cancelLoading, setCancelLoading] = useState<number | null>(null);
   const [deleteLoading, setDeleteLoading] = useState<number | null>(null);
+  const [refundLoading, setRefundLoading] = useState<number | null>(null);
 
   // Modal states
   const [showConfirmModal, setShowConfirmModal] = useState<OrderItem | null>(
@@ -157,6 +128,19 @@ export const OrderList: React.FC = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+
+  // ---------- Refund Modal States ----------
+  const [showRefundModal, setShowRefundModal] = useState<OrderItem | null>(
+    null,
+  );
+  const [refundType, setRefundType] = useState<"partial" | "full">("partial");
+  const [refundItems, setRefundItems] = useState<
+    { soldItemId: number; quantity: number; amount: number }[]
+  >([]);
+  const [refundReason, setRefundReason] = useState("");
+  const [refundImageUrl, setRefundImageUrl] = useState("");
+  const [refundTransactionId, setRefundTransactionId] = useState("");
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
 
   // ---------- Fetch Orders ----------
   const fetchOrders = useCallback(async () => {
@@ -280,6 +264,81 @@ export const OrderList: React.FC = () => {
     handlePrintReceipt(order);
   };
 
+  // ---------- Refund Functions ----------
+  const openRefundModal = (order: OrderItem, type: "partial" | "full") => {
+    setShowRefundModal(order);
+    setRefundType(type);
+    setRefundReason("");
+    setRefundImageUrl("");
+    setRefundTransactionId("");
+    setRefundSubmitting(false);
+
+    if (type === "partial") {
+      // Initialize refund items with default 0
+      setRefundItems(
+        (order.soldItems || []).map((item: any) => ({
+          soldItemId: item.id,
+          quantity: 0,
+          amount: 0,
+        })),
+      );
+    } else {
+      setRefundItems([]);
+    }
+  };
+
+  const handleRefundItemChange = (index: number, field: string, value: any) => {
+    const updated = [...refundItems];
+    updated[index] = { ...updated[index], [field]: value };
+    setRefundItems(updated);
+  };
+
+  const handleRefundSubmit = async () => {
+    if (!showRefundModal) return;
+    if (!refundReason) {
+      toast.error("Please provide a reason");
+      return;
+    }
+
+    const payload: any = {
+      type: refundType,
+      reason: refundReason,
+      imageUrl: refundImageUrl || null,
+      transactionId: refundTransactionId || null,
+    };
+
+    if (refundType === "partial") {
+      const selected = refundItems.filter(
+        (i) => i.quantity > 0 && i.amount > 0,
+      );
+      if (selected.length === 0) {
+        toast.error(
+          "Please select at least one item and enter quantity & amount",
+        );
+        return;
+      }
+      payload.items = selected;
+    }
+
+    setRefundSubmitting(true);
+    setRefundLoading(showRefundModal.id);
+    try {
+      await processRefund(showRefundModal.id, payload);
+      toast.success(
+        refundType === "partial"
+          ? "Partial refund processed successfully"
+          : "Full refund processed successfully",
+      );
+      setShowRefundModal(null);
+      fetchOrders();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Refund failed");
+    } finally {
+      setRefundSubmitting(false);
+      setRefundLoading(null);
+    }
+  };
+
   // ---------- Column Templates ----------
   const invoiceBody = (row: OrderItem) => (
     <Link
@@ -324,6 +383,24 @@ export const OrderList: React.FC = () => {
     );
   };
 
+  const refundStatusBody = (row: OrderItem) => {
+    if (row.refundStatus === "full") {
+      return (
+        <span className="px-2 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 rounded-full text-xs font-medium">
+          Full Refunded
+        </span>
+      );
+    }
+    if (row.refundStatus === "partial") {
+      return (
+        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 rounded-full text-xs font-medium">
+          Partial ({row.totalRefunded?.toFixed(2) || 0} TK)
+        </span>
+      );
+    }
+    return <span className="text-gray-400">—</span>;
+  };
+
   const suspiciousBody = (row: OrderItem) => {
     if (!row.isSuspicious) return null;
     return (
@@ -356,13 +433,21 @@ export const OrderList: React.FC = () => {
     </span>
   );
 
-  // ---------- Actions Column (Button + Modal) ----------
+  // ========== UPDATED ACTIONS COLUMN (Refund + Hide Cancel for confirmed) ==========
   const actionsBody = (row: OrderItem) => {
-    const { id, orderStatus } = row;
+    const { id, orderStatus, refundStatus } = row;
+    const isFullyRefunded = refundStatus === "full";
+    const isCancelled = orderStatus === "cancelled";
+    const isNew = orderStatus === "new";
+    const isConfirmed =
+      orderStatus === "confirmed" ||
+      orderStatus === "packed" ||
+      orderStatus === "delivered";
 
-    if (orderStatus === "cancelled") {
+    // ---------- CANCELLED ----------
+    if (isCancelled) {
       return (
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           <Button
             size="xs"
             variant="danger"
@@ -386,7 +471,8 @@ export const OrderList: React.FC = () => {
       );
     }
 
-    if (orderStatus === "new") {
+    // ---------- NEW ----------
+    if (isNew) {
       return (
         <div className="flex gap-2 items-center flex-wrap">
           <Button
@@ -432,28 +518,50 @@ export const OrderList: React.FC = () => {
       );
     }
 
-    if (orderStatus === "confirmed") {
+    // ---------- CONFIRMED / PACKED / DELIVERED ----------
+    if (isConfirmed) {
       return (
         <div className="flex gap-2 items-center flex-wrap">
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() => handleReprint(row)}
-            icon={<Printer size={14} />}
-            iconPosition="left"
-          >
-            Reprint
-          </Button>
-          <Button
-            size="xs"
-            variant="danger"
-            onClick={() => setShowCancelModal(row)}
-            loading={cancelLoading === id}
-            icon={<XCircle size={14} />}
-            iconPosition="left"
-          >
-            Cancel
-          </Button>
+          {/* Reprint – for confirmed only */}
+          {orderStatus === "confirmed" && (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => handleReprint(row)}
+              icon={<Printer size={14} />}
+              iconPosition="left"
+            >
+              Reprint
+            </Button>
+          )}
+
+          {/* Refund buttons (if not fully refunded) */}
+          {!isFullyRefunded && (
+            <>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => openRefundModal(row, "partial")}
+                loading={refundLoading === id}
+                icon={<DollarSign size={14} />}
+                iconPosition="left"
+              >
+                Partial
+              </Button>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => openRefundModal(row, "full")}
+                loading={refundLoading === id}
+                icon={<DollarSign size={14} />}
+                iconPosition="left"
+              >
+                Full
+              </Button>
+            </>
+          )}
+
+          {/* ❌ Cancel button is HIDDEN for confirmed orders */}
           <Button
             size="xs"
             variant="outline"
@@ -467,6 +575,7 @@ export const OrderList: React.FC = () => {
       );
     }
 
+    // Fallback (should not happen)
     return null;
   };
 
@@ -552,6 +661,12 @@ export const OrderList: React.FC = () => {
               bodyClassName="column-body"
             />
             <Column
+              header="Refund"
+              body={refundStatusBody}
+              headerClassName="column-header"
+              bodyClassName="column-body"
+            />
+            <Column
               header="Suspicious"
               body={suspiciousBody}
               headerClassName="column-header"
@@ -590,7 +705,7 @@ export const OrderList: React.FC = () => {
             <Column
               header="Actions"
               body={actionsBody}
-              style={{ width: "300px" }}
+              style={{ width: "380px" }}
               headerClassName="column-header"
               bodyClassName="column-body"
             />
@@ -763,6 +878,18 @@ export const OrderList: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Refund Status
+                  </p>
+                  <p className="font-medium">
+                    {selectedOrder.refundStatus === "full"
+                      ? "✅ Fully Refunded"
+                      : selectedOrder.refundStatus === "partial"
+                        ? `🔄 Partial (${selectedOrder.totalRefunded?.toFixed(2)} TK)`
+                        : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
                     Consignment
                   </p>
                   <p className="font-medium font-mono text-sm">
@@ -827,6 +954,24 @@ export const OrderList: React.FC = () => {
                       headerClassName="column-header"
                       bodyClassName="column-body"
                     />
+                    <Column
+                      header="Refunded"
+                      body={(row: any) =>
+                        row.isFullyRefunded ? (
+                          <span className="text-green-600">
+                            ✅ {row.refundedAmount?.toFixed(2)} TK
+                          </span>
+                        ) : row.refundedAmount > 0 ? (
+                          <span className="text-yellow-600">
+                            🔄 {row.refundedAmount?.toFixed(2)} TK
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )
+                      }
+                      headerClassName="column-header"
+                      bodyClassName="column-body"
+                    />
                   </DataTable>
                 </div>
                 <div className="mt-3 text-right">
@@ -839,6 +984,11 @@ export const OrderList: React.FC = () => {
                   <p className="text-xl font-bold text-green-600 dark:text-green-400">
                     Total: {selectedOrder.total.toFixed(2)} TK
                   </p>
+                  {selectedOrder.totalRefunded > 0 && (
+                    <p className="text-sm text-red-600 dark:text-red-400">
+                      Refunded: {selectedOrder.totalRefunded.toFixed(2)} TK
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -861,6 +1011,197 @@ export const OrderList: React.FC = () => {
               </div>
             </div>
           )
+        )}
+      </Modal>
+
+      {/* ===== Refund Modal ===== */}
+      <Modal
+        isOpen={!!showRefundModal}
+        onClose={() => setShowRefundModal(null)}
+        title={`${refundType === "partial" ? "Partial" : "Full"} Refund - ${showRefundModal?.invoiceNo || ""}`}
+        size="lg"
+      >
+        {showRefundModal && (
+          <div className="space-y-4">
+            {/* Order summary */}
+            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <p className="text-sm">
+                <span className="font-medium">Order Total:</span>{" "}
+                {showRefundModal.total.toFixed(2)} TK
+              </p>
+              <p className="text-sm">
+                <span className="font-medium">Already Refunded:</span>{" "}
+                {showRefundModal.totalRefunded?.toFixed(2) || "0.00"} TK
+              </p>
+              {refundType === "full" && (
+                <p className="text-sm text-amber-600">
+                  <span className="font-medium">Remaining:</span>{" "}
+                  {(
+                    showRefundModal.total - (showRefundModal.totalRefunded || 0)
+                  ).toFixed(2)}{" "}
+                  TK
+                </p>
+              )}
+            </div>
+
+            {/* Reason */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Reason *</label>
+              <select
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">Select reason...</option>
+                <option value="defect">Defect / Damaged</option>
+                <option value="lost">Lost in transit</option>
+                <option value="wrong_item">Wrong item sent</option>
+                <option value="customer_request">Customer requested</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            {/* Image URL */}
+            <InputField
+              label="Image URL (optional)"
+              value={refundImageUrl}
+              onChange={(e) => setRefundImageUrl(e.target.value)}
+              placeholder="https://example.com/refund-image.jpg"
+            />
+
+            {/* Transaction ID */}
+            <InputField
+              label="Transaction ID (optional)"
+              value={refundTransactionId}
+              onChange={(e) => setRefundTransactionId(e.target.value)}
+              placeholder="Bank/Payment reference ID"
+            />
+
+            {/* Partial Refund Items */}
+            {refundType === "partial" && (
+              <div>
+                <h4 className="font-medium mb-2">
+                  Select Items & Enter Refund Amount
+                </h4>
+                <div className="table-container max-h-60 overflow-y-auto border rounded">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-100 dark:bg-gray-700">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Select</th>
+                        <th className="px-3 py-2 text-left">Product</th>
+                        <th className="px-3 py-2 text-center">Qty</th>
+                        <th className="px-3 py-2 text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(showRefundModal.soldItems || []).map(
+                        (item: any, index) => {
+                          const remaining =
+                            item.totalPrice - (item.refundedAmount || 0);
+                          return (
+                            <tr
+                              key={item.id}
+                              className="border-b dark:border-gray-700"
+                            >
+                              <td className="px-3 py-2">
+                                <input
+                                  type="checkbox"
+                                  checked={refundItems[index]?.quantity > 0}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    handleRefundItemChange(
+                                      index,
+                                      "quantity",
+                                      checked ? item.quantity : 0,
+                                    );
+                                    handleRefundItemChange(
+                                      index,
+                                      "amount",
+                                      checked ? remaining : 0,
+                                    );
+                                  }}
+                                />
+                              </td>
+                              <td className="px-3 py-2">{item.productName}</td>
+                              <td className="px-3 py-2 text-center">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={item.quantity}
+                                  value={refundItems[index]?.quantity || 0}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value) || 0;
+                                    handleRefundItemChange(
+                                      index,
+                                      "quantity",
+                                      Math.min(val, item.quantity),
+                                    );
+                                  }}
+                                  className="w-16 px-2 py-1 text-center border rounded dark:bg-gray-700"
+                                  disabled={!refundItems[index]?.amount}
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  max={remaining}
+                                  value={refundItems[index]?.amount || 0}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    handleRefundItemChange(
+                                      index,
+                                      "amount",
+                                      Math.min(val, remaining),
+                                    );
+                                  }}
+                                  className="w-24 px-2 py-1 text-right border rounded dark:bg-gray-700"
+                                  disabled={!refundItems[index]?.quantity}
+                                />
+                              </td>
+                            </tr>
+                          );
+                        },
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Check the items and enter quantity & amount to refund.
+                </p>
+              </div>
+            )}
+
+            {refundType === "full" && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  ⚠️ This will refund the entire remaining amount of this order.
+                  All items will be marked as fully refunded.
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
+              <Button
+                variant="outline"
+                onClick={() => setShowRefundModal(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant={refundType === "full" ? "danger" : "primary"}
+                onClick={handleRefundSubmit}
+                loading={refundSubmitting}
+                icon={<DollarSign size={16} />}
+                iconPosition="left"
+              >
+                {refundType === "partial"
+                  ? "Process Partial Refund"
+                  : "Process Full Refund"}
+              </Button>
+            </div>
+          </div>
         )}
       </Modal>
     </div>

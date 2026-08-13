@@ -6,6 +6,7 @@ import {
   Link2,
   Package,
   PackageOpen,
+  ReceiptRussianRuble,
   Settings,
   ShoppingCart,
   Tag,
@@ -20,6 +21,19 @@ export const sidebarMenuData: MenuItem[] = [
     label: "Dashboard",
     icon: <LayoutDashboard className="w-4 h-4" />,
     path: "/",
+  },
+  {
+    id: "report",
+    label: "Reports",
+    icon: <ReceiptRussianRuble className="w-4 h-4" />,
+    children: [
+      {
+        id: "sells-report",
+        label: "Sells Report",
+        icon: <Link2 className="w-4 h-4" />,
+        path: "report/sells-report",
+      },
+    ],
   },
   {
     id: "category",

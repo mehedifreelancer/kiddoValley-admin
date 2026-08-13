@@ -153,3 +153,19 @@ export const fetchOrderTraffic = async (
   );
   return res.data.data;
 };
+// dashboard.service.ts
+// dashboard.service.ts
+// dashboard.service.ts
+export const fetchTopDefectProducts = async (
+  startDate?: string,
+  endDate?: string,
+) => {
+  const params = new URLSearchParams();
+  if (startDate) params.append("startDate", startDate);
+  if (endDate) params.append("endDate", endDate);
+  const response = await api.get(
+    `/dashboard/top-defect-products?${params.toString()}`,
+  );
+  return response.data; // { success: true, data: TopDefectProduct[] }
+};
+
