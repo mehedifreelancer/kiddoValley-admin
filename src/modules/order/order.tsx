@@ -51,14 +51,35 @@ const VariantThumbnails = ({ images }: { images: any[] }) => {
 };
 
 // ---------- Helpers ----------
-const formatDiscount = (sellingPrice: number, discountPercent: number) => {
-  const amount = (sellingPrice * discountPercent) / 100;
-  return `${discountPercent}% (${amount.toFixed(2)} TK)`;
+// 🔧 FIX: now takes the discountPercent + the actual per-unit discount TK
+// (sellingPrice - soldPrice) so the Discount column always reflects the
+// CURRENT soldPrice, not a stale value computed off the original sellingPrice.
+const formatDiscount = (
+  discountPercent: number,
+  discountAmountPerUnit: number,
+) => {
+  return `${discountPercent.toFixed(1)}% (${discountAmountPerUnit.toFixed(2)} TK)`;
 };
 const formatProfit = (sellingPrice: number, buyingPrice: number) => {
   const profit = sellingPrice - buyingPrice;
   const percent = (profit / sellingPrice) * 100;
   return `${profit.toFixed(2)} TK (${percent.toFixed(1)}%)`;
+};
+
+// 🆕 Shared color logic for Sold Price + Profit Margin columns:
+// - red    → soldPrice is below buyingPrice (an actual loss)
+// - orange → soldPrice is below sellingPrice but still >= buyingPrice (bargained, still profitable)
+// - green  → soldPrice is above sellingPrice (sold at a markup)
+// - default → soldPrice === sellingPrice (untouched)
+const getPriceComparisonClass = (
+  soldPrice: number,
+  buyingPrice: number,
+  sellingPrice: number,
+) => {
+  if (soldPrice < buyingPrice) return "text-red-600 font-semibold";
+  if (soldPrice < sellingPrice) return "text-orange-600 font-semibold";
+  if (soldPrice > sellingPrice) return "text-green-600 font-semibold";
+  return "";
 };
 
 const handlePrintReceipt = (order: any) => {
@@ -124,6 +145,11 @@ export const Order: React.FC = () => {
     0,
   );
   const totalBill = orderItems.reduce((sum, i) => sum + i.finalPrice, 0);
+  // 🆕 Total weight (kg) across all order items — shown next to Delivery Charge
+  const totalWeight = orderItems.reduce(
+    (sum, i) => sum + (i.weight || 0) * i.quantity,
+    0,
+  );
 
   // ---------- Update delivery charge when location/items change ----------
   // 🔧 FIX: accepts an optional override location/orderItems/subtotal so callers
@@ -144,13 +170,10 @@ export const Order: React.FC = () => {
       setDeliveryCharge(0);
       return;
     }
-    const totalWeight =
-      Math.round(
-        items.reduce(
-          (sum, item) => sum + (item.weight || 0) * item.quantity,
-          0,
-        ) * 100,
-      ) / 100;
+    const totalWeight = items.reduce(
+      (sum, item) => sum + (item.weight || 0) * item.quantity,
+      0,
+    );
     const productPrice = items.reduce((sum, i) => sum + i.finalPrice, 0);
     setDeliveryChargeLoading(true);
     try {
@@ -206,6 +229,42 @@ export const Order: React.FC = () => {
     return stock.currentQty - reserved;
   };
 
+  // 🔧 FIX: Discount is now ALWAYS derived live from (sellingPrice - soldPrice),
+  // instead of using the stock's fixed discountPercent. This means:
+  //  - By default (soldPrice untouched) it reproduces the original discount.
+  //  - As soon as the cashier overrides Sold Price, Discount % / Discount TK
+  //    recalculate automatically off the new soldPrice.
+  // `sellingPrice` (the reference/MRP price) never changes here — only
+  // `soldPrice` (what's actually being charged, editable for bargaining).
+  const recalcItem = (
+    item: OrderItem,
+    quantity: number,
+    soldPrice: number,
+  ): OrderItem => {
+    const total = soldPrice * quantity;
+    // Discount only makes sense when soldPrice <= sellingPrice; a soldPrice
+    // above sellingPrice is a markup, not a discount, so clamp at 0.
+    const discountPerUnit = Math.max(0, item.sellingPrice - soldPrice);
+    const discountAmount = discountPerUnit * quantity;
+    const discountPercent =
+      item.sellingPrice > 0 ? (discountPerUnit / item.sellingPrice) * 100 : 0;
+    const finalPrice = total;
+    const profitTk = (soldPrice - item.buyingPrice) * quantity;
+    const profitPercent =
+      soldPrice > 0 ? ((soldPrice - item.buyingPrice) / soldPrice) * 100 : 0;
+    return {
+      ...item,
+      quantity,
+      soldPrice,
+      total,
+      discountAmount,
+      discountPercent,
+      finalPrice,
+      profitTk,
+      profitPercent,
+    };
+  };
+
   const updateQuantity = (stockId: number, newQty: number) => {
     setOrderItems((prev) =>
       prev.map((item) => {
@@ -223,19 +282,46 @@ export const Order: React.FC = () => {
           ...prevRes,
           [stockId]: (prevRes[stockId] || 0) + delta,
         }));
-        const total = item.sellingPrice * qty;
-        const discountAmount =
-          ((item.sellingPrice * item.discountPercent) / 100) * qty;
-        const finalPrice = total - discountAmount;
-        const profitTk = (item.sellingPrice - item.buyingPrice) * qty;
-        return {
-          ...item,
-          quantity: qty,
-          total,
-          discountAmount,
-          finalPrice,
-          profitTk,
-        };
+        return recalcItem(item, qty, item.soldPrice);
+      }),
+    );
+  };
+
+  // 🆕 Editable Sold Price — lets the cashier bargain the price down (or up)
+  // per line item without touching the reference "Unit Price" (sellingPrice).
+  // Everything downstream (Line Total, Discount, Profit, and — via the
+  // existing useEffect that watches `orderItems` — Delivery Charge/COD) is
+  // recalculated automatically off this new value.
+  const updateSoldPrice = (stockId: number, newPrice: number) => {
+    setOrderItems((prev) =>
+      prev.map((item) => {
+        if (item.stockId !== stockId) return item;
+        const price = Math.max(0, newPrice || 0);
+        if (price <= 0) {
+          toast.warn("Sold price must be greater than 0");
+          return item;
+        }
+        return recalcItem(item, item.quantity, price);
+      }),
+    );
+  };
+
+  // 🆕 Editable Discount % — lets the cashier type a discount directly
+  // (e.g. client asks "5% off"). Derives soldPrice from sellingPrice and the
+  // entered percent, then runs it through the same recalcItem() used by
+  // Sold Price — so Sold Price / Line Total / Profit all stay in sync
+  // regardless of which of the two (Sold Price or Discount %) was edited.
+  const updateDiscountPercent = (
+    stockId: number,
+    newDiscountPercent: number,
+  ) => {
+    setOrderItems((prev) =>
+      prev.map((item) => {
+        if (item.stockId !== stockId) return item;
+        const percent = Math.min(100, Math.max(0, newDiscountPercent || 0));
+        const soldPrice =
+          item.sellingPrice - (item.sellingPrice * percent) / 100;
+        return recalcItem(item, item.quantity, soldPrice);
       }),
     );
   };
@@ -248,26 +334,35 @@ export const Order: React.FC = () => {
       );
       return;
     }
-    const discountPerUnit = (stock.sellingPrice * stock.discountPercent) / 100;
-    const profitTkPerUnit = stock.sellingPrice - stock.buyingPrice;
-    const profitPercent = (profitTkPerUnit / stock.sellingPrice) * 100;
-    const newItem: OrderItem = {
+
+    // 🔧 FIX: default Sold Price now starts as the ALREADY-DISCOUNTED price
+    // (sellingPrice minus the stock's default discountPercent), instead of
+    // the raw sellingPrice. This matches what the customer would actually
+    // pay by default, and recalcItem() derives Discount/Profit off it.
+    const defaultSoldPrice =
+      stock.sellingPrice - (stock.sellingPrice * stock.discountPercent) / 100;
+
+    const baseItem: OrderItem = {
       stockId: stock.id,
       batchNo: stock.batchNo,
       productName: stock.variant.productName,
       sku: stock.variant.sku,
       buyingPrice: stock.buyingPrice,
       sellingPrice: stock.sellingPrice,
+      soldPrice: defaultSoldPrice,
       discountPercent: stock.discountPercent,
       quantity: 1,
       maxQuantity: stock.currentQty,
-      total: stock.sellingPrice,
-      discountAmount: discountPerUnit,
-      finalPrice: stock.sellingPrice - discountPerUnit,
-      profitTk: profitTkPerUnit,
-      profitPercent,
+      total: 0,
+      discountAmount: 0,
+      finalPrice: 0,
+      profitTk: 0,
+      profitPercent: 0,
       weight: stock.weight || 0,
     };
+
+    const newItem = recalcItem(baseItem, 1, defaultSoldPrice);
+
     setOrderItems((prev) => [...prev, newItem]);
     setReservedQuantities((prev) => ({
       ...prev,
@@ -425,7 +520,7 @@ export const Order: React.FC = () => {
     items: orderItems.map((item) => ({
       stockId: item.stockId,
       quantity: item.quantity,
-      unitPrice: item.sellingPrice,
+      unitPrice: item.soldPrice, // 🔧 actual charged price, not the reference sellingPrice
       totalPrice: item.total,
     })),
     subtotal: orderItems.reduce((sum, i) => sum + i.total, 0),
@@ -703,15 +798,73 @@ export const Order: React.FC = () => {
       <div className="text-xs text-gray-500 dark:text-gray-400">{row.sku}</div>
     </div>
   );
-  const orderProfitBody = (row: OrderItem) => (
-    <span className="text-gray-700 dark:text-gray-300">
-      {formatProfit(row.sellingPrice, row.buyingPrice)}
+  // 🆕 Reference price — shows what the item's actual stock price is,
+  // never editable, so the cashier always sees the "before bargaining" price.
+  const orderUnitPriceBody = (row: OrderItem) => (
+    <span className="text-gray-500 dark:text-gray-400">
+      {row.sellingPrice.toFixed(2)} TK
     </span>
   );
-  const orderDiscountBody = (row: OrderItem) => (
-    <span className="text-gray-700 dark:text-gray-300">
-      {formatDiscount(row.sellingPrice, row.discountPercent)}
+  // 🔧 FIX: color now reflects soldPrice vs buyingPrice/sellingPrice —
+  // orange = discounted below sellingPrice but still profitable,
+  // red = below buyingPrice (loss), green = markup above sellingPrice.
+  const orderSoldPriceBody = (row: OrderItem) => (
+    <InputNumber
+      value={row.soldPrice}
+      onValueChange={(e) => updateSoldPrice(row.stockId, e.value || 0)}
+      min={0}
+      mode="decimal"
+      minFractionDigits={0}
+      maxFractionDigits={2}
+      size={4}
+      className="w-24"
+      inputClassName={getPriceComparisonClass(
+        row.soldPrice,
+        row.buyingPrice,
+        row.sellingPrice,
+      )}
+    />
+  );
+  // 🔧 FIX: same red/orange/green logic as Sold Price, applied here too.
+  const orderProfitBody = (row: OrderItem) => (
+    <span
+      className={
+        getPriceComparisonClass(
+          row.soldPrice,
+          row.buyingPrice,
+          row.sellingPrice,
+        ) || "text-gray-700 dark:text-gray-300"
+      }
+    >
+      {formatProfit(row.soldPrice, row.buyingPrice)}
     </span>
+  );
+  // 🔧 FIX: discount now reads straight off the live-recalculated
+  // discountPercent / discountAmount (see recalcItem), so it always matches
+  // the current Sold Price — whether default or manually overridden.
+  // 🔧 FIX: Discount % is now editable — typing a percent here derives a new
+  // Sold Price (via updateDiscountPercent) so both columns stay in sync.
+  // The TK amount underneath is just informational, derived from the same
+  // live discountAmount as before.
+  const orderDiscountBody = (row: OrderItem) => (
+    <div className="flex flex-col">
+      <InputNumber
+        value={row.discountPercent}
+        onValueChange={(e) => updateDiscountPercent(row.stockId, e.value ?? 0)}
+        min={0}
+        max={100}
+        suffix="%"
+        mode="decimal"
+        minFractionDigits={0}
+        maxFractionDigits={2}
+        size={3}
+        className="w-20"
+      />
+      <span className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+        {(row.quantity > 0 ? row.discountAmount / row.quantity : 0).toFixed(2)}{" "}
+        TK
+      </span>
+    </div>
   );
   const orderQuantityBody = (row: OrderItem) => (
     <InputNumber
@@ -819,6 +972,20 @@ export const Order: React.FC = () => {
                 bodyClassName="column-body"
               />
               <Column
+                header="Unit Price"
+                body={orderUnitPriceBody}
+                style={{ width: "90px" }}
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
+                header="Sold Price"
+                body={orderSoldPriceBody}
+                style={{ width: "110px" }}
+                headerClassName="column-header"
+                bodyClassName="column-body"
+              />
+              <Column
                 header="Profit Margin"
                 body={orderProfitBody}
                 headerClassName="column-header"
@@ -872,7 +1039,11 @@ export const Order: React.FC = () => {
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-600 dark:text-gray-300">
-                Delivery Charge:
+                Delivery Charge{" "}
+                <span className="text-xs text-gray-400">
+                  ({totalWeight.toFixed(2)} kg)
+                </span>
+                :
               </span>
               <span className="font-semibold text-blue-600">
                 {deliveryChargeLoading
@@ -1065,7 +1236,10 @@ export const Order: React.FC = () => {
               <Column
                 header="Discount"
                 body={(row) =>
-                  formatDiscount(row.sellingPrice, row.discountPercent)
+                  formatDiscount(
+                    row.discountPercent,
+                    (row.sellingPrice * row.discountPercent) / 100,
+                  )
                 }
                 headerClassName="column-header"
                 bodyClassName="column-body"
@@ -1202,7 +1376,11 @@ export const Order: React.FC = () => {
               {location === "inside_dhaka" ? "Inside Dhaka" : "Outside Dhaka"}
             </p>
             <p className="text-gray-600 dark:text-gray-300">
-              Delivery Charge: {deliveryCharge.toFixed(2)} TK
+              Delivery Charge{" "}
+              <span className="text-xs text-gray-400">
+                ({totalWeight.toFixed(2)} kg)
+              </span>
+              : {deliveryCharge.toFixed(2)} TK
             </p>
           </div>
 
