@@ -5,19 +5,20 @@ import { Calendar } from "primereact/calendar";
 import { Column } from "primereact/column";
 import { DataTable } from "primereact/datatable";
 import { InputNumber } from "primereact/inputnumber";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import Button from "../../components/ui/Button";
 import InputField from "../../components/ui/InputField";
 import Modal from "../../components/ui/Modal";
 import Toolbar from "../../components/ui/Toolbar";
 import { useBarcodeScanner } from "../../hooks/useBarcodeScanner";
-import { parseWithGroq } from "../geminie/groq.service";
+import { GroqParsedData, parseWithGroq } from "../geminie/groq.service";
 import { StockTable, StockTableColumn } from "../stock/StockTable";
 import { getStockList } from "../stock/stock.service";
 import { FlatStockItem } from "../stock/stock.types";
 import { orderPayloadSchema } from "./order.schems";
 import {
+  calculateDeliveryCharge,
   checkCustomerExists,
   createAndConfirmOrder,
   createOrder,
@@ -60,7 +61,6 @@ const formatProfit = (sellingPrice: number, buyingPrice: number) => {
   return `${profit.toFixed(2)} TK (${percent.toFixed(1)}%)`;
 };
 
-// ---------- Print receipt helper ----------
 const handlePrintReceipt = (order: any) => {
   console.log("Print receipt for order:", order.invoiceNo);
   toast.info("Printing receipt (mock)");
@@ -79,11 +79,20 @@ export const Order: React.FC = () => {
   const [preferredToy, setPreferredToy] = useState<string | undefined>("");
   const [deliveryDate, setDeliveryDate] = useState<Date>(new Date());
 
+  // ---------- Location (radio) ----------
+  const [location, setLocation] = useState<"inside_dhaka" | "outside_dhaka">(
+    "inside_dhaka",
+  );
+
+  // ---------- Delivery charge ----------
+  const [deliveryCharge, setDeliveryCharge] = useState<number>(0);
+  const [deliveryChargeLoading, setDeliveryChargeLoading] = useState(false);
+
   const [customerExists, setCustomerExists] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
   const phoneCheckTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  // ----- State -----
+  // ----- Order items -----
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [allStockItems, setAllStockItems] = useState<FlatStockItem[]>([]);
   const [reservedQuantities, setReservedQuantities] = useState<
@@ -102,12 +111,69 @@ export const Order: React.FC = () => {
   >([]);
   const [socialAccountName, setSocialAccountName] = useState("");
 
-  // Sorting state
+  // Sorting
   const [sortField, setSortField] = useState("currentQty");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  // ---------- Loading state for confirmation buttons ----------
   const [submitting, setSubmitting] = useState(false);
+
+  // ---------- Compute totals from orderItems ----------
+  const totalItems = orderItems.reduce((sum, i) => sum + i.quantity, 0);
+  const totalDiscount = orderItems.reduce(
+    (sum, i) => sum + i.discountAmount,
+    0,
+  );
+  const totalBill = orderItems.reduce((sum, i) => sum + i.finalPrice, 0);
+
+  // ---------- Update delivery charge when location/items change ----------
+  // 🔧 FIX: accepts an optional override location/orderItems/subtotal so callers
+  // (like AI Fillup) can force an immediate, correct recalculation instead of
+  // waiting on the useEffect to pick up state that hasn't flushed yet.
+  const updateDeliveryCharge = async (
+    overrideLocation?: "inside_dhaka" | "outside_dhaka",
+    overrideItems?: OrderItem[],
+  ) => {
+    const loc = overrideLocation ?? location;
+    const items = overrideItems ?? orderItems;
+
+    // 🔧 FIX: previously this bailed out (and never hit the API) whenever
+    // totalWeight was 0 — but the backend still returns a valid baseCharge
+    // for weight=0 (it only skips extra weightCharge). So the correct guard
+    // is "no items in cart", not "no weight data".
+    if (items.length === 0) {
+      setDeliveryCharge(0);
+      return;
+    }
+    const totalWeight =
+      Math.round(
+        items.reduce(
+          (sum, item) => sum + (item.weight || 0) * item.quantity,
+          0,
+        ) * 100,
+      ) / 100;
+    const productPrice = items.reduce((sum, i) => sum + i.finalPrice, 0);
+    setDeliveryChargeLoading(true);
+    try {
+      const result = await calculateDeliveryCharge({
+        location: loc,
+        weight: totalWeight,
+        productPrice,
+        isCod: true,
+      });
+      setDeliveryCharge(result.totalCharge || 0);
+    } catch (error: any) {
+      console.error("Failed to calculate delivery charge:", error);
+      toast.error(error.message || "Could not calculate delivery charge");
+      setDeliveryCharge(0);
+    } finally {
+      setDeliveryChargeLoading(false);
+    }
+  };
+
+  // Recalculate when location or order items change
+  useEffect(() => {
+    updateDeliveryCharge();
+  }, [location, orderItems, totalBill]);
 
   // ---------- Customer check ----------
   const checkCustomer = async (phone: string) => {
@@ -200,6 +266,7 @@ export const Order: React.FC = () => {
       finalPrice: stock.sellingPrice - discountPerUnit,
       profitTk: profitTkPerUnit,
       profitPercent,
+      weight: stock.weight || 0,
     };
     setOrderItems((prev) => [...prev, newItem]);
     setReservedQuantities((prev) => ({
@@ -324,23 +391,17 @@ export const Order: React.FC = () => {
     setAllStockItems(data);
   };
 
-  const totalItems = orderItems.reduce((sum, i) => sum + i.quantity, 0);
-  const totalDiscount = orderItems.reduce(
-    (sum, i) => sum + i.discountAmount,
-    0,
-  );
-  const totalBill = orderItems.reduce((sum, i) => sum + i.finalPrice, 0);
-
   const isCustomerFormValid = () =>
     accountName.trim() !== "" &&
     recipientName.trim() !== "" &&
     customerPhone.trim() !== "" &&
-    customerAddress.trim() !== "";
+    customerAddress.trim() !== "" &&
+    location !== undefined;
 
   const handleNext = () => {
     if (!isCustomerFormValid()) {
       toast.error(
-        "Please fill in account name, recipient name, phone, and address",
+        "Please fill in account name, recipient name, phone, address, and delivery location",
       );
       return;
     }
@@ -369,11 +430,12 @@ export const Order: React.FC = () => {
     })),
     subtotal: orderItems.reduce((sum, i) => sum + i.total, 0),
     discountTotal: totalDiscount,
-    total: totalBill,
+    total: totalBill + deliveryCharge,
+    deliveryCharge: deliveryCharge,
+    location: location,
   });
 
-  // ---------- HANDLERS with loading state ----------
-  // ১. শুধু অর্ডার তৈরি (status 'new') – পাথাও নেই
+  // ---------- Handlers ----------
   const handleConfirmOnly = async () => {
     const payload = buildPayload();
     const result = orderPayloadSchema.safeParse(payload);
@@ -398,7 +460,6 @@ export const Order: React.FC = () => {
     }
   };
 
-  // ২. অর্ডার তৈরি + কনফর্ম (status 'confirmed' + পাথাও)
   const handleConfirmAndBook = async () => {
     const payload = buildPayload();
     const result = orderPayloadSchema.safeParse(payload);
@@ -425,7 +486,6 @@ export const Order: React.FC = () => {
     }
   };
 
-  // ৩. অর্ডার তৈরি + কনফর্ম + প্রিন্ট
   const handleConfirmBookAndPrint = async () => {
     const payload = buildPayload();
     const result = orderPayloadSchema.safeParse(payload);
@@ -453,7 +513,6 @@ export const Order: React.FC = () => {
     }
   };
 
-  // রিসেট ফাংশন
   const resetForm = () => {
     setOrderItems([]);
     setReservedQuantities({});
@@ -467,6 +526,8 @@ export const Order: React.FC = () => {
     setPreferredToy("");
     setDeliveryDate(new Date());
     setCustomerExists(null);
+    setLocation("inside_dhaka");
+    setDeliveryCharge(0);
   };
 
   // ---------- AI Fillup ----------
@@ -488,7 +549,7 @@ export const Order: React.FC = () => {
       setHasBaby(undefined);
       setPreferredToy("");
 
-      const parsed = await parseWithGroq(rawText);
+      const parsed: GroqParsedData = await parseWithGroq(rawText);
       console.log("parsed", parsed);
 
       let finalAccountName = parsed.accountName || parsed.recipientName || "";
@@ -517,6 +578,15 @@ export const Order: React.FC = () => {
       if (parsed.recipientAddress) setCustomerAddress(parsed.recipientAddress);
       if (parsed.hasBaby !== undefined) setHasBaby(parsed.hasBaby);
       if (parsed.preferredToy) setPreferredToy(parsed.preferredToy);
+
+      if (parsed.locationType) {
+        setLocation(parsed.locationType);
+        // 🔧 FIX: don't wait for the useEffect (which depends on `location`
+        // state that hasn't flushed yet in this same tick) — recalculate the
+        // delivery charge immediately using the freshly parsed location and
+        // the current orderItems, so the charge is correct right after AI Fillup.
+        updateDeliveryCharge(parsed.locationType, orderItems);
+      }
 
       setShowAIModal(false);
       setRawText("");
@@ -800,12 +870,22 @@ export const Order: React.FC = () => {
                 {totalDiscount.toFixed(2)} TK
               </span>
             </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600 dark:text-gray-300">
+                Delivery Charge:
+              </span>
+              <span className="font-semibold text-blue-600">
+                {deliveryChargeLoading
+                  ? "..."
+                  : `${deliveryCharge.toFixed(2)} TK`}
+              </span>
+            </div>
             <div className="flex justify-between text-lg font-bold mt-1">
               <span className="text-gray-800 dark:text-gray-200">
                 Total Bill:
               </span>
               <span className="text-green-600 dark:text-green-400">
-                {totalBill.toFixed(2)} TK
+                {(totalBill + deliveryCharge).toFixed(2)} TK
               </span>
             </div>
           </div>
@@ -908,6 +988,36 @@ export const Order: React.FC = () => {
                 className="w-full"
               />
             </div>
+
+            {/* Location Radio */}
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Delivery Location *
+              </label>
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="location"
+                    value="inside_dhaka"
+                    checked={location === "inside_dhaka"}
+                    onChange={() => setLocation("inside_dhaka")}
+                  />
+                  Inside Dhaka
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="location"
+                    value="outside_dhaka"
+                    checked={location === "outside_dhaka"}
+                    onChange={() => setLocation("outside_dhaka")}
+                  />
+                  Outside Dhaka
+                </label>
+              </div>
+            </div>
+
             <div>
               <InputField
                 label="Account Name *"
@@ -925,6 +1035,7 @@ export const Order: React.FC = () => {
                 className="w-full"
               />
             </div>
+            {/* ❌ Delivery Charge field removed – it is already shown in Current Order section */}
           </div>
         </div>
       </div>
@@ -998,7 +1109,7 @@ export const Order: React.FC = () => {
             onChange={(e) => setRawText(e.target.value)}
             rows={6}
             className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm"
-            placeholder="e.g.&#10;রিজুয়ান&#10;01634857120&#10;01814950154&#10;কাদিরাবাদ ক্যান্টনমেন্ট স্যাপার কলেজ&#10;দয়ারামপুর,নাটোর"
+            placeholder="e.g.&#10;রিজুয়ান&#10;01634857120&#10;01814950154&#10;কাদিরাবাদ ক্যান্টনমেন্ট স্যাপার কলেজ&#10;দয়ারামপুর,নাটোর"
           />
           <div className="mt-4">
             <InputField
@@ -1086,6 +1197,13 @@ export const Order: React.FC = () => {
             <p className="text-gray-600 dark:text-gray-300">
               Delivery Date: {deliveryDate.toLocaleDateString()}
             </p>
+            <p className="text-gray-600 dark:text-gray-300">
+              Location:{" "}
+              {location === "inside_dhaka" ? "Inside Dhaka" : "Outside Dhaka"}
+            </p>
+            <p className="text-gray-600 dark:text-gray-300">
+              Delivery Charge: {deliveryCharge.toFixed(2)} TK
+            </p>
           </div>
 
           {/* Order Items Table */}
@@ -1119,7 +1237,7 @@ export const Order: React.FC = () => {
                   <div className="font-bold text-gray-800 dark:text-gray-200 flex text-[13px] ml-[-30px]">
                     <span className="mr-2">Total:</span>
                     <span className="text-green-600 dark:text-green-400">
-                      {totalBill.toFixed(2)} TK
+                      {(totalBill + deliveryCharge).toFixed(2)} TK
                     </span>
                   </div>
                 )}
@@ -1127,7 +1245,7 @@ export const Order: React.FC = () => {
             </DataTable>
           </div>
 
-          {/* Footer buttons – ৪টি বাটন (Cancel, Create New, Confirm & Book, Confirm Book & Print) */}
+          {/* Footer buttons */}
           <div className="flex justify-end gap-3 mt-4 pt-4 border-t dark:border-gray-700">
             <Button
               variant="outline"

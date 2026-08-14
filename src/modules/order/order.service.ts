@@ -91,3 +91,14 @@ export const processRefund = async (
   const response = await api.post(`/orders/${orderId}/refund`, payload);
   return response.data;
 };
+// order.service.ts (শুধু নতুন ফাংশন যোগ)
+
+export const calculateDeliveryCharge = async (params: {
+  location: "inside_dhaka" | "outside_dhaka";
+  weight: number;
+  productPrice?: number;
+  isCod?: boolean;
+}) => {
+  const res = await api.post("/delivery/calculate", params);
+  return res.data.data; // { baseCharge, weightCharge, codCharge, totalCharge }
+};
