@@ -19,8 +19,9 @@ import SellsReport from "./modules/reports/SellsReport";
 import StockIn from "./modules/stock-in/StockIn";
 import Stock from "./modules/stock/stock";
 import SupplierList from "./modules/supplier/supplier";
-import { WebSettings } from "./modules/web-settings/WebSettings";
 import DeliverySettingsPage from "./modules/web-settings/delivery-settings/deliverySettings";
+import PackagingSettings from "./modules/web-settings/packaging-settings/PackagingSettings";
+import { WebSettings } from "./modules/web-settings/WebSettings";
 
 // Placeholder components for missing routes
 const Sells = () => <div>Sells Page</div>;
@@ -66,6 +67,7 @@ export const router = createBrowserRouter([
           { path: "slider", element: <Slider /> },
           { path: "hero-slider", element: <HeroSliderManagement /> },
           { path: "delivery-settings", element: <DeliverySettingsPage /> },
+          { path: "packaging-settings", element: <PackagingSettings /> },
         ],
       },
     ],

@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { Download, Loader2, Printer } from "lucide-react";
+import { Download, Loader2, Package, Printer, Truck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import Toolbar from "../../components/ui/Toolbar";
 import { fetchSellsReport } from "./sells-report.service";
@@ -18,6 +18,7 @@ interface SoldItem {
   weight: number;
   grossProfit: number;
   deliveryCharge: number;
+  packagingCost: number; // 🆕
   returnAmount: number;
   netProfit: number;
 }
@@ -25,6 +26,12 @@ interface SoldItem {
 interface OrderData {
   invoiceNo: string;
   items: SoldItem[];
+  orderTotals?: {
+    deliveryCharge: number;
+    packagingCost: number;
+    refundTotal: number;
+    total: number; // 🆕 order টেবিলের নিজস্ব total কলাম — Total Bill দেখানোর জন্য
+  };
 }
 
 // ==================== মূল কম্পোনেন্ট ====================
@@ -90,6 +97,35 @@ export const SellsReport: React.FC = () => {
     handleDaysClick("today");
   }, []);
 
+  // ✅ একটা order-এর items থেকে order-level totals বের করার হেল্পার —
+  // দুই জায়গায় (স্ক্রিন টেবিল + PDF) একই লজিক লাগে বলে আলাদা ফাংশন করা হলো
+  const calcOrderTotals = (order: OrderData) =>
+    order.items.reduce(
+      (acc, item) => {
+        acc.buyPrice += item.buyPrice * item.weight;
+        acc.sellingPrice += item.sellingPrice * item.weight;
+        acc.soldPrice += item.soldPrice * item.weight;
+        acc.weight += item.weight;
+        acc.grossProfit += item.grossProfit;
+        acc.deliveryCharge += item.deliveryCharge;
+        acc.packagingCost += item.packagingCost;
+        acc.returnAmount += item.returnAmount;
+        acc.netProfit += item.netProfit;
+        return acc;
+      },
+      {
+        buyPrice: 0,
+        sellingPrice: 0,
+        soldPrice: 0,
+        weight: 0,
+        grossProfit: 0,
+        deliveryCharge: 0,
+        packagingCost: 0,
+        returnAmount: 0,
+        netProfit: 0,
+      },
+    );
+
   // ==================== টোটাল ====================
   const totals = orders.reduce(
     (acc, order) => {
@@ -100,6 +136,7 @@ export const SellsReport: React.FC = () => {
         acc.weight += item.weight;
         acc.grossProfit += item.grossProfit;
         acc.deliveryCharge += item.deliveryCharge;
+        acc.packagingCost += item.packagingCost;
         acc.returnAmount += item.returnAmount;
         acc.netProfit += item.netProfit;
       });
@@ -112,12 +149,13 @@ export const SellsReport: React.FC = () => {
       weight: 0,
       grossProfit: 0,
       deliveryCharge: 0,
+      packagingCost: 0,
       returnAmount: 0,
       netProfit: 0,
     },
   );
 
-  // ==================== ফরম্যাটিং হেল্পার ====================
+  // ==================== ফরম্যাটিং ====================
   const formatProfit = (value: number) => {
     const sign = value >= 0 ? "+" : "";
     return `${sign}${value.toFixed(2)}`;
@@ -139,20 +177,54 @@ export const SellsReport: React.FC = () => {
 
     orders.forEach((order, idx) => {
       doc.setFontSize(12);
-      doc.text(`Invoice: ${order.invoiceNo}`, 40, startY);
+      const invoiceLine =
+        order.orderTotals?.total !== undefined
+          ? `Invoice: ${order.invoiceNo}   |   Total Bill: TK ${order.orderTotals.total.toFixed(2)}`
+          : `Invoice: ${order.invoiceNo}`;
+      doc.text(invoiceLine, 40, startY);
       startY += 15;
 
-      const tableBody = order.items.map((item) => [
-        item.productName,
-        item.buyPrice.toFixed(2),
-        item.sellingPrice.toFixed(2),
-        item.soldPrice.toFixed(2),
-        item.weight.toFixed(1),
-        item.grossProfit.toFixed(2),
-        item.deliveryCharge.toFixed(2),
-        item.returnAmount.toFixed(2),
-        formatProfit(item.netProfit),
-      ]);
+      // ✅ Order-level total আগে বের করে নেওয়া হচ্ছে, যাতে টেবিলের প্রথম
+      // row-এ rowSpan cell আর নিচের "Order Total -" লাইন দুটোতেই ব্যবহার
+      // করা যায় — একই সোর্স, দুই জায়গায় ডুপ্লিকেট হিসাব না হয়ে যায়
+      const orderTotals = order.orderTotals ?? calcOrderTotals(order);
+      const summedTotals = calcOrderTotals(order); // পুরো row-এর জন্য baseline সবসময় items থেকেই লাগবে
+
+      const tableBody = order.items.map((item, itemIdx) => {
+        // ✅ B.price / S Price / Sold price এখন line-total (দাম × weight)
+        // হিসেবে দেখানো হচ্ছে — Gross Profit কলাম আগে থেকেই এভাবে
+        // (weight-multiplied) আসে, তাই সব কলাম এক convention-এ থাকল এবং
+        // row-গুলো সরাসরি যোগ করলে Order Total-এর সাথে মিলে যাবে
+        const row: any[] = [
+          // ✅ item.weight আসলে quantity — প্রোডাক্ট নামের পাশে ×N দেখানো হচ্ছে
+          `${item.productName} ×${Number.isInteger(item.weight) ? item.weight : item.weight.toFixed(1)}`,
+          (item.buyPrice * item.weight).toFixed(2),
+          (item.sellingPrice * item.weight).toFixed(2),
+          (item.soldPrice * item.weight).toFixed(2),
+          item.weight.toFixed(1),
+          item.grossProfit.toFixed(2),
+        ];
+
+        // ✅ Delivery charge ও Packaging cost — প্রতি আইটেমে ভাগ করে না
+        // দেখিয়ে, পুরো অর্ডারের জন্য একবারই (প্রথম row-এ) rowSpan দিয়ে
+        // merged column হিসেবে দেখানো হচ্ছে
+        if (itemIdx === 0) {
+          row.push({
+            content: orderTotals.deliveryCharge.toFixed(2),
+            rowSpan: order.items.length,
+            styles: { valign: "middle" },
+          });
+          row.push({
+            content: orderTotals.packagingCost.toFixed(2),
+            rowSpan: order.items.length,
+            styles: { valign: "middle" },
+          });
+        }
+
+        row.push(item.returnAmount.toFixed(2));
+        row.push(formatProfit(item.netProfit));
+        return row;
+      });
 
       autoTable(doc, {
         startY,
@@ -164,7 +236,8 @@ export const SellsReport: React.FC = () => {
             "Sold price",
             "Weight",
             "Gross Profit",
-            "D charge",
+            "D Charge",
+            "Pack Cost",
             "R. amount",
             "Net profit",
           ],
@@ -177,33 +250,9 @@ export const SellsReport: React.FC = () => {
 
       startY = (doc as any).lastAutoTable.finalY + 20;
 
-      const orderTotals = order.items.reduce(
-        (acc, item) => {
-          acc.buyPrice += item.buyPrice * item.weight;
-          acc.sellingPrice += item.sellingPrice * item.weight;
-          acc.soldPrice += item.soldPrice * item.weight;
-          acc.weight += item.weight;
-          acc.grossProfit += item.grossProfit;
-          acc.deliveryCharge += item.deliveryCharge;
-          acc.returnAmount += item.returnAmount;
-          acc.netProfit += item.netProfit;
-          return acc;
-        },
-        {
-          buyPrice: 0,
-          sellingPrice: 0,
-          soldPrice: 0,
-          weight: 0,
-          grossProfit: 0,
-          deliveryCharge: 0,
-          returnAmount: 0,
-          netProfit: 0,
-        },
-      );
-
       doc.setFontSize(10);
       doc.text(
-        `Order Total - B.price: ${orderTotals.buyPrice.toFixed(2)}, S.Price: ${orderTotals.sellingPrice.toFixed(2)}, Sold: ${orderTotals.soldPrice.toFixed(2)}, Weight: ${orderTotals.weight.toFixed(1)}, Gross: ${orderTotals.grossProfit.toFixed(2)}, Delivery: ${orderTotals.deliveryCharge.toFixed(2)}, Return: ${orderTotals.returnAmount.toFixed(2)}, Net: ${formatProfit(orderTotals.netProfit)}`,
+        `Order Total - B.price: ${summedTotals.buyPrice.toFixed(2)}, S.Price: ${summedTotals.sellingPrice.toFixed(2)}, Sold: ${summedTotals.soldPrice.toFixed(2)}, Weight: ${summedTotals.weight.toFixed(1)}, Gross: ${summedTotals.grossProfit.toFixed(2)}, Delivery: ${orderTotals.deliveryCharge.toFixed(2)}, Pack: ${orderTotals.packagingCost.toFixed(2)}, Return: ${summedTotals.returnAmount.toFixed(2)}, Net: ${formatProfit(summedTotals.netProfit)}`,
         40,
         startY,
       );
@@ -227,6 +276,7 @@ export const SellsReport: React.FC = () => {
         totals.weight.toFixed(1),
         totals.grossProfit.toFixed(2),
         totals.deliveryCharge.toFixed(2),
+        totals.packagingCost.toFixed(2),
         totals.returnAmount.toFixed(2),
         formatProfit(totals.netProfit),
       ],
@@ -241,7 +291,8 @@ export const SellsReport: React.FC = () => {
           "Sold price",
           "Weight",
           "Gross Profit",
-          "D charge",
+          "D Charge",
+          "Pack Cost",
           "R. amount",
           "Net profit",
         ],
@@ -349,7 +400,7 @@ export const SellsReport: React.FC = () => {
                 onClick={handleApplyCustom}
                 className="px-3 py-1 bg-indigo-500 hover:bg-indigo-600 text-white text-sm rounded-lg transition-colors"
               >
-                প্রয়োগ
+                প্রয়োগ
               </button>
               <button
                 onClick={handleReset}
@@ -381,29 +432,10 @@ export const SellsReport: React.FC = () => {
         {/* === রিপোর্ট কন্টেন্ট === */}
         <div ref={reportRef} className="print-content mt-4">
           {orders.map((order, orderIdx) => {
-            const orderTotals = order.items.reduce(
-              (acc, item) => {
-                acc.buyPrice += item.buyPrice * item.weight;
-                acc.sellingPrice += item.sellingPrice * item.weight;
-                acc.soldPrice += item.soldPrice * item.weight;
-                acc.weight += item.weight;
-                acc.grossProfit += item.grossProfit;
-                acc.deliveryCharge += item.deliveryCharge;
-                acc.returnAmount += item.returnAmount;
-                acc.netProfit += item.netProfit;
-                return acc;
-              },
-              {
-                buyPrice: 0,
-                sellingPrice: 0,
-                soldPrice: 0,
-                weight: 0,
-                grossProfit: 0,
-                deliveryCharge: 0,
-                returnAmount: 0,
-                netProfit: 0,
-              },
-            );
+            // ✅ order-level totals — header summary + rowSpan merged column
+            // + tfoot, তিন জায়গাতেই এই একটাই সোর্স ব্যবহার হচ্ছে
+            const orderTotals = order.orderTotals ?? calcOrderTotals(order);
+            const summedTotals = calcOrderTotals(order);
 
             return (
               <motion.div
@@ -413,10 +445,25 @@ export const SellsReport: React.FC = () => {
                 transition={{ delay: orderIdx * 0.1 }}
                 className="mb-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 overflow-hidden"
               >
-                <div className="bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                    Invoice: {order.invoiceNo}
+                <div className="bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center gap-3 flex-wrap">
+                    <span>Invoice: {order.invoiceNo}</span>
+                    {order.orderTotals?.total !== undefined && (
+                      <span className="text-sm font-medium px-2.5 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+                        Total Bill: ৳{order.orderTotals.total.toFixed(2)}
+                      </span>
+                    )}
                   </h3>
+                  <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                    <span className="flex items-center gap-1">
+                      <Truck className="w-4 h-4" />
+                      D: {orderTotals.deliveryCharge.toFixed(2)}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Package className="w-4 h-4" />
+                      P: {orderTotals.packagingCost.toFixed(2)}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -440,7 +487,10 @@ export const SellsReport: React.FC = () => {
                           Gross Profit
                         </th>
                         <th className="px-4 py-2 font-semibold text-right">
-                          D charge
+                          <Truck className="w-4 h-4 inline" /> D Charge
+                        </th>
+                        <th className="px-4 py-2 font-semibold text-right">
+                          <Package className="w-4 h-4 inline" /> Pack Cost
                         </th>
                         <th className="px-4 py-2 font-semibold text-right">
                           R. amount
@@ -451,7 +501,7 @@ export const SellsReport: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {order.items.map((item) => {
+                      {order.items.map((item, itemIdx) => {
                         const isProfit = item.netProfit >= 0;
 
                         return (
@@ -464,24 +514,33 @@ export const SellsReport: React.FC = () => {
                               className="px-4 py-2 font-medium text-gray-800 dark:text-white"
                             >
                               {item.productName}
+                              {/* ✅ item.weight আসলে quantity (কয়টি নেওয়া
+                                  হয়েছে) — প্রোডাক্ট নামের পাশেই ছোট badge
+                                  আকারে দেখানো হচ্ছে, যাতে সহজেই বোঝা যায় */}
+                              <span className="ml-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 align-middle">
+                                ×
+                                {Number.isInteger(item.weight)
+                                  ? item.weight
+                                  : item.weight.toFixed(1)}
+                              </span>
                             </td>
                             <td
                               data-label="B. price"
                               className="px-4 py-2 text-right text-gray-600 dark:text-gray-400 text-sm"
                             >
-                              ৳{item.buyPrice.toFixed(2)}
+                              ৳{(item.buyPrice * item.weight).toFixed(2)}
                             </td>
                             <td
                               data-label="S Price"
                               className="px-4 py-2 text-right text-gray-600 dark:text-gray-400 text-sm"
                             >
-                              ৳{item.sellingPrice.toFixed(2)}
+                              ৳{(item.sellingPrice * item.weight).toFixed(2)}
                             </td>
                             <td
                               data-label="Sold price"
                               className="px-4 py-2 text-right text-gray-600 dark:text-gray-400 text-sm"
                             >
-                              ৳{item.soldPrice.toFixed(2)}
+                              ৳{(item.soldPrice * item.weight).toFixed(2)}
                             </td>
                             <td
                               data-label="Weight"
@@ -495,12 +554,31 @@ export const SellsReport: React.FC = () => {
                             >
                               ৳{item.grossProfit.toFixed(2)}
                             </td>
-                            <td
-                              data-label="D charge"
-                              className="px-4 py-2 text-right text-gray-600 dark:text-gray-400 text-sm"
-                            >
-                              ৳{item.deliveryCharge.toFixed(2)}
-                            </td>
+
+                            {/* ✅ Delivery charge ও Packaging cost — প্রতি
+                                আইটেমে ভাগ করে না দেখিয়ে, পুরো অর্ডারের
+                                items row-গুলোর উপর rowSpan দিয়ে merge করা
+                                একটা shared column হিসেবে শুধু প্রথম row-এ
+                                একবারই রেন্ডার হচ্ছে */}
+                            {itemIdx === 0 && (
+                              <td
+                                data-label="D Charge"
+                                rowSpan={order.items.length}
+                                className="px-4 py-2 text-right text-indigo-700 dark:text-indigo-300 text-sm font-semibold bg-indigo-50 dark:bg-indigo-900/30 align-middle"
+                              >
+                                ৳{orderTotals.deliveryCharge.toFixed(2)}
+                              </td>
+                            )}
+                            {itemIdx === 0 && (
+                              <td
+                                data-label="Pack Cost"
+                                rowSpan={order.items.length}
+                                className="px-4 py-2 text-right text-purple-700 dark:text-purple-300 text-sm font-semibold bg-purple-50 dark:bg-purple-900/30 align-middle"
+                              >
+                                ৳{orderTotals.packagingCost.toFixed(2)}
+                              </td>
+                            )}
+
                             <td
                               data-label="R. amount"
                               className="px-4 py-2 text-right text-gray-600 dark:text-gray-400 text-sm"
@@ -523,38 +601,44 @@ export const SellsReport: React.FC = () => {
                     </tbody>
                     <tfoot className="bg-gray-50/70 dark:bg-gray-700/30 border-t border-gray-300 dark:border-gray-600 font-semibold">
                       <tr>
-                        <td className="px-4 py-2 text-right" colSpan={1}>
+                        <td
+                          className="px-4 py-2 text-right text-gray-600 dark:text-gray-200"
+                          colSpan={1}
+                        >
                           Order Total:
                         </td>
-                        <td className="px-4 py-2 text-right">
-                          ৳{orderTotals.buyPrice.toFixed(2)}
+                        <td className="px-4 py-2 text-right text-gray-600 dark:text-gray-200">
+                          ৳{summedTotals.buyPrice.toFixed(2)}
                         </td>
-                        <td className="px-4 py-2 text-right">
-                          ৳{orderTotals.sellingPrice.toFixed(2)}
+                        <td className="px-4 py-2 text-right text-gray-600 dark:text-gray-200">
+                          ৳{summedTotals.sellingPrice.toFixed(2)}
                         </td>
-                        <td className="px-4 py-2 text-right">
-                          ৳{orderTotals.soldPrice.toFixed(2)}
+                        <td className="px-4 py-2 text-right text-gray-600 dark:text-gray-200">
+                          ৳{summedTotals.soldPrice.toFixed(2)}
                         </td>
-                        <td className="px-4 py-2 text-right">
-                          {orderTotals.weight.toFixed(1)}
+                        <td className="px-4 py-2 text-right text-gray-600 dark:text-gray-200">
+                          {summedTotals.weight.toFixed(1)}
                         </td>
                         <td className="px-4 py-2 text-right text-green-600 dark:text-green-400">
-                          ৳{orderTotals.grossProfit.toFixed(2)}
+                          ৳{summedTotals.grossProfit.toFixed(2)}
                         </td>
-                        <td className="px-4 py-2 text-right">
+                        <td className="px-4 py-2 text-right text-indigo-600 dark:text-indigo-400">
                           ৳{orderTotals.deliveryCharge.toFixed(2)}
                         </td>
+                        <td className="px-4 py-2 text-right text-purple-600 dark:text-purple-400">
+                          ৳{orderTotals.packagingCost.toFixed(2)}
+                        </td>
                         <td className="px-4 py-2 text-right">
-                          ৳{orderTotals.returnAmount.toFixed(2)}
+                          ৳{summedTotals.returnAmount.toFixed(2)}
                         </td>
                         <td
                           className={`px-4 py-2 text-right ${
-                            orderTotals.netProfit >= 0
+                            summedTotals.netProfit >= 0
                               ? "text-green-600 dark:text-green-400"
                               : "text-red-600 dark:text-red-400"
                           }`}
                         >
-                          {formatProfit(orderTotals.netProfit)}
+                          {formatProfit(summedTotals.netProfit)}
                         </td>
                       </tr>
                     </tfoot>
@@ -571,7 +655,7 @@ export const SellsReport: React.FC = () => {
             transition={{ delay: 0.5 }}
             className="mt-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 overflow-hidden"
           >
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-indigo-50 dark:bg-indigo-900/30">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
                 Grand Total & Summary
               </h3>
@@ -629,12 +713,22 @@ export const SellsReport: React.FC = () => {
                       ৳{totals.grossProfit.toFixed(2)}
                     </td>
                   </tr>
-                  <tr className="border-b border-gray-100 dark:border-gray-700/50">
-                    <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                  <tr className="border-b border-gray-100 dark:border-gray-700/50 bg-indigo-50/50 dark:bg-indigo-900/20">
+                    <td className="px-4 py-2 text-sm flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-medium">
+                      <Truck className="w-4 h-4" />
                       Total Delivery Charge
                     </td>
-                    <td className="px-4 py-2 text-right text-sm font-medium text-gray-800 dark:text-white">
+                    <td className="px-4 py-2 text-right text-sm font-medium text-indigo-700 dark:text-indigo-300">
                       ৳{totals.deliveryCharge.toFixed(2)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-gray-100 dark:border-gray-700/50 bg-purple-50/50 dark:bg-purple-900/20">
+                    <td className="px-4 py-2 text-sm flex items-center gap-2 text-purple-700 dark:text-purple-300 font-medium">
+                      <Package className="w-4 h-4" />
+                      Total Packaging Cost
+                    </td>
+                    <td className="px-4 py-2 text-right text-sm font-medium text-purple-700 dark:text-purple-300">
+                      ৳{totals.packagingCost.toFixed(2)}
                     </td>
                   </tr>
                   <tr className="border-b border-gray-100 dark:border-gray-700/50">
