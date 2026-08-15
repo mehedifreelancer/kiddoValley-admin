@@ -2,6 +2,11 @@ import { createBrowserRouter } from "react-router-dom";
 import App from "./App";
 import AuthGuard from "./components/guards/AuthGuard";
 import Components from "./components/ui/Components";
+import Asset from "./modules/accounts/assets/Asset";
+import { Balance } from "./modules/accounts/Balanace";
+import EmployeeBillManagement from "./modules/accounts/employee-bill/EmployeeBill";
+import RawMaterialManagement from "./modules/accounts/raw-material/RawMaterial";
+import TransactionCategoryList from "./modules/accounts/transaction-category/TransactionCategory";
 import SignIn from "./modules/auth/SignIn";
 import CustomerList from "./modules/customer/Customer";
 import {
@@ -15,6 +20,7 @@ import EditOrder from "./modules/order/EditOrder"; // ✅ নতুন
 import Order from "./modules/order/order";
 import OrderList from "./modules/order/OrderList";
 import { Product } from "./modules/product/Product";
+import AnnualReport from "./modules/reports/annual-reports/AnnualReport";
 import SellsReport from "./modules/reports/SellsReport";
 import StockIn from "./modules/stock-in/StockIn";
 import Stock from "./modules/stock/stock";
@@ -40,8 +46,25 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       {
+        path: "account",
+        children: [
+          {
+            path: "transaction-categories",
+            element: <TransactionCategoryList />,
+          },
+          { path: "balance", element: <Balance /> },
+          { path: "asset", element: <Asset /> },
+          { path: "employee-bill", element: <EmployeeBillManagement /> },
+          { path: "raw-material", element: <RawMaterialManagement /> },
+        ],
+      },
+
+      {
         path: "report",
-        children: [{ path: "sells-report", element: <SellsReport /> }],
+        children: [
+          { path: "sells-report", element: <SellsReport /> },
+          { path: "annual-report", element: <AnnualReport /> },
+        ],
       },
       { path: "customer", element: <CustomerList /> },
       { path: "supplier", element: <SupplierList /> },
