@@ -94,11 +94,35 @@ export const processRefund = async (
 // order.service.ts (শুধু নতুন ফাংশন যোগ)
 
 export const calculateDeliveryCharge = async (params: {
-  location: "inside_dhaka" | "outside_dhaka";
+  location: "inside_dhaka" | "suburbs" | "outside_dhaka"; // ✅ fix
   weight: number;
   productPrice?: number;
   isCod?: boolean;
 }) => {
   const res = await api.post("/delivery/calculate", params);
-  return res.data.data; // { baseCharge, weightCharge, codCharge, totalCharge }
+  return res.data.data;
+};
+export interface GroqParsedData {
+  accountName: string;
+  recipientName: string;
+  recipientPhone: string;
+  recipientPhone2: string;
+  recipientAddress: string;
+  gender: "male" | "female" | "other" | "";
+  hasBaby: boolean;
+  preferredToy: string;
+  locationType: "inside_dhaka" | "suburbs" | "outside_dhaka";
+}
+
+export const parseWithGroq = async (text: string): Promise<GroqParsedData> => {
+  try {
+    const { data } = await api.post("/ai/parse-customer-text", { text });
+    return data.data;
+  } catch (error: any) {
+    console.error("AI parse error:", error.response?.data || error.message);
+    throw new Error(
+      error.response?.data?.message ||
+        "Failed to parse customer text with Groq",
+    );
+  }
 };

@@ -13,16 +13,21 @@ import InputField from "../../components/ui/InputField";
 import Modal from "../../components/ui/Modal";
 import Toolbar from "../../components/ui/Toolbar";
 import { useBarcodeScanner } from "../../hooks/useBarcodeScanner";
-import { parseWithGroq } from "../geminie/groq.service";
 import { StockTable, StockTableColumn } from "../stock/StockTable";
 import { getStockList } from "../stock/stock.service";
 import { FlatStockItem } from "../stock/stock.types";
 import {
+  calculateDeliveryCharge, // 🆕
   checkCustomerExists,
   getOrderDetails,
+  GroqParsedData,
+  parseWithGroq,
   updateOrder,
 } from "./order.service";
 import { OrderItem } from "./order.types";
+
+// 🆕 Location type — Order.tsx এর মতোই 3-way
+type LocationType = "inside_dhaka" | "suburbs" | "outside_dhaka";
 
 // ---------- Thumbnails ----------
 const VariantThumbnails = ({ images }: { images: any[] }) => {
@@ -60,6 +65,13 @@ const formatProfit = (sellingPrice: number, buyingPrice: number) => {
   return `${profit.toFixed(2)} TK (${percent.toFixed(1)}%)`;
 };
 
+// 🆕 Human-readable label helper for location (Order.tsx থেকে কপি করা)
+const getLocationLabel = (loc: LocationType) => {
+  if (loc === "inside_dhaka") return "Inside Dhaka";
+  if (loc === "suburbs") return "Sub Urbans";
+  return "Outside Dhaka";
+};
+
 // ---------- Main Component ----------
 const EditOrder: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -79,6 +91,15 @@ const EditOrder: React.FC = () => {
   const [hasBaby, setHasBaby] = useState<boolean | undefined>(undefined);
   const [preferredToy, setPreferredToy] = useState<string | undefined>("");
   const [deliveryDate, setDeliveryDate] = useState<Date>(new Date());
+
+  // ---------- Location (radio) 🆕 ----------
+  const [location, setLocation] = useState<LocationType>("inside_dhaka");
+
+  // ---------- Delivery charge 🆕 ----------
+  const [deliveryCharge, setDeliveryCharge] = useState<number>(0);
+  const [deliveryChargeLoading, setDeliveryChargeLoading] = useState(false);
+  const [deliveryDiscountPercent, setDeliveryDiscountPercent] =
+    useState<number>(0);
 
   const [customerExists, setCustomerExists] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
@@ -134,6 +155,10 @@ const EditOrder: React.FC = () => {
         data.deliveryDate ? new Date(data.deliveryDate) : new Date(),
       );
 
+      // 🆕 fetched order থেকে location ও delivery charge লোড করা
+      setLocation((data.location as LocationType) || "inside_dhaka");
+      setDeliveryCharge(data.deliveryCharge || 0);
+
       if (data.soldItems && data.soldItems.length > 0) {
         const items: OrderItem[] = data.soldItems.map((item: any) => ({
           stockId: item.stockId || 0,
@@ -150,6 +175,7 @@ const EditOrder: React.FC = () => {
           finalPrice: item.totalPrice,
           profitTk: 0,
           profitPercent: 0,
+          weight: item.weight || 0, // 🆕 weight না থাকলে delivery charge হিসাব ভুল হবে
         }));
         setOrderItems(items);
         const reserved: Record<number, number> = {};
@@ -165,6 +191,51 @@ const EditOrder: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // ---------- Update delivery charge when location/items change 🆕 ----------
+  const updateDeliveryCharge = async (
+    overrideLocation?: LocationType,
+    overrideItems?: OrderItem[],
+  ) => {
+    const loc = overrideLocation ?? location;
+    const items = overrideItems ?? orderItems;
+
+    if (items.length === 0) {
+      setDeliveryCharge(0);
+      return;
+    }
+    const totalWeight = items.reduce(
+      (sum, item) => sum + (item.weight || 0) * item.quantity,
+      0,
+    );
+    const productPrice = items.reduce((sum, i) => sum + i.finalPrice, 0);
+    setDeliveryChargeLoading(true);
+    try {
+      const result = await calculateDeliveryCharge({
+        location: loc,
+        weight: totalWeight,
+        productPrice,
+        isCod: true,
+      });
+      setDeliveryCharge(result.totalCharge || 0);
+      setDeliveryDiscountPercent((result as any).discountPercent || 0);
+    } catch (error: any) {
+      console.error("Failed to calculate delivery charge:", error);
+      toast.error(error.message || "Could not calculate delivery charge");
+      setDeliveryCharge(0);
+      setDeliveryDiscountPercent(0);
+    } finally {
+      setDeliveryChargeLoading(false);
+    }
+  };
+
+  // 🆕 শুধু isNew (editable) order-এ recalc করবে — locked order-এ recalc করার দরকার নেই
+  useEffect(() => {
+    if (!isNew) return;
+    if (orderItems.length === 0) return;
+    updateDeliveryCharge();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location, orderItems, isNew]);
 
   // ---------- Customer check ----------
   const checkCustomer = async (phone: string) => {
@@ -284,6 +355,7 @@ const EditOrder: React.FC = () => {
       finalPrice: stock.sellingPrice - discountPerUnit,
       profitTk: profitTkPerUnit,
       profitPercent,
+      weight: stock.weight || 0, // 🆕
     };
     setOrderItems((prev) => [...prev, newItem]);
     setReservedQuantities((prev) => ({
@@ -421,12 +493,17 @@ const EditOrder: React.FC = () => {
     0,
   );
   const totalBill = orderItems.reduce((sum, i) => sum + i.finalPrice, 0);
+  const totalWeight = orderItems.reduce(
+    (sum, i) => sum + (i.weight || 0) * i.quantity,
+    0,
+  ); // 🆕
 
   const isCustomerFormValid = () =>
     accountName.trim() !== "" &&
     recipientName.trim() !== "" &&
     customerPhone.trim() !== "" &&
-    customerAddress.trim() !== "";
+    customerAddress.trim() !== "" &&
+    location !== undefined; // 🆕
 
   // ---------- Save Handler ----------
   const performSave = async () => {
@@ -436,7 +513,7 @@ const EditOrder: React.FC = () => {
     }
     if (!isCustomerFormValid()) {
       toast.error(
-        "Please fill in account name, recipient name, phone, and address",
+        "Please fill in account name, recipient name, phone, address, and delivery location",
       );
       return false;
     }
@@ -465,7 +542,9 @@ const EditOrder: React.FC = () => {
         })),
         subtotal: orderItems.reduce((sum, i) => sum + i.total, 0),
         discountTotal: totalDiscount,
-        total: totalBill,
+        total: totalBill + deliveryCharge, // 🆕 delivery charge যোগ করা হলো
+        deliveryCharge, // 🆕
+        location, // 🆕
       };
 
       await updateOrder(Number(id), payload);
@@ -501,7 +580,7 @@ const EditOrder: React.FC = () => {
     }
     if (!isCustomerFormValid()) {
       toast.error(
-        "Please fill in account name, recipient name, phone, and address",
+        "Please fill in account name, recipient name, phone, address, and delivery location",
       );
       return;
     }
@@ -535,7 +614,7 @@ const EditOrder: React.FC = () => {
       setHasBaby(undefined);
       setPreferredToy("");
 
-      const parsed = await parseWithGroq(rawText);
+      const parsed: GroqParsedData = await parseWithGroq(rawText);
       console.log("parsed", parsed);
 
       let finalAccountName = parsed.accountName || parsed.recipientName || "";
@@ -564,6 +643,12 @@ const EditOrder: React.FC = () => {
       if (parsed.recipientAddress) setCustomerAddress(parsed.recipientAddress);
       if (parsed.hasBaby !== undefined) setHasBaby(parsed.hasBaby);
       if (parsed.preferredToy) setPreferredToy(parsed.preferredToy);
+
+      // 🆕 Order.tsx এর মতোই — locationType থেকে location সেট ও delivery charge recalc
+      if (parsed.locationType) {
+        setLocation(parsed.locationType);
+        updateDeliveryCharge(parsed.locationType, orderItems);
+      }
 
       setShowAIModal(false);
       setRawText("");
@@ -883,12 +968,32 @@ const EditOrder: React.FC = () => {
                 {totalDiscount.toFixed(2)} TK
               </span>
             </div>
+            {/* 🆕 Delivery Charge লাইন */}
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600 dark:text-gray-300">
+                Delivery Charge{" "}
+                <span className="text-xs text-gray-400">
+                  ({totalWeight.toFixed(2)} kg)
+                </span>
+                {deliveryDiscountPercent > 0 && (
+                  <span className="text-xs text-green-600 ml-1">
+                    ({deliveryDiscountPercent}% discount)
+                  </span>
+                )}
+                :
+              </span>
+              <span className="font-semibold text-blue-600">
+                {deliveryChargeLoading
+                  ? "..."
+                  : `${deliveryCharge.toFixed(2)} TK`}
+              </span>
+            </div>
             <div className="flex justify-between text-lg font-bold mt-1">
               <span className="text-gray-800 dark:text-gray-200">
                 Total Bill:
               </span>
               <span className="text-green-600 dark:text-green-400">
-                {totalBill.toFixed(2)} TK
+                {(totalBill + deliveryCharge).toFixed(2)} TK
               </span>
             </div>
           </div>
@@ -1004,6 +1109,52 @@ const EditOrder: React.FC = () => {
                 className="w-full"
               />
             </div>
+
+            {/* 🆕 Location Radio — Order.tsx থেকে হুবহু কপি করা */}
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Delivery Location *{" "}
+                {!isNew && (
+                  <span className="text-xs text-red-500">(read-only)</span>
+                )}
+              </label>
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="location"
+                    value="inside_dhaka"
+                    checked={location === "inside_dhaka"}
+                    onChange={() => setLocation("inside_dhaka")}
+                    disabled={!isNew}
+                  />
+                  Inside Dhaka
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="location"
+                    value="suburbs"
+                    checked={location === "suburbs"}
+                    onChange={() => setLocation("suburbs")}
+                    disabled={!isNew}
+                  />
+                  Sub Urbans
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="location"
+                    value="outside_dhaka"
+                    checked={location === "outside_dhaka"}
+                    onChange={() => setLocation("outside_dhaka")}
+                    disabled={!isNew}
+                  />
+                  Outside Dhaka
+                </label>
+              </div>
+            </div>
+
             <div>
               <InputField
                 label="Account Name *"
@@ -1096,7 +1247,7 @@ const EditOrder: React.FC = () => {
             onChange={(e) => setRawText(e.target.value)}
             rows={6}
             className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm"
-            placeholder="e.g.&#10;রিজুয়ান&#10;01634857120&#10;01814950154&#10;কাদিরাবাদ ক্যান্টনমেন্ট স্যাপার কলেজ&#10;দয়ারামপুর,নাটোর"
+            placeholder="e.g.&#10;রিজুয়ান&#10;01634857120&#10;01814950154&#10;কাদিরাবাদ ক্যান্টনমেন্ট স্যাপার কলেজ&#10;দয়ারামপুর,নাটোর"
           />
           <div className="mt-4">
             <InputField
@@ -1136,6 +1287,13 @@ const EditOrder: React.FC = () => {
         <div className="p-4">
           <p className="text-gray-700 dark:text-gray-300">
             Are you sure you want to update this order?
+          </p>
+          {/* 🆕 location ও delivery charge summary দেখানো হলো */}
+          <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
+            Location: {getLocationLabel(location)}
+          </p>
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Delivery Charge: {deliveryCharge.toFixed(2)} TK
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             This will save all changes and you will be redirected to the order

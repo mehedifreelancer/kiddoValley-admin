@@ -20,6 +20,7 @@ import StockIn from "./modules/stock-in/StockIn";
 import Stock from "./modules/stock/stock";
 import SupplierList from "./modules/supplier/supplier";
 import { WebSettings } from "./modules/web-settings/WebSettings";
+import DeliverySettingsPage from "./modules/web-settings/delivery-settings/deliverySettings";
 
 // Placeholder components for missing routes
 const Sells = () => <div>Sells Page</div>;
@@ -64,6 +65,7 @@ export const router = createBrowserRouter([
           { path: "logo-&-social", element: <WebSettings /> },
           { path: "slider", element: <Slider /> },
           { path: "hero-slider", element: <HeroSliderManagement /> },
+          { path: "delivery-settings", element: <DeliverySettingsPage /> },
         ],
       },
     ],

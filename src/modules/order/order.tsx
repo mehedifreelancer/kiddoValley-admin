@@ -12,7 +12,6 @@ import InputField from "../../components/ui/InputField";
 import Modal from "../../components/ui/Modal";
 import Toolbar from "../../components/ui/Toolbar";
 import { useBarcodeScanner } from "../../hooks/useBarcodeScanner";
-import { GroqParsedData, parseWithGroq } from "../geminie/groq.service";
 import { StockTable, StockTableColumn } from "../stock/StockTable";
 import { getStockList } from "../stock/stock.service";
 import { FlatStockItem } from "../stock/stock.types";
@@ -22,8 +21,14 @@ import {
   checkCustomerExists,
   createAndConfirmOrder,
   createOrder,
+  GroqParsedData,
+  parseWithGroq,
 } from "./order.service";
 import { CreateOrderPayload, OrderItem } from "./order.types";
+
+// 🆕 Location type widened from 2-way to 3-way (Pathao ISD pickup rate card
+// has separate rates for ISD/Suburbs/OSD destinations).
+type LocationType = "inside_dhaka" | "suburbs" | "outside_dhaka";
 
 // ---------- Thumbnails ----------
 const VariantThumbnails = ({ images }: { images: any[] }) => {
@@ -51,9 +56,6 @@ const VariantThumbnails = ({ images }: { images: any[] }) => {
 };
 
 // ---------- Helpers ----------
-// 🔧 FIX: now takes the discountPercent + the actual per-unit discount TK
-// (sellingPrice - soldPrice) so the Discount column always reflects the
-// CURRENT soldPrice, not a stale value computed off the original sellingPrice.
 const formatDiscount = (
   discountPercent: number,
   discountAmountPerUnit: number,
@@ -66,11 +68,6 @@ const formatProfit = (sellingPrice: number, buyingPrice: number) => {
   return `${profit.toFixed(2)} TK (${percent.toFixed(1)}%)`;
 };
 
-// 🆕 Shared color logic for Sold Price + Profit Margin columns:
-// - red    → soldPrice is below buyingPrice (an actual loss)
-// - orange → soldPrice is below sellingPrice but still >= buyingPrice (bargained, still profitable)
-// - green  → soldPrice is above sellingPrice (sold at a markup)
-// - default → soldPrice === sellingPrice (untouched)
 const getPriceComparisonClass = (
   soldPrice: number,
   buyingPrice: number,
@@ -80,6 +77,14 @@ const getPriceComparisonClass = (
   if (soldPrice < sellingPrice) return "text-orange-600 font-semibold";
   if (soldPrice > sellingPrice) return "text-green-600 font-semibold";
   return "";
+};
+
+// 🆕 Human-readable label helper for location — used in Confirm modal so we
+// don't repeat ternaries everywhere.
+const getLocationLabel = (loc: LocationType) => {
+  if (loc === "inside_dhaka") return "Inside Dhaka";
+  if (loc === "suburbs") return "Sub Urbans";
+  return "Outside Dhaka";
 };
 
 const handlePrintReceipt = (order: any) => {
@@ -101,13 +106,16 @@ export const Order: React.FC = () => {
   const [deliveryDate, setDeliveryDate] = useState<Date>(new Date());
 
   // ---------- Location (radio) ----------
-  const [location, setLocation] = useState<"inside_dhaka" | "outside_dhaka">(
-    "inside_dhaka",
-  );
+  // 🔧 FIX: widened to 3-way — inside_dhaka | suburbs | outside_dhaka
+  const [location, setLocation] = useState<LocationType>("inside_dhaka");
 
   // ---------- Delivery charge ----------
   const [deliveryCharge, setDeliveryCharge] = useState<number>(0);
   const [deliveryChargeLoading, setDeliveryChargeLoading] = useState(false);
+  // 🆕 tracks the admin-configured delivery discount % so we can show
+  // "(X% discount)" next to the Delivery Charge line when it's > 0.
+  const [deliveryDiscountPercent, setDeliveryDiscountPercent] =
+    useState<number>(0);
 
   const [customerExists, setCustomerExists] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
@@ -145,27 +153,19 @@ export const Order: React.FC = () => {
     0,
   );
   const totalBill = orderItems.reduce((sum, i) => sum + i.finalPrice, 0);
-  // 🆕 Total weight (kg) across all order items — shown next to Delivery Charge
   const totalWeight = orderItems.reduce(
     (sum, i) => sum + (i.weight || 0) * i.quantity,
     0,
   );
 
   // ---------- Update delivery charge when location/items change ----------
-  // 🔧 FIX: accepts an optional override location/orderItems/subtotal so callers
-  // (like AI Fillup) can force an immediate, correct recalculation instead of
-  // waiting on the useEffect to pick up state that hasn't flushed yet.
   const updateDeliveryCharge = async (
-    overrideLocation?: "inside_dhaka" | "outside_dhaka",
+    overrideLocation?: LocationType,
     overrideItems?: OrderItem[],
   ) => {
     const loc = overrideLocation ?? location;
     const items = overrideItems ?? orderItems;
 
-    // 🔧 FIX: previously this bailed out (and never hit the API) whenever
-    // totalWeight was 0 — but the backend still returns a valid baseCharge
-    // for weight=0 (it only skips extra weightCharge). So the correct guard
-    // is "no items in cart", not "no weight data".
     if (items.length === 0) {
       setDeliveryCharge(0);
       return;
@@ -184,10 +184,12 @@ export const Order: React.FC = () => {
         isCod: true,
       });
       setDeliveryCharge(result.totalCharge || 0);
+      setDeliveryDiscountPercent((result as any).discountPercent || 0); // 🆕
     } catch (error: any) {
       console.error("Failed to calculate delivery charge:", error);
       toast.error(error.message || "Could not calculate delivery charge");
       setDeliveryCharge(0);
+      setDeliveryDiscountPercent(0); // 🆕
     } finally {
       setDeliveryChargeLoading(false);
     }
@@ -229,21 +231,12 @@ export const Order: React.FC = () => {
     return stock.currentQty - reserved;
   };
 
-  // 🔧 FIX: Discount is now ALWAYS derived live from (sellingPrice - soldPrice),
-  // instead of using the stock's fixed discountPercent. This means:
-  //  - By default (soldPrice untouched) it reproduces the original discount.
-  //  - As soon as the cashier overrides Sold Price, Discount % / Discount TK
-  //    recalculate automatically off the new soldPrice.
-  // `sellingPrice` (the reference/MRP price) never changes here — only
-  // `soldPrice` (what's actually being charged, editable for bargaining).
   const recalcItem = (
     item: OrderItem,
     quantity: number,
     soldPrice: number,
   ): OrderItem => {
     const total = soldPrice * quantity;
-    // Discount only makes sense when soldPrice <= sellingPrice; a soldPrice
-    // above sellingPrice is a markup, not a discount, so clamp at 0.
     const discountPerUnit = Math.max(0, item.sellingPrice - soldPrice);
     const discountAmount = discountPerUnit * quantity;
     const discountPercent =
@@ -287,11 +280,6 @@ export const Order: React.FC = () => {
     );
   };
 
-  // 🆕 Editable Sold Price — lets the cashier bargain the price down (or up)
-  // per line item without touching the reference "Unit Price" (sellingPrice).
-  // Everything downstream (Line Total, Discount, Profit, and — via the
-  // existing useEffect that watches `orderItems` — Delivery Charge/COD) is
-  // recalculated automatically off this new value.
   const updateSoldPrice = (stockId: number, newPrice: number) => {
     setOrderItems((prev) =>
       prev.map((item) => {
@@ -306,11 +294,6 @@ export const Order: React.FC = () => {
     );
   };
 
-  // 🆕 Editable Discount % — lets the cashier type a discount directly
-  // (e.g. client asks "5% off"). Derives soldPrice from sellingPrice and the
-  // entered percent, then runs it through the same recalcItem() used by
-  // Sold Price — so Sold Price / Line Total / Profit all stay in sync
-  // regardless of which of the two (Sold Price or Discount %) was edited.
   const updateDiscountPercent = (
     stockId: number,
     newDiscountPercent: number,
@@ -335,10 +318,6 @@ export const Order: React.FC = () => {
       return;
     }
 
-    // 🔧 FIX: default Sold Price now starts as the ALREADY-DISCOUNTED price
-    // (sellingPrice minus the stock's default discountPercent), instead of
-    // the raw sellingPrice. This matches what the customer would actually
-    // pay by default, and recalcItem() derives Discount/Profit off it.
     const defaultSoldPrice =
       stock.sellingPrice - (stock.sellingPrice * stock.discountPercent) / 100;
 
@@ -520,7 +499,7 @@ export const Order: React.FC = () => {
     items: orderItems.map((item) => ({
       stockId: item.stockId,
       quantity: item.quantity,
-      unitPrice: item.soldPrice, // 🔧 actual charged price, not the reference sellingPrice
+      unitPrice: item.soldPrice,
       totalPrice: item.total,
     })),
     subtotal: orderItems.reduce((sum, i) => sum + i.total, 0),
@@ -623,6 +602,7 @@ export const Order: React.FC = () => {
     setCustomerExists(null);
     setLocation("inside_dhaka");
     setDeliveryCharge(0);
+    setDeliveryDiscountPercent(0); // 🆕
   };
 
   // ---------- AI Fillup ----------
@@ -674,12 +654,10 @@ export const Order: React.FC = () => {
       if (parsed.hasBaby !== undefined) setHasBaby(parsed.hasBaby);
       if (parsed.preferredToy) setPreferredToy(parsed.preferredToy);
 
+      // 🔧 FIX: parsed.locationType is now 3-way (inside_dhaka | suburbs |
+      // outside_dhaka) — matches the widened `location` state type directly.
       if (parsed.locationType) {
         setLocation(parsed.locationType);
-        // 🔧 FIX: don't wait for the useEffect (which depends on `location`
-        // state that hasn't flushed yet in this same tick) — recalculate the
-        // delivery charge immediately using the freshly parsed location and
-        // the current orderItems, so the charge is correct right after AI Fillup.
         updateDeliveryCharge(parsed.locationType, orderItems);
       }
 
@@ -798,16 +776,11 @@ export const Order: React.FC = () => {
       <div className="text-xs text-gray-500 dark:text-gray-400">{row.sku}</div>
     </div>
   );
-  // 🆕 Reference price — shows what the item's actual stock price is,
-  // never editable, so the cashier always sees the "before bargaining" price.
   const orderUnitPriceBody = (row: OrderItem) => (
     <span className="text-gray-500 dark:text-gray-400">
       {row.sellingPrice.toFixed(2)} TK
     </span>
   );
-  // 🔧 FIX: color now reflects soldPrice vs buyingPrice/sellingPrice —
-  // orange = discounted below sellingPrice but still profitable,
-  // red = below buyingPrice (loss), green = markup above sellingPrice.
   const orderSoldPriceBody = (row: OrderItem) => (
     <InputNumber
       value={row.soldPrice}
@@ -825,7 +798,6 @@ export const Order: React.FC = () => {
       )}
     />
   );
-  // 🔧 FIX: same red/orange/green logic as Sold Price, applied here too.
   const orderProfitBody = (row: OrderItem) => (
     <span
       className={
@@ -839,13 +811,6 @@ export const Order: React.FC = () => {
       {formatProfit(row.soldPrice, row.buyingPrice)}
     </span>
   );
-  // 🔧 FIX: discount now reads straight off the live-recalculated
-  // discountPercent / discountAmount (see recalcItem), so it always matches
-  // the current Sold Price — whether default or manually overridden.
-  // 🔧 FIX: Discount % is now editable — typing a percent here derives a new
-  // Sold Price (via updateDiscountPercent) so both columns stay in sync.
-  // The TK amount underneath is just informational, derived from the same
-  // live discountAmount as before.
   const orderDiscountBody = (row: OrderItem) => (
     <div className="flex flex-col">
       <InputNumber
@@ -1043,6 +1008,12 @@ export const Order: React.FC = () => {
                 <span className="text-xs text-gray-400">
                   ({totalWeight.toFixed(2)} kg)
                 </span>
+                {/* 🆕 discount label — only shows when admin has set a % > 0 */}
+                {deliveryDiscountPercent > 0 && (
+                  <span className="text-xs text-green-600 ml-1">
+                    ({deliveryDiscountPercent}% discount)
+                  </span>
+                )}
                 :
               </span>
               <span className="font-semibold text-blue-600">
@@ -1160,7 +1131,7 @@ export const Order: React.FC = () => {
               />
             </div>
 
-            {/* Location Radio */}
+            {/* Location Radio — 🔧 FIX: now 3-way (Inside Dhaka / Sub Urbans / Outside Dhaka) */}
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Delivery Location *
@@ -1175,6 +1146,16 @@ export const Order: React.FC = () => {
                     onChange={() => setLocation("inside_dhaka")}
                   />
                   Inside Dhaka
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="location"
+                    value="suburbs"
+                    checked={location === "suburbs"}
+                    onChange={() => setLocation("suburbs")}
+                  />
+                  Sub Urbans
                 </label>
                 <label className="flex items-center gap-2">
                   <input
@@ -1206,7 +1187,6 @@ export const Order: React.FC = () => {
                 className="w-full"
               />
             </div>
-            {/* ❌ Delivery Charge field removed – it is already shown in Current Order section */}
           </div>
         </div>
       </div>
@@ -1371,15 +1351,20 @@ export const Order: React.FC = () => {
             <p className="text-gray-600 dark:text-gray-300">
               Delivery Date: {deliveryDate.toLocaleDateString()}
             </p>
+            {/* 🔧 FIX: uses getLocationLabel() so "Sub Urbans" renders correctly too */}
             <p className="text-gray-600 dark:text-gray-300">
-              Location:{" "}
-              {location === "inside_dhaka" ? "Inside Dhaka" : "Outside Dhaka"}
+              Location: {getLocationLabel(location)}
             </p>
             <p className="text-gray-600 dark:text-gray-300">
               Delivery Charge{" "}
               <span className="text-xs text-gray-400">
                 ({totalWeight.toFixed(2)} kg)
               </span>
+              {deliveryDiscountPercent > 0 && (
+                <span className="text-xs text-green-600 ml-1">
+                  ({deliveryDiscountPercent}% discount)
+                </span>
+              )}
               : {deliveryCharge.toFixed(2)} TK
             </p>
           </div>

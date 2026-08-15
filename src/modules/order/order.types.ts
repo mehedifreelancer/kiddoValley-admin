@@ -31,3 +31,5 @@ export interface CreateOrderPayload {
   discountTotal: number;
   total: number;
 }
+// order.types.ts
+export type LocationType = "inside_dhaka" | "suburbs" | "outside_dhaka";
