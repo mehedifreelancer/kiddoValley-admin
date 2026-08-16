@@ -1,16 +1,18 @@
 // components/common/Sidebar.tsx
-import React, { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, Pin, Store } from "lucide-react";
+import React, { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import { useGlobal } from "../../context/GlobalContext";
-import type { MenuItem } from "../../types/sidebar/sidebar.types";
 import { sidebarMenuData } from "../../data/SidebarMenuData";
+import type { MenuItem } from "../../types/sidebar/sidebar.types";
 
 const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isSidebarPinned, setSidebarPinned } = useGlobal();
+  const { user, loading } = useAuth(); // ✅ ইউজার ও লোডিং স্টেট
   const [isHovered, setIsHovered] = useState(false);
   const [expandedItems, setExpandedItems] = useState<string[]>([
     "web-settings",
@@ -19,6 +21,40 @@ const Sidebar: React.FC = () => {
   // Fixed widths
   const EXPANDED_WIDTH = 220;
   const COLLAPSED_WIDTH = 72;
+
+  // ✅ মেনু ফিল্টার করার ফাংশন (Recursive)
+  const filterMenu = (items: MenuItem[]): MenuItem[] => {
+    return items
+      .map((item) => {
+        // যদি item-এ roles না থাকে, সবাই দেখতে পাবে
+        if (!item.roles) return item;
+
+        // যদি ইউজার লগইন না থাকে বা রোল মেলে না, তাহলে বাদ
+        if (!user || !item.roles.includes(user.role)) {
+          // কিন্তু যদি item-এর children থাকে, সেগুলো চেক করি
+          if (item.children) {
+            const filteredChildren = filterMenu(item.children);
+            if (filteredChildren.length > 0) {
+              // যদি অন্তত একটা child থাকে, তাহলে parent-কে রাখি (কিন্তু নিজের roles ওভাররাইড করে)
+              // তবে আমরা parent-কে শুধুমাত্র তখনই দেখাব যখন তার children visible থাকবে
+              return { ...item, children: filteredChildren };
+            }
+          }
+          return null; // বাদ
+        }
+
+        // যদি ইউজারের রোল মেলে, তাহলে children ফিল্টার করে দেখি
+        if (item.children) {
+          const filteredChildren = filterMenu(item.children);
+          return { ...item, children: filteredChildren };
+        }
+        return item;
+      })
+      .filter((item) => item !== null) as MenuItem[];
+  };
+
+  // ✅ ফিল্টার করা মেনু
+  const filteredMenu = loading ? [] : filterMenu(sidebarMenuData);
 
   const toggleExpand = (itemId: string) => {
     setExpandedItems((prev) =>
@@ -72,12 +108,8 @@ const Sidebar: React.FC = () => {
           whileHover={{ x: isSidebarExpanded ? 2 : 0 }}
           whileTap={{ scale: 0.98 }}
         >
-          {/* Icon */}
-          <span className={` ${isActive ? "text-white" : ""}`}>
-            {item.icon}
-          </span>
+          <span className={isActive ? "text-white" : ""}>{item.icon}</span>
 
-          {/* Label */}
           <AnimatePresence mode="wait">
             {isSidebarExpanded && (
               <motion.span
@@ -93,14 +125,12 @@ const Sidebar: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {/* Badge */}
           {item.badge && isSidebarExpanded && (
             <span className="ml-2 px-1.5 py-0.5 text-xs font-medium rounded-full bg-red-500 text-white">
               {item.badge}
             </span>
           )}
 
-          {/* Chevron for children */}
           {hasChildren && isSidebarExpanded && (
             <motion.span
               animate={{ rotate: isExpanded ? 180 : 0 }}
@@ -112,7 +142,6 @@ const Sidebar: React.FC = () => {
           )}
         </motion.div>
 
-        {/* Children Menu */}
         {hasChildren && (
           <div
             className="overflow-hidden transition-all duration-300 ease-in-out"
@@ -132,7 +161,6 @@ const Sidebar: React.FC = () => {
 
   return (
     <>
-      {/* Overlay for mobile/unpinned state */}
       {!isSidebarPinned && isHovered && (
         <div
           className="fixed inset-0 z-40 bg-black/20"
@@ -140,7 +168,6 @@ const Sidebar: React.FC = () => {
         />
       )}
 
-      {/* Sidebar */}
       <motion.aside
         animate={{
           width: isSidebarExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH,
@@ -157,7 +184,6 @@ const Sidebar: React.FC = () => {
             : `${COLLAPSED_WIDTH}px`,
         }}
       >
-        {/* Fixed Header - Logo section */}
         <div className="flex-shrink-0 px-4 py-[18px] border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <AnimatePresence mode="wait">
@@ -212,9 +238,18 @@ const Sidebar: React.FC = () => {
           </div>
         </div>
 
-        {/* Scrollable Menu Area */}
         <div className="flex-1 overflow-y-auto py-4 scrollbar-hide">
-          {sidebarMenuData.map((item) => renderMenuItem(item))}
+          {loading ? (
+            <div className="flex justify-center items-center h-full">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-700" />
+            </div>
+          ) : filteredMenu.length > 0 ? (
+            filteredMenu.map((item) => renderMenuItem(item))
+          ) : (
+            <div className="text-center text-gray-500 text-sm py-8">
+              No menu items available
+            </div>
+          )}
         </div>
       </motion.aside>
     </>

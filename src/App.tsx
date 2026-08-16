@@ -4,15 +4,15 @@ import { Outlet } from "react-router";
 import Header from "./components/common/Header";
 import Sidebar from "./components/common/Sidebar";
 import ToasterProvider from "./components/ui/ToasterProvider";
+import { AuthProvider } from "./context/AuthContext";
 import { GlobalProvider, useGlobal } from "./context/GlobalContext";
-import { useTheme } from "./hooks/useTheme"; // Import useTheme
+import { useTheme } from "./hooks/useTheme";
 
-// Create a separate component that uses the context
+// AppContent আগের মতোই থাকবে
 function AppContent() {
   const { isSidebarPinned } = useGlobal();
-  const { theme } = useTheme(); // Use the hook directly
+  const { theme } = useTheme();
 
-  // Apply theme to html element whenever it changes
   useEffect(() => {
     if (theme === "dark") {
       document.documentElement.classList.add("dark");
@@ -34,7 +34,6 @@ function AppContent() {
           <Outlet />
         </main>
       </motion.div>
-
       <ToasterProvider />
     </div>
   );
@@ -42,9 +41,13 @@ function AppContent() {
 
 function App() {
   return (
-    <GlobalProvider>
-      <AppContent />
-    </GlobalProvider>
+    <AuthProvider>
+      {" "}
+      {/* ✅ AuthProvider দিয়ে র‍্যাপ করুন */}
+      <GlobalProvider>
+        <AppContent />
+      </GlobalProvider>
+    </AuthProvider>
   );
 }
 

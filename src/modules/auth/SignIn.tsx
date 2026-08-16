@@ -1,18 +1,18 @@
-import React, { useState } from "react";
-import { LogIn, Eye, EyeOff } from "lucide-react";
-import { toast } from "react-hot-toast";
+// modules/auth/SignIn.tsx
 import Cookies from "js-cookie";
-import Panel from "../../components/ui/Panel";
-import InputField from "../../components/ui/InputField";
-import Button from "../../components/ui/Button";
-import { useTheme } from "../../hooks/useTheme";
-import { login } from "./auth.service"; // Direct import
+import { Eye, EyeOff, LogIn } from "lucide-react";
+import React, { useState } from "react";
+import { toast } from "react-hot-toast";
 import { useNavigate } from "react-router";
+import Button from "../../components/ui/Button";
+import InputField from "../../components/ui/InputField";
+import Panel from "../../components/ui/Panel";
+import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../hooks/useTheme";
+import { login } from "./auth.service";
 
-// Cookie keys
 const ACCESS_TOKEN_KEY = "accessToken";
 const REFRESH_TOKEN_KEY = "refreshToken";
-const USER_INFO_KEY = "userInfo";
 
 const SignIn: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -21,11 +21,11 @@ const SignIn: React.FC = () => {
   const [error, setError] = useState<string>("");
   const { theme } = useTheme();
   const navigate = useNavigate();
+  const { setUser } = useAuth();
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-
     const usernameOrEmail = formData.get("usernameOrEmail") as string;
     const password = formData.get("password") as string;
     const remember = formData.get("rememberMe") === "on";
@@ -40,15 +40,12 @@ const SignIn: React.FC = () => {
 
     try {
       const payload = { usernameOrEmail, password };
-      const response = await login(payload); // Direct call
-      console.log(response);
-
+      const response = await login(payload);
       if (response?.data?.success) {
         const { accessToken, refreshToken, user } = response.data;
 
-        // Store tokens in cookies
         const cookieConfig = {
-          expires: remember ? 7 : undefined,
+          expires: remember ? 7 : undefined, // 👈 Remember Me logic
           secure: import.meta.env.PROD,
           sameSite: "strict" as const,
           path: "/",
@@ -56,15 +53,23 @@ const SignIn: React.FC = () => {
 
         Cookies.set(ACCESS_TOKEN_KEY, accessToken, cookieConfig);
         Cookies.set(REFRESH_TOKEN_KEY, refreshToken, cookieConfig);
-        Cookies.set(USER_INFO_KEY, JSON.stringify(user), cookieConfig);
 
-        toast.success("Login successful! Redirecting...");
+        setUser({
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          name: user.name,
+        });
+
+        toast.success("Login successful!");
         navigate("/");
       } else {
         setError("Invalid username or password");
       }
-    } catch (err) {
-      setError("An error occurred. Please try again.");
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.message || "An error occurred. Please try again.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -89,14 +94,12 @@ const SignIn: React.FC = () => {
         <div className="backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-4">
           <Panel className="bg-transparent! shadow-none!">
             <h1 className="mb-3 text-xl text-center text-white">Log In</h1>
-
             <form onSubmit={handleSubmit} className="space-y-6">
               {error && (
                 <div className="p-3 bg-red-500/20 backdrop-blur-sm border border-red-500/30 text-red-100 rounded-lg text-sm">
                   {error}
                 </div>
               )}
-
               <InputField
                 label="Username or Email"
                 inputClassName="text-white"
@@ -107,7 +110,6 @@ const SignIn: React.FC = () => {
                 disabled={isLoading}
                 isRequired
               />
-
               <div className="relative">
                 <InputField
                   label="Password"

@@ -1,29 +1,33 @@
-import React, { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+// components/common/Header.tsx
+import { AnimatePresence, motion } from "framer-motion";
+import Cookies from "js-cookie";
 import {
-  Bell,
-  ChevronDown,
-  LogOut,
-  User,
-  Lock,
-  Settings,
-  Moon,
-  Sun,
-  Check,
-  X,
-  Info,
-  AlertTriangle,
-  CheckCircle,
   AlertCircle,
+  AlertTriangle,
+  Bell,
+  Check,
+  CheckCircle,
+  ChevronDown,
+  Info,
+  Lock,
+  LogOut,
+  Moon,
+  Settings,
+  Sun,
+  User,
+  X,
 } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import { useGlobal } from "../../context/GlobalContext";
 
 const Header: React.FC = () => {
+  const navigate = useNavigate();
+  const { theme, toggleTheme } = useGlobal();
+  const { user, setUser } = useAuth();
+
   const {
-    theme,
-    toggleTheme,
-    user,
-    logout,
     notifications,
     unreadCount,
     markAsRead,
@@ -56,6 +60,44 @@ const Header: React.FC = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // ===== ✅ Logout =====
+  const handleLogout = () => {
+    Cookies.remove("accessToken");
+    Cookies.remove("refreshToken");
+    setUser(null);
+    navigate("/sign-in", { replace: true });
+  };
+
+  // ===== ✅ Get initials from user name =====
+  const getInitials = (name: string) => {
+    if (!name) return "U";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (
+      parts[0].charAt(0) + parts[parts.length - 1].charAt(0)
+    ).toUpperCase();
+  };
+
+  // ===== ✅ Generate a consistent color based on name =====
+  const getAvatarColor = (name: string) => {
+    if (!name) return "bg-gray-500";
+    const colors = [
+      "bg-red-500",
+      "bg-blue-500",
+      "bg-green-500",
+      "bg-yellow-500",
+      "bg-purple-500",
+      "bg-pink-500",
+      "bg-indigo-500",
+      "bg-teal-500",
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "success":
@@ -85,9 +127,8 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="rounded-sm sticky top-0 z-40 bg-white dark:bg-gray-800 shadow-sm ">
-      {" "}
-      <div className="flex items-center justify-end px-2 py-[4px] ">
+    <header className="rounded-sm sticky top-0 z-40 bg-white dark:bg-gray-800 shadow-sm">
+      <div className="flex items-center justify-end px-2 py-[4px]">
         <div className="flex items-center space-x-4">
           {/* Theme Toggle Button */}
           <motion.button
@@ -231,18 +272,22 @@ const Header: React.FC = () => {
             <motion.button
               whileTap={{ scale: 0.98 }}
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center space-x-3 p-1 pr-2 rounded-sm  "
+              className="flex items-center space-x-3 p-1 pr-2 rounded-sm"
             >
-              <img
-                src={user?.avatar}
-                alt={user?.name}
-                className="w-8 h-8 rounded-full ring-2 ring-gray-200 dark:ring-gray-700"
-              />
+              {/* ✅ Avatar: Show initials with color */}
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ring-2 ring-gray-200 dark:ring-gray-700 ${getAvatarColor(
+                  user?.name || "",
+                )}`}
+              >
+                {getInitials(user?.name || "User")}
+              </div>
+
               <div className="hidden md:block text-left">
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
                   {user?.name}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
                   {user?.role}
                 </p>
               </div>
@@ -275,7 +320,7 @@ const Header: React.FC = () => {
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
-                        // Handle profile
+                        // TODO: নেভিগেট প্রোফাইল পেজে
                       }}
                       className="cursor-pointer flex items-center space-x-3 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     >
@@ -286,7 +331,7 @@ const Header: React.FC = () => {
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
-                        // Handle change password
+                        // TODO: নেভিগেট চেঞ্জ পাসওয়ার্ড পেজে
                       }}
                       className="cursor-pointer flex items-center space-x-3 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     >
@@ -297,7 +342,7 @@ const Header: React.FC = () => {
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
-                        // Handle settings
+                        // TODO: নেভিগেট সেটিংস পেজে
                       }}
                       className="cursor-pointer flex items-center space-x-3 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     >
@@ -307,11 +352,9 @@ const Header: React.FC = () => {
 
                     <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
 
+                    {/* ✅ Logout */}
                     <button
-                      onClick={() => {
-                        logout();
-                        setShowUserMenu(false);
-                      }}
+                      onClick={handleLogout}
                       className="cursor-pointer flex items-center space-x-3 w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
                       <LogOut className="w-4 h-4" />

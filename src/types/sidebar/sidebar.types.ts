@@ -4,9 +4,10 @@ export interface MenuItem {
   id: string;
   label: string;
   icon: ReactNode;
-  path?: string;  // For navigation
-  badge?: number; // For notifications
+  path?: string;
+  badge?: number;
   children?: MenuItem[];
+  roles?: string[]; // ✅ roles array added (optional – if not present, everyone can see)
 }
 
 export interface SidebarProps {

@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
 import App from "./App";
 import AuthGuard from "./components/guards/AuthGuard";
+import { ProtectedRoute } from "./components/guards/ProtectedRoute";
 import Components from "./components/ui/Components";
 import Asset from "./modules/accounts/assets/Asset";
 import { Balance } from "./modules/accounts/Balanace";
@@ -13,11 +14,12 @@ import {
   default as Dashboard,
   default as Report,
 } from "./modules/dashboard/Dashboard";
+import FormulaManagement from "./modules/formula/Formula";
 import Slider from "./modules/hero-banner-slider/HeroBannerSlider";
 import HeroSliderManagement from "./modules/hero-slider/HeroSliderManagement";
 import LiveCampaign from "./modules/live-campaign/LiveCampaign";
 import Category from "./modules/master-data/category/Category";
-import EditOrder from "./modules/order/EditOrder"; // ✅ নতুন
+import EditOrder from "./modules/order/EditOrder";
 import Order from "./modules/order/order";
 import OrderList from "./modules/order/OrderList";
 import { Product } from "./modules/product/Product";
@@ -26,15 +28,18 @@ import SellsReport from "./modules/reports/SellsReport";
 import StockIn from "./modules/stock-in/StockIn";
 import Stock from "./modules/stock/stock";
 import SupplierList from "./modules/supplier/supplier";
+import NotFound from "./modules/unauthorized/NotFound";
+import Unauthorized from "./modules/unauthorized/Unauthorized";
+import UserManagement from "./modules/users/user";
 import DeliverySettingsPage from "./modules/web-settings/delivery-settings/deliverySettings";
 import PackagingSettings from "./modules/web-settings/packaging-settings/PackagingSettings";
 import { WebSettings } from "./modules/web-settings/WebSettings";
 
-// Placeholder components for missing routes
-const Sells = () => <div>Sells Page</div>;
+// Placeholder for UserManagement (if not created yet)
+// import UserManagement from "./modules/users/User";
+
+// Placeholder for other missing components
 const Purchase = () => <div>Purchase Page</div>;
-const UploadLogo = () => <div>Upload Logo Page</div>;
-const SocialLinks = () => <div>Social Media Links Page</div>;
 
 export const router = createBrowserRouter([
   {
@@ -46,54 +51,303 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Dashboard /> },
+
+      // ===== Accounts =====
       {
         path: "account",
         children: [
           {
             path: "transaction-categories",
-            element: <TransactionCategoryList />,
+            element: (
+              <ProtectedRoute allowedRoles={["super_admin", "admin"]}>
+                <TransactionCategoryList />
+              </ProtectedRoute>
+            ),
           },
-          { path: "balance", element: <Balance /> },
-          { path: "asset", element: <Asset /> },
-          { path: "employee-bill", element: <EmployeeBillManagement /> },
-          { path: "raw-material", element: <RawMaterialManagement /> },
+          {
+            path: "balance",
+            element: (
+              <ProtectedRoute
+                allowedRoles={["super_admin", "admin", "data_accountant"]}
+              >
+                <Balance />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: "asset",
+            element: (
+              <ProtectedRoute
+                allowedRoles={["super_admin", "admin", "data_accountant"]}
+              >
+                <Asset />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: "employee-bill",
+            element: (
+              <ProtectedRoute
+                allowedRoles={["super_admin", "admin", "data_accountant"]}
+              >
+                <EmployeeBillManagement />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: "raw-material",
+            element: (
+              <ProtectedRoute
+                allowedRoles={["super_admin", "admin", "data_accountant"]}
+              >
+                <RawMaterialManagement />
+              </ProtectedRoute>
+            ),
+          },
         ],
       },
 
+      // ===== Reports =====
       {
         path: "report",
         children: [
-          { path: "sells-report", element: <SellsReport /> },
-          { path: "annual-report", element: <AnnualReport /> },
+          {
+            path: "sells-report",
+            element: (
+              <ProtectedRoute
+                allowedRoles={["super_admin", "admin", "data_accountant"]}
+              >
+                <SellsReport />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: "annual-report",
+            element: (
+              <ProtectedRoute
+                allowedRoles={["super_admin", "admin", "data_accountant"]}
+              >
+                <AnnualReport />
+              </ProtectedRoute>
+            ),
+          },
         ],
       },
-      { path: "customer", element: <CustomerList /> },
-      { path: "supplier", element: <SupplierList /> },
-      { path: "stock", element: <Stock /> },
-      { path: "stock-in", element: <StockIn /> },
-      { path: "create-order", element: <Order /> },
-      { path: "order-list", element: <OrderList /> },
-      { path: "order-edit/:id", element: <EditOrder /> }, // ✅ নতুন রুট
-      { path: "purchase", element: <Purchase /> },
-      { path: "report", element: <Report /> },
-      { path: "live-campaign", element: <LiveCampaign /> },
+
+      // ===== Other Modules =====
+      {
+        path: "customer",
+        element: (
+          <ProtectedRoute
+            allowedRoles={[
+              "super_admin",
+              "admin",
+              "data_accountant",
+              "moderator",
+            ]}
+          >
+            <CustomerList />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "supplier",
+        element: (
+          <ProtectedRoute
+            allowedRoles={["super_admin", "admin", "data_accountant"]}
+          >
+            <SupplierList />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "stock",
+        element: (
+          <ProtectedRoute
+            allowedRoles={["super_admin", "admin", "data_accountant"]}
+          >
+            <Stock />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "stock-in",
+        element: (
+          <ProtectedRoute
+            allowedRoles={["super_admin", "admin", "data_accountant"]}
+          >
+            <StockIn />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "create-order",
+        element: (
+          <ProtectedRoute
+            allowedRoles={[
+              "super_admin",
+              "admin",
+              "data_accountant",
+              "moderator",
+            ]}
+          >
+            <Order />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "order-list",
+        element: (
+          <ProtectedRoute
+            allowedRoles={[
+              "super_admin",
+              "admin",
+              "data_accountant",
+              "moderator",
+            ]}
+          >
+            <OrderList />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "order-edit/:id",
+        element: (
+          <ProtectedRoute
+            allowedRoles={["super_admin", "admin", "data_accountant"]}
+          >
+            <EditOrder />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "purchase",
+        element: (
+          <ProtectedRoute
+            allowedRoles={["super_admin", "admin", "data_accountant"]}
+          >
+            <Purchase />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "report",
+        element: (
+          <ProtectedRoute
+            allowedRoles={[
+              "super_admin",
+              "admin",
+              "data_accountant",
+              "moderator",
+            ]}
+          >
+            <Report />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "live-campaign",
+        element: (
+          <ProtectedRoute allowedRoles={["super_admin", "admin", "moderator"]}>
+            <LiveCampaign />
+          </ProtectedRoute>
+        ),
+      },
+
+      // ===== Products =====
       {
         path: "products",
         children: [
-          { path: "category", element: <Category /> },
-          { path: "product-list", element: <Product /> },
+          {
+            path: "category",
+            element: (
+              <ProtectedRoute
+                allowedRoles={["super_admin", "admin", "data_accountant"]}
+              >
+                <Category />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: "product-list",
+            element: (
+              <ProtectedRoute
+                allowedRoles={["super_admin", "admin", "data_accountant"]}
+              >
+                <Product />
+              </ProtectedRoute>
+            ),
+          },
           { path: "x", element: <Components /> },
         ],
       },
+
+      // ===== Web Settings =====
       {
         path: "web-settings",
         children: [
-          { path: "logo-&-social", element: <WebSettings /> },
-          { path: "slider", element: <Slider /> },
-          { path: "hero-slider", element: <HeroSliderManagement /> },
-          { path: "delivery-settings", element: <DeliverySettingsPage /> },
-          { path: "packaging-settings", element: <PackagingSettings /> },
+          {
+            path: "logo-&-social",
+            element: (
+              <ProtectedRoute allowedRoles={["super_admin", "admin"]}>
+                <WebSettings />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: "slider",
+            element: (
+              <ProtectedRoute allowedRoles={["super_admin", "admin"]}>
+                <Slider />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: "hero-slider",
+            element: (
+              <ProtectedRoute allowedRoles={["super_admin", "admin"]}>
+                <HeroSliderManagement />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: "delivery-settings",
+            element: (
+              <ProtectedRoute allowedRoles={["super_admin", "admin"]}>
+                <DeliverySettingsPage />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: "packaging-settings",
+            element: (
+              <ProtectedRoute allowedRoles={["super_admin", "admin"]}>
+                <PackagingSettings />
+              </ProtectedRoute>
+            ),
+          },
         ],
+      },
+
+      // ===== Users (Role Management) =====
+
+      {
+        path: "users",
+        element: (
+          <ProtectedRoute allowedRoles={["super_admin"]}>
+            <UserManagement />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "formulas",
+        element: (
+          <ProtectedRoute
+            allowedRoles={["super_admin", "admin", "data_accountant"]}
+          >
+            <FormulaManagement />
+          </ProtectedRoute>
+        ),
       },
     ],
   },
@@ -104,5 +358,14 @@ export const router = createBrowserRouter([
         <SignIn />
       </AuthGuard>
     ),
+  },
+  // ✅ নতুন Unauthorized রাউট (পাবলিক – AuthGuard ছাড়া)
+  {
+    path: "/unauthorized",
+    element: <Unauthorized />,
+  },
+  {
+    path: "*",
+    element: <NotFound />,
   },
 ]);
