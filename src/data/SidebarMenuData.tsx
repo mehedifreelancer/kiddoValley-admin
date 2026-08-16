@@ -1,4 +1,5 @@
 import {
+  Activity,
   Box,
   ChartArea,
   ChartLine,
@@ -169,5 +170,11 @@ export const sidebarMenuData: MenuItem[] = [
         path: "/web-settings/packaging-settings",
       },
     ],
+  },
+  {
+    id: "live-campaign",
+    label: "Live Campaign",
+    icon: <Activity className="w-4 h-4" />,
+    path: "/live-campaign",
   },
 ];

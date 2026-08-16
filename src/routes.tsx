@@ -15,6 +15,7 @@ import {
 } from "./modules/dashboard/Dashboard";
 import Slider from "./modules/hero-banner-slider/HeroBannerSlider";
 import HeroSliderManagement from "./modules/hero-slider/HeroSliderManagement";
+import LiveCampaign from "./modules/live-campaign/LiveCampaign";
 import Category from "./modules/master-data/category/Category";
 import EditOrder from "./modules/order/EditOrder"; // ✅ নতুন
 import Order from "./modules/order/order";
@@ -75,6 +76,7 @@ export const router = createBrowserRouter([
       { path: "order-edit/:id", element: <EditOrder /> }, // ✅ নতুন রুট
       { path: "purchase", element: <Purchase /> },
       { path: "report", element: <Report /> },
+      { path: "live-campaign", element: <LiveCampaign /> },
       {
         path: "products",
         children: [
