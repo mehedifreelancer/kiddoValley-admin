@@ -13,7 +13,6 @@ import DataTableSearch from "../../components/ui/DataTableSearch";
 import InputField from "../../components/ui/InputField";
 import Modal from "../../components/ui/Modal";
 import Toolbar from "../../components/ui/Toolbar";
-import AllLiveCampaigns from "./AllLiveCampaigns";
 import {
   createCampaign,
   deleteCampaign,
@@ -362,7 +361,7 @@ export const LiveCampaign = () => {
   return (
     <div>
       <Toolbar title="Live Campaigns">
-        <div className="flex gap-2 items-center flex-wrap">
+        <div className="flex gap-2 items-center ">
           <DataTableSearch
             value={searchTerm}
             onChange={setSearchTerm}
@@ -377,13 +376,7 @@ export const LiveCampaign = () => {
           >
             <RefreshCw className="w-4 h-4" /> Refresh
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate("/account/live-campaign?view=all")}
-          >
-            <Eye className="w-4 h-4 mr-1" /> View All
-          </Button>
+
           <Button
             onClick={openCreateModal}
             className="btn-primary flex items-center gap-2 text-xs"

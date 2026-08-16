@@ -25,22 +25,19 @@ export const LiveCampaignChart: React.FC<LiveCampaignChartProps> = ({
     setHistory(data);
   }, [data]);
 
-  // ---- Hourly (aaj, full 0-23 route, cumulative jotokhon data ase) ----
+  // ---- Hourly tab (aaj, full 96 slot route = 15 min kore, cumulative jotokhon data ase) ----
+  // FIX: backend ekhon h.hour na, h.slot + h.time (e.g. "08:30") pathay
   const hourlyCategories = useMemo(
-    () => history.hourlySeries.map((h) => `${h.hour}:00`),
+    () => history.hourlySeries.map((h) => h.time),
     [history],
   );
   const hourlyCumulative = useMemo(() => {
     let running = 0;
-    let seenData = false;
     return history.hourlySeries.map((h) => {
       if (h.profit === null) {
-        // future hour — jodi age kono data-i dekha jayni, tahole null-i thakuk
-        // (ekhono match shuru hoyni). Kintu ager kono value dekha gele
-        // ei point-o null rekhe deoa hocche jate line ekhane theme jay.
+        // future slot — data ashe ni, tai null-i thakuk (line ekhane theme jabe)
         return null;
       }
-      seenData = true;
       running += h.profit;
       return round2(running);
     });
@@ -82,19 +79,26 @@ export const LiveCampaignChart: React.FC<LiveCampaignChartProps> = ({
       curve: "smooth",
       width: [3, 2, 2],
     },
-    // null value ashle line connect na kore theme jabe — "match jotodur hoyeche totodur"
     markers: {
       size: 0,
     },
-    colors: ["#FFB74D", "#9E9E9E", "#4CAF50"], // yellow profit, gray budget, green max
+    colors: ["#FFB74D", "#9E9E9E", "#4CAF50"],
     title: {
-      text: `${history.title} – ${isHourly ? "Today (Hourly)" : "By Date"}`,
+      text: `${history.title} – ${isHourly ? "Today (Every 15 min)" : "By Date"}`,
       align: "center",
       style: { fontSize: "16px", fontWeight: "bold", color: "#333" },
     },
     xaxis: {
       categories,
-      labels: { style: { colors: "#666" } },
+      labels: {
+        style: { colors: "#666", fontSize: isHourly ? "10px" : "12px" },
+        // User chere diyeche shob 96 ta 15-min label-i dekhbe (ghono holeo),
+        // tai rotate + smaller font diye jotota shombhob readable rakhar
+        // chesta kora hocche. tickAmount ekhon r limit kora hocche na.
+        rotate: -90,
+        rotateAlways: isHourly,
+        hideOverlappingLabels: false,
+      },
     },
     yaxis: {
       title: { text: "Amount (৳)", style: { color: "#666" } },
@@ -155,12 +159,19 @@ export const LiveCampaignChart: React.FC<LiveCampaignChartProps> = ({
           Loading chart...
         </div>
       ) : (
-        <ReactApexChart
-          options={options}
-          series={options.series}
-          type="line"
-          height={350}
-        />
+        // FIX: hourly tab-e 96 ta dense label thakle horizontal scroll na
+        // dile shob label mesh hoye jay. tai shudhu hourly tab-e min-width
+        // baiye scrollable container-e wrap kora hocche.
+        <div className={isHourly ? "overflow-x-auto" : undefined}>
+          <div style={{ minWidth: isHourly ? 1400 : "100%" }}>
+            <ReactApexChart
+              options={options}
+              series={options.series}
+              type="line"
+              height={350}
+            />
+          </div>
+        </div>
       )}
 
       <div className="mt-4 grid grid-cols-3 gap-4 text-center">
