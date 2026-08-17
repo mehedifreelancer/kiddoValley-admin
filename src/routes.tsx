@@ -32,6 +32,7 @@ import NotFound from "./modules/unauthorized/NotFound";
 import Unauthorized from "./modules/unauthorized/Unauthorized";
 import UserManagement from "./modules/users/user";
 import DeliverySettingsPage from "./modules/web-settings/delivery-settings/deliverySettings";
+import GridManagement from "./modules/web-settings/layout-settings/GridManagement";
 import PackagingSettings from "./modules/web-settings/packaging-settings/PackagingSettings";
 import { WebSettings } from "./modules/web-settings/WebSettings";
 
@@ -323,6 +324,14 @@ export const router = createBrowserRouter([
             element: (
               <ProtectedRoute allowedRoles={["super_admin", "admin"]}>
                 <PackagingSettings />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: "layout-settings",
+            element: (
+              <ProtectedRoute allowedRoles={["super_admin", "admin"]}>
+                <GridManagement />
               </ProtectedRoute>
             ),
           },
