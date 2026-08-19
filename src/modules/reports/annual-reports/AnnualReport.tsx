@@ -76,16 +76,12 @@ export const AnnualReport = () => {
     doc.setFontSize(10);
     doc.text(`Year: ${year}`, 40, 60);
 
-    // ✅ Compute cumulative running cash for PDF, but stop accumulating
-    // once we pass the current month (same fix as the on-screen table)
-    let pdfCumulative = 0;
+    // ✅ Use the backend's cash-based runningCash directly (includes opening
+    // balance + actual cash-in, not just accounting profit). No frontend
+    // recomputation needed anymore.
     const pdfRows = report.months.map((m, idx) => {
       const hasOccurred =
         year < now.getFullYear() || (isCurrentYear && idx <= currentMonth);
-
-      if (hasOccurred) {
-        pdfCumulative += m.monthlyNet;
-      }
 
       return [
         m.monthName,
@@ -93,7 +89,7 @@ export const AnnualReport = () => {
         m.salesNetProfit.toFixed(2),
         m.expenses.toFixed(2),
         m.monthlyNet.toFixed(2),
-        hasOccurred ? pdfCumulative.toFixed(2) : "-",
+        hasOccurred ? m.runningCash.toFixed(2) : "-",
       ];
     });
 
@@ -118,14 +114,9 @@ export const AnnualReport = () => {
     const finalY = (doc as any).lastAutoTable.finalY + 20;
     doc.setFontSize(12);
     const totals = report.totals;
-    // ✅ Final cash = cumulative sum only up to the current/elapsed months
-    const finalCash = report.months.reduce((acc, m, idx) => {
-      const hasOccurred =
-        year < now.getFullYear() || (isCurrentYear && idx <= currentMonth);
-      return hasOccurred ? acc + m.monthlyNet : acc;
-    }, 0);
+    // ✅ Final cash = backend's totals.finalCash (already cash-based, correct)
     doc.text(
-      `Totals - Sales: ${totals.totalSales.toFixed(2)}, Net Profit: ${totals.totalSalesNetProfit.toFixed(2)}, Expenses: ${totals.totalExpenses.toFixed(2)}, Final Cash: ${finalCash.toFixed(2)}`,
+      `Totals - Sales: ${totals.totalSales.toFixed(2)}, Net Profit: ${totals.totalSalesNetProfit.toFixed(2)}, Expenses: ${totals.totalExpenses.toFixed(2)}, Final Cash: ${totals.finalCash.toFixed(2)}`,
       40,
       finalY,
     );
@@ -143,34 +134,22 @@ export const AnnualReport = () => {
 
   if (!report) return null;
 
-  // ✅ চলতি ক্যাশ ফ্রন্টএন্ডেই ক্যালকুলেট করি (ব্যাকএন্ডের ভুল ডেটা ওভাররাইড)
-  // শুধু "ঘটে যাওয়া" (past বা current) মাসগুলোর জন্য cumulative sum হবে,
-  // ভবিষ্যতের মাসগুলোতে monthlyNet এখনো 0 বলে সেগুলোকে যোগ করা হবে না —
-  // এটাই ছিল আগের bug: সব ভবিষ্যৎ মাসে same running cash দেখানো।
-  let cumulative = 0;
+  // ✅ ব্যাকএন্ডই এখন সঠিক cash-based runningCash পাঠাচ্ছে (opening balance +
+  // প্রকৃত cash-in, profit না)। ফ্রন্টএন্ডে আর আলাদা করে রিক্যালকুলেট করার
+  // দরকার নেই — শুধু ভবিষ্যতের মাসগুলোর জন্য "-" দেখাবো।
   const monthsWithRunning = report.months.map((month, idx) => {
     const hasOccurred =
       year < now.getFullYear() || (isCurrentYear && idx <= currentMonth);
 
-    if (hasOccurred) {
-      cumulative += month.monthlyNet;
-      return { ...month, computedRunningCash: cumulative, hasOccurred: true };
-    }
-
     return {
       ...month,
-      computedRunningCash: null as number | null,
-      hasOccurred: false,
+      computedRunningCash: hasOccurred ? month.runningCash : null,
+      hasOccurred,
     };
   });
 
-  // ✅ সর্বমোট চলতি ক্যাশ = শেষ "ঘটে যাওয়া" মাসের computedRunningCash
-  const occurredMonths = monthsWithRunning.filter((m) => m.hasOccurred);
-  const finalCash =
-    occurredMonths.length > 0
-      ? (occurredMonths[occurredMonths.length - 1]
-          .computedRunningCash as number)
-      : 0;
+  // ✅ সর্বমোট চলতি ক্যাশ = ব্যাকএন্ডের totals.finalCash সরাসরি ব্যবহার
+  const finalCash = report.totals.finalCash;
 
   return (
     <div>
