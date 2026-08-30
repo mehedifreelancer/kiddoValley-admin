@@ -1,7 +1,7 @@
 // components/common/Sidebar.tsx
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, Pin, Store } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useGlobal } from "../../context/GlobalContext";
@@ -21,6 +21,11 @@ const Sidebar: React.FC = () => {
   // Fixed widths
   const EXPANDED_WIDTH = 220;
   const COLLAPSED_WIDTH = 72;
+
+  useEffect(() => {
+    console.log("Sidebar mounted");
+    return () => console.log("Sidebar unmounted");
+  }, []);
 
   // ✅ মেনু ফিল্টার করার ফাংশন (Recursive)
   const filterMenu = (items: MenuItem[]): MenuItem[] => {

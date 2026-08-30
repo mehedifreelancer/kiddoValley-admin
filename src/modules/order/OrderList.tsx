@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Column } from "primereact/column";
 import { DataTable } from "primereact/datatable";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { Link } from "react-router-dom";
 import Button from "../../components/ui/Button";
@@ -20,6 +20,8 @@ import DataTableSearch from "../../components/ui/DataTableSearch";
 import InputField from "../../components/ui/InputField";
 import Modal from "../../components/ui/Modal";
 import Toolbar from "../../components/ui/Toolbar";
+import { drawBarcodeToElement } from "../../lib/BarcodeDraw";
+import { printInvoiceReceipt } from "../../lib/printInvoice";
 import {
   cancelOrder,
   confirmOrder,
@@ -32,69 +34,58 @@ import {
 } from "./order.service";
 
 // ---------- Print Helper ----------
-const handlePrintReceipt = (order: OrderItem) => {
-  const printWindow = window.open("", "_blank", "width=600,height=400");
+// ---------- Shared print helper (same pattern as Stock.tsx) ----------
+// Waits for the print window to actually finish loading/laying out before
+// calling print() — calling print() immediately after document.write()/
+// close() races the browser's layout pass, which can cause content to be
+// cropped or missing on the physical printout.
+const openAndPrintHtml = (html: string) => {
+  const printWindow = window.open("", "_blank");
   if (!printWindow) {
     toast.error("Please allow popups for printing");
     return;
   }
 
-  const itemsHtml =
-    order.soldItems
-      ?.map(
-        (item) => `
-      <tr>
-        <td>${item.productName}</td>
-        <td>${item.quantity}</td>
-        <td>${item.unitPrice.toFixed(2)}</td>
-        <td>${item.totalPrice.toFixed(2)}</td>
-      </tr>
-    `,
-      )
-      .join("") || "";
-
-  printWindow.document.write(`
-    <html>
-      <head>
-        <title>Invoice #${order.invoiceNo}</title>
-        <style>
-          @page { size: 6in 4in; margin: 0.2in; }
-          body { font-family: Arial, sans-serif; font-size: 10px; padding: 0.1in; width: 100%; box-sizing: border-box; }
-          .header { display: flex; justify-content: space-between; border-bottom: 1px dashed #333; padding-bottom: 4px; }
-          .header h1 { font-size: 16px; margin: 0; }
-          .info { display: flex; flex-wrap: wrap; justify-content: space-between; margin: 4px 0; }
-          .info p { margin: 2px 0; }
-          table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-          th { background: #f0f0f0; text-align: left; padding: 4px; font-size: 9px; }
-          td { padding: 4px; border-bottom: 1px solid #ddd; }
-          .total { text-align: right; margin-top: 4px; font-size: 12px; font-weight: bold; }
-          .footer { text-align: center; border-top: 1px dashed #333; padding-top: 4px; margin-top: 4px; font-size: 8px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>Kiddo Valley</h1>
-          <div>${order.invoiceNo}</div>
-        </div>
-        <div class="info">
-          <p><strong>${order.customerName}</strong></p>
-          <p>${order.customerPhone}</p>
-          <p>${order.customerAddress}</p>
-          <p>Date: ${new Date(order.createdAt).toLocaleDateString()}</p>
-        </div>
-        <table>
-          <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
-          <tbody>${itemsHtml}</tbody>
-        </table>
-        <div class="total">Total: ${order.total.toFixed(2)} TK</div>
-        <div class="footer">Thank you!</div>
-        <script>window.onload = function() { window.print(); }<\\/script>
-      </body>
-    </html>
-  `);
+  printWindow.document.write(html);
   printWindow.document.close();
+
+  let printed = false;
+  const doPrint = () => {
+    if (printed) return;
+    printed = true;
+    printWindow.print();
+    printWindow.close();
+  };
+
+  printWindow.onload = doPrint;
+  setTimeout(doPrint, 300);
 };
 
+// ---------- Print Helper ----------
+// ---------- Print Helper ----------
+// ---------- Invoice Barcode (mounted, for modals) ----------
+const InvoiceBarcode: React.FC<{ value: string }> = ({ value }) => {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  useEffect(() => {
+    if (!svgRef.current || !value) return;
+    try {
+      drawBarcodeToElement(svgRef.current, value, {
+        heightPx: 35,
+        fontSize: 10,
+      });
+    } catch (err) {
+      console.error("Failed to render invoice barcode:", err);
+    }
+  }, [value]);
+  return <svg ref={svgRef} />;
+};
+
+const handlePrintReceipt = (order: OrderItem) => {
+  const ok = printInvoiceReceipt(order);
+  if (!ok) {
+    toast.error("Please allow popups for printing");
+  }
+};
 // ---------- Main Component ----------
 export const OrderList: React.FC = () => {
   const [orders, setOrders] = useState<OrderItem[]>([]);
@@ -733,7 +724,7 @@ export const OrderList: React.FC = () => {
               ⚠️ This will create a Pathao courier order. This action cannot be
               undone.
             </p>
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t dark:border-gray-700">
+            <div className="flex justify-end gap-3 mt-6 py-2 border-t dark:border-gray-700">
               <Button
                 variant="outline"
                 onClick={() => setShowConfirmModal(null)}
@@ -771,7 +762,7 @@ export const OrderList: React.FC = () => {
             <p className="text-sm text-red-600 dark:text-red-400 mt-2">
               ⚠️ This will restore stock and cancel Pathao courier (if exists).
             </p>
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t dark:border-gray-700">
+            <div className="flex justify-end gap-3 mt-6 py-2 border-t dark:border-gray-700">
               <Button
                 variant="outline"
                 onClick={() => setShowCancelModal(null)}
@@ -809,7 +800,7 @@ export const OrderList: React.FC = () => {
             <p className="text-sm text-red-600 dark:text-red-400 mt-2">
               ⚠️ This action cannot be undone. All order data will be removed.
             </p>
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t dark:border-gray-700">
+            <div className="flex justify-end gap-3 mt-6 py-2 border-t dark:border-gray-700">
               <Button
                 variant="outline"
                 onClick={() => setShowDeleteModal(null)}
@@ -831,13 +822,15 @@ export const OrderList: React.FC = () => {
       </Modal>
 
       {/* ===== Details Modal ===== */}
+      {/* ===== Details Modal ===== */}
+      {/* ===== Details Modal ===== */}
       <Modal
         isOpen={showDetailsModal}
         onClose={() => {
           setShowDetailsModal(false);
           setSelectedOrder(null);
         }}
-        title={`Order Details - ${selectedOrder?.invoiceNo || ""}`}
+        title={`Order Details`}
         size="xl"
       >
         {loadingDetails ? (
@@ -846,153 +839,131 @@ export const OrderList: React.FC = () => {
           </div>
         ) : (
           selectedOrder && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Customer Name
-                  </p>
-                  <p className="font-medium">{selectedOrder.customerName}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Phone
-                  </p>
-                  <p className="font-medium">
-                    {selectedOrder.customerPhone}
-                    {selectedOrder.customerPhone2 &&
-                      ` (Alt: ${selectedOrder.customerPhone2})`}
-                  </p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Address
-                  </p>
-                  <p className="font-medium">{selectedOrder.customerAddress}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Status
-                  </p>
-                  <p className="font-medium">{selectedOrder.orderStatus}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Refund Status
-                  </p>
-                  <p className="font-medium">
-                    {selectedOrder.refundStatus === "full"
-                      ? "✅ Fully Refunded"
-                      : selectedOrder.refundStatus === "partial"
-                        ? `🔄 Partial (${selectedOrder.totalRefunded?.toFixed(2)} TK)`
-                        : "—"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Consignment
-                  </p>
-                  <p className="font-medium font-mono text-sm">
-                    {selectedOrder.pathaoConsignmentId || "—"}
-                  </p>
-                </div>
-                {selectedOrder.isSuspicious && (
-                  <div className="col-span-2">
-                    <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
-                      ⚠️ Suspicious Order
-                    </span>
+            <div className="p-1 space-y-3">
+              <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded text-[14px]">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                    Customer Details
+                    {selectedOrder.isSuspicious && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
+                        ⚠️ Suspicious
+                      </span>
+                    )}
+                    {selectedOrder.isWebsiteOrder && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                        📱 Website
+                      </span>
+                    )}
+                  </h4>
+                  {/* Invoice number shown as barcode, same as printed receipt */}
+                  <div className="bg-white p-1 rounded">
+                    <InvoiceBarcode value={selectedOrder.invoiceNo} />
                   </div>
-                )}
-                {selectedOrder.isWebsiteOrder && (
-                  <div className="col-span-2">
-                    <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
-                      📱 Website Order
-                    </span>
-                  </div>
-                )}
+                </div>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Customer Name: {selectedOrder.customerName}
+                </p>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Phone: {selectedOrder.customerPhone}
+                  {selectedOrder.customerPhone2 &&
+                    ` (Alt: ${selectedOrder.customerPhone2})`}
+                </p>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Address: {selectedOrder.customerAddress}
+                </p>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Status: {selectedOrder.orderStatus}
+                </p>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Delivery Charge:{" "}
+                  {selectedOrder.deliveryCharge !== undefined &&
+                  selectedOrder.deliveryCharge !== null
+                    ? `${selectedOrder.deliveryCharge.toFixed(2)} TK`
+                    : "—"}
+                </p>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Refund Status:{" "}
+                  {selectedOrder.refundStatus === "full"
+                    ? "✅ Fully Refunded"
+                    : selectedOrder.refundStatus === "partial"
+                      ? `🔄 Partial (${selectedOrder.totalRefunded?.toFixed(2)} TK)`
+                      : "—"}
+                </p>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Consignment: {selectedOrder.pathaoConsignmentId || "—"}
+                </p>
               </div>
 
-              <div>
-                <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">
-                  Items
-                </h4>
-                <div className="table-container">
-                  <DataTable
-                    value={selectedOrder.soldItems || []}
-                    size="small"
-                    stripedRows
-                  >
-                    <Column
-                      field="productName"
-                      header="Product"
-                      headerClassName="column-header"
-                      bodyClassName="column-body"
-                    />
-                    <Column
-                      field="variantSku"
-                      header="SKU"
-                      headerClassName="column-header"
-                      bodyClassName="column-body"
-                    />
-                    <Column
-                      field="quantity"
-                      header="Qty"
-                      headerClassName="column-header"
-                      bodyClassName="column-body"
-                    />
-                    <Column
-                      field="unitPrice"
-                      header="Unit Price"
-                      body={(row) => `${row.unitPrice.toFixed(2)} TK`}
-                      headerClassName="column-header"
-                      bodyClassName="column-body"
-                    />
-                    <Column
-                      field="totalPrice"
-                      header="Total"
-                      body={(row) => `${row.totalPrice.toFixed(2)} TK`}
-                      headerClassName="column-header"
-                      bodyClassName="column-body"
-                    />
-                    <Column
-                      header="Refunded"
-                      body={(row: any) =>
-                        row.isFullyRefunded ? (
-                          <span className="text-green-600">
-                            ✅ {row.refundedAmount?.toFixed(2)} TK
-                          </span>
-                        ) : row.refundedAmount > 0 ? (
-                          <span className="text-yellow-600">
-                            🔄 {row.refundedAmount?.toFixed(2)} TK
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">—</span>
-                        )
-                      }
-                      headerClassName="column-header"
-                      bodyClassName="column-body"
-                    />
-                  </DataTable>
-                </div>
-                <div className="mt-3 text-right">
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Subtotal: {selectedOrder.subtotal?.toFixed(2) || "0.00"} TK
-                  </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Discount: {selectedOrder.discount?.toFixed(2) || "0.00"} TK
-                  </p>
-                  <p className="text-xl font-bold text-green-600 dark:text-green-400">
-                    Total: {selectedOrder.total.toFixed(2)} TK
-                  </p>
-                  {selectedOrder.totalRefunded > 0 && (
-                    <p className="text-sm text-red-600 dark:text-red-400">
-                      Refunded: {selectedOrder.totalRefunded.toFixed(2)} TK
-                    </p>
-                  )}
-                </div>
+              {/* Order Items Table */}
+              <div className="table-container">
+                <DataTable
+                  rowClassName="table-row"
+                  value={selectedOrder.soldItems || []}
+                  size="small"
+                >
+                  <Column
+                    field="productName"
+                    header="Product"
+                    headerClassName="column-header"
+                    bodyClassName="column-body"
+                  />
+                  <Column
+                    field="variantSku"
+                    header="SKU"
+                    headerClassName="column-header"
+                    bodyClassName="column-body"
+                  />
+                  <Column
+                    field="quantity"
+                    header="Qty"
+                    headerClassName="column-header"
+                    bodyClassName="column-body"
+                  />
+                  <Column
+                    field="unitPrice"
+                    header="Unit Price"
+                    body={(row: any) => `${row.unitPrice.toFixed(2)} TK`}
+                    headerClassName="column-header"
+                    bodyClassName="column-body"
+                  />
+                  <Column
+                    field="totalPrice"
+                    header="Total"
+                    body={(row: any) => `${row.totalPrice.toFixed(2)} TK`}
+                    headerClassName="column-header"
+                    bodyClassName="column-body"
+                    footer={() => (
+                      <div className="font-bold text-gray-800 dark:text-gray-200 flex text-[13px] ml-[-30px]">
+                        <span className="mr-2">Total:</span>
+                        <span className="text-green-600 dark:text-green-400">
+                          {selectedOrder.total.toFixed(2)} TK
+                        </span>
+                      </div>
+                    )}
+                  />
+                  <Column
+                    header="Refunded"
+                    body={(row: any) =>
+                      row.isFullyRefunded ? (
+                        <span className="text-green-600">
+                          ✅ {row.refundedAmount?.toFixed(2)} TK
+                        </span>
+                      ) : row.refundedAmount > 0 ? (
+                        <span className="text-yellow-600">
+                          🔄 {row.refundedAmount?.toFixed(2)} TK
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )
+                    }
+                    headerClassName="column-header"
+                    bodyClassName="column-body"
+                  />
+                </DataTable>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t dark:border-gray-700">
+              {/* Footer buttons */}
+              <div className="flex justify-end gap-3 mt-4 pt-4 border-t dark:border-gray-700">
                 <Button
                   variant="outline"
                   onClick={() => {

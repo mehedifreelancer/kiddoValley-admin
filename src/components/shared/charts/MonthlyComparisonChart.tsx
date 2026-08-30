@@ -45,11 +45,11 @@ export const MonthlyComparisonChart: React.FC<MonthlyComparisonChartProps> = ({
       categories: data.map((d) => d.month),
       labels: {
         rotate: -45,
-        style: { fontSize: "12px" },
+        style: { fontSize: "10px" },
       },
     },
     yaxis: {
-      title: { text: "টাকা (৳)" },
+      title: { text: " (৳)" },
       labels: {
         formatter: (val) => val.toFixed(0),
       },

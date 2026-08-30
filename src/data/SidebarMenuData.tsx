@@ -1,6 +1,7 @@
 import {
   Activity,
   Box,
+  CalendarDays,
   ChartArea,
   ChartLine,
   ClipboardList,
@@ -85,6 +86,13 @@ export const sidebarMenuData: MenuItem[] = [
         label: "Sells Report",
         icon: <ChartLine className="w-4 h-4" />,
         path: "/report/sells-report",
+        roles: ["super_admin", "admin", "data_accountant"],
+      },
+      {
+        id: "daily-report",
+        label: "Daily Report",
+        icon: <CalendarDays className="w-4 h-4" />,
+        path: "/report/daily-report",
         roles: ["super_admin", "admin", "data_accountant"],
       },
       {

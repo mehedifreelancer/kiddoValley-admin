@@ -35,6 +35,7 @@ import DeliverySettingsPage from "./modules/web-settings/delivery-settings/deliv
 import GridManagement from "./modules/web-settings/layout-settings/GridManagement";
 import PackagingSettings from "./modules/web-settings/packaging-settings/PackagingSettings";
 import { WebSettings } from "./modules/web-settings/WebSettings";
+import DailyReport from "./modules/reports/daily-report/DailyReport";
 
 // Placeholder for UserManagement (if not created yet)
 // import UserManagement from "./modules/users/User";
@@ -129,6 +130,16 @@ export const router = createBrowserRouter([
                 allowedRoles={["super_admin", "admin", "data_accountant"]}
               >
                 <AnnualReport />
+              </ProtectedRoute>
+            ),
+          },
+          {
+            path: "daily-report",
+            element: (
+              <ProtectedRoute
+                allowedRoles={["super_admin", "admin", "data_accountant"]}
+              >
+                <DailyReport />
               </ProtectedRoute>
             ),
           },

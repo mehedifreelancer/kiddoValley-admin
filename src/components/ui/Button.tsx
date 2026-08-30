@@ -85,7 +85,7 @@ const Button: React.FC<ButtonProps> = ({
   return (
     <button className={buttonClasses} disabled={disabled || loading} {...props}>
       {loading && (
-        <span className="absolute inset-0 flex items-center justify-center">
+        <span className="cursor-pointer  absolute inset-0 flex items-center justify-center">
           <Loader size={getLoaderSize()} color={getLoaderColor()} />
         </span>
       )}

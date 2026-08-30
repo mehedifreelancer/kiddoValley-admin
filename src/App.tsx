@@ -6,12 +6,15 @@ import Sidebar from "./components/common/Sidebar";
 import ToasterProvider from "./components/ui/ToasterProvider";
 import { AuthProvider } from "./context/AuthContext";
 import { GlobalProvider, useGlobal } from "./context/GlobalContext";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts"; // 👈 add
 import { useTheme } from "./hooks/useTheme";
+import { APP_SHORTCUTS } from "./modules/shortcuts";
 
-// AppContent আগের মতোই থাকবে
 function AppContent() {
   const { isSidebarPinned } = useGlobal();
   const { theme } = useTheme();
+
+  useKeyboardShortcuts(APP_SHORTCUTS); // 👈 add
 
   useEffect(() => {
     if (theme === "dark") {
@@ -42,8 +45,6 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      {" "}
-      {/* ✅ AuthProvider দিয়ে র‍্যাপ করুন */}
       <GlobalProvider>
         <AppContent />
       </GlobalProvider>

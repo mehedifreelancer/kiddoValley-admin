@@ -79,3 +79,7 @@ export const updateStockDiscount = async (
 ): Promise<void> => {
   await api.patch(`/stock/${stockId}/discount`, { discountPercent });
 };
+export const toggleProductPublish = async (id: number) => {
+  const res = await api.patch(`/products/toggle-publish/${id}`);
+  return res.data;
+};

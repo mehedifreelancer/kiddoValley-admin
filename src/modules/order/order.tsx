@@ -12,6 +12,7 @@ import InputField from "../../components/ui/InputField";
 import Modal from "../../components/ui/Modal";
 import Toolbar from "../../components/ui/Toolbar";
 import { useBarcodeScanner } from "../../hooks/useBarcodeScanner";
+import { printInvoiceReceipt } from "../../lib/printInvoice";
 import { StockTable, StockTableColumn } from "../stock/StockTable";
 import { getStockList } from "../stock/stock.service";
 import { FlatStockItem } from "../stock/stock.types";
@@ -88,8 +89,10 @@ const getLocationLabel = (loc: LocationType) => {
 };
 
 const handlePrintReceipt = (order: any) => {
-  console.log("Print receipt for order:", order.invoiceNo);
-  toast.info("Printing receipt (mock)");
+  const ok = printInvoiceReceipt(order);
+  if (!ok) {
+    toast.error("Please allow popups for printing");
+  }
 };
 
 // ---------- Main Component ----------

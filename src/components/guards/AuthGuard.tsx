@@ -1,6 +1,6 @@
-import { useEffect, ReactNode, useState } from "react";
-import { useNavigate, useLocation } from "react-router";
 import Cookies from "js-cookie";
+import { ReactNode, useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 
 interface AppGuardProps {
   children: ReactNode;
@@ -12,28 +12,22 @@ const AuthGuard = ({ children }: AppGuardProps) => {
   const [isChecking, setIsChecking] = useState(true);
   const accessToken = Cookies.get("accessToken");
 
+  // ✅ শুধু প্রথমবার mount হওয়ার সময় একবারই চেক হবে
   useEffect(() => {
-    setIsChecking(true);
+    setIsChecking(false);
+  }, []);
 
-    // Small delay to prevent flickering
-    const timer = setTimeout(() => {
-      // If no token and trying to access protected route, redirect to sign-in
-      if (!accessToken && location.pathname !== "/sign-in") {
-        navigate("/sign-in", { replace: true });
-      }
-
-      // If has token and trying to access sign-in, redirect to home
-      if (accessToken && location.pathname === "/sign-in") {
-        navigate("/", { replace: true });
-      }
-
-      setIsChecking(false);
-    }, 100);
-
-    return () => clearTimeout(timer);
+  // ✅ Redirect logic আলাদা effect এ, কিন্তু render ব্লক করবে না
+  useEffect(() => {
+    if (!accessToken && location.pathname !== "/sign-in") {
+      navigate("/sign-in", { replace: true });
+    }
+    if (accessToken && location.pathname === "/sign-in") {
+      navigate("/", { replace: true });
+    }
   }, [accessToken, location.pathname, navigate]);
 
-  // Show loading spinner while checking
+  // ✅ শুধু প্রথম লোডে spinner দেখাবে
   if (isChecking) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -42,7 +36,7 @@ const AuthGuard = ({ children }: AppGuardProps) => {
     );
   }
 
-  // Don't render anything while redirecting
+  // Invalid state এ কিছু render করবে না (redirect হওয়ার আগ পর্যন্ত)
   if (
     (!accessToken && location.pathname !== "/sign-in") ||
     (accessToken && location.pathname === "/sign-in")

@@ -17,6 +17,7 @@ import {
   deleteProduct,
   generateBarcode,
   getProducts,
+  toggleProductPublish,
   updateProduct,
 } from "./product.service";
 
@@ -160,6 +161,24 @@ export const Product = () => {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+
+  const handleTogglePublish = async (product: ProductItem) => {
+    try {
+      setTogglingId(product.id);
+      const res = await toggleProductPublish(product.id);
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === product.id ? { ...p, isPublished: res.data.isPublished } : p,
+        ),
+      );
+      toast.success(res.message);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update publish status");
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   // Debounce search
   useEffect(() => {
@@ -427,7 +446,9 @@ export const Product = () => {
   );
 
   const forceOrderBody = (rowData: ProductItem) => {
-    if (!rowData.isForceOrder) return <span className="text-gray-400">No</span>;
+    if (!rowData.forceOrderPriority || rowData.forceOrderPriority <= 0) {
+      return <span className="text-gray-400">No</span>;
+    }
     return (
       <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 rounded-full text-xs font-medium">
         Priority: {rowData.forceOrderPriority}
@@ -435,21 +456,26 @@ export const Product = () => {
     );
   };
 
-  const publishedBody = (rowData: ProductItem) => {
-    if (rowData.isPublished) {
-      return (
-        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">
-          <Check className="w-4 h-4" />
-        </span>
-      );
-    } else {
-      return (
-        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
-          <X className="w-4 h-4" />
-        </span>
-      );
-    }
-  };
+  const publishedBody = (rowData: ProductItem) => (
+    <button
+      onClick={() => handleTogglePublish(rowData)}
+      disabled={togglingId === rowData.id}
+      title={rowData.isPublished ? "Click to unpublish" : "Click to publish"}
+      className={` shadow-md cursor-pointer inline-flex items-center justify-center w-6 h-6 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+        rowData.isPublished
+          ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50"
+          : "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50"
+      }`}
+    >
+      {togglingId === rowData.id ? (
+        <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+      ) : rowData.isPublished ? (
+        <Check className="w-4 h-4" />
+      ) : (
+        <X className="w-4 h-4" />
+      )}
+    </button>
+  );
 
   const actionsBody = (rowData: ProductItem) => (
     <div className="flex gap-2">

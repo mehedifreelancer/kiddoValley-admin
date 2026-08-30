@@ -876,14 +876,6 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
 
   return (
     <div className="max-w-6xl mx-auto rounded-md relative">
-      <button
-        onClick={onClose}
-        className="absolute top-2 right-2 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors z-10"
-        aria-label="Close wizard"
-      >
-        <X size={20} className="text-gray-600 dark:text-gray-400" />
-      </button>
-
       <StepIndicator current={step} />
 
       {step === 1 && (
@@ -932,11 +924,11 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
               }}
             />
           </div>
-            <InputField
-              label="Video URL"
-              value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
-            />
+          <InputField
+            label="Video URL"
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+          />
           <div>
             <label className="block text-sm font-medium mb-2">
               Description
@@ -1142,8 +1134,8 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
                   />
                   <button
                     type="button"
-                    onClick={() => setVariantBarcode(generateEAN13())}
-                    className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200"
+                    onDoubleClick={() => setVariantBarcode(generateEAN13())}
+                    className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-600 cursosr-pointer!"
                   >
                     <RefreshCw className="w-4 h-4" />
                   </button>

@@ -1,16 +1,10 @@
-// modules/reports/annual-reports/AnnualReport.tsx
+// modules/reports/daily-report/DailyReport.tsx
 "use client";
 
 import { motion } from "framer-motion";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  Info,
-  Printer,
-} from "lucide-react";
+import { Download, Info, Printer, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import ComboChart from "../../../components/shared/charts/ComboChart";
@@ -19,28 +13,35 @@ import MonthlyComparisonChart from "../../../components/shared/charts/MonthlyCom
 import SalesChart from "../../../components/shared/charts/SalesChart";
 import SalesProfitChart from "../../../components/shared/charts/SalesProfitChart";
 import Button from "../../../components/ui/Button";
-import Modal from "../../../components/ui/Modal"; // ✅ import Modal
+import Modal from "../../../components/ui/Modal";
 import Toolbar from "../../../components/ui/Toolbar";
-import { fetchAnnualReport } from "./annual-reports.service";
-import { AnnualReportData } from "./annual-reports.types";
+import { fetchDailyReport } from "./daily-report.service";
+import { DailyReportData, ExpenseDetail } from "./daily-report.types";
 
-export const AnnualReport = () => {
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [report, setReport] = useState<AnnualReportData | null>(null);
+export const DailyReport = () => {
+  const today = new Date();
+  const [startDate, setStartDate] = useState(
+    new Date(today.getFullYear(), today.getMonth(), 1)
+      .toISOString()
+      .split("T")[0],
+  );
+  const [endDate, setEndDate] = useState(
+    new Date(today.getFullYear(), today.getMonth() + 1, 0)
+      .toISOString()
+      .split("T")[0],
+  );
+  const [report, setReport] = useState<DailyReportData | null>(null);
   const [loading, setLoading] = useState(true);
-  const now = new Date();
-  const currentMonth = now.getMonth(); // 0-based
-  const isCurrentYear = year === now.getFullYear();
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
-  const [expenseDetails, setExpenseDetails] = useState<any[]>([]);
+  const [expenseDetails, setExpenseDetails] = useState<ExpenseDetail[]>([]);
   const [modalTitle, setModalTitle] = useState("");
 
-  const fetchData = async (yr: number) => {
+  const fetchData = async (start: string, end: string) => {
     setLoading(true);
     try {
-      const data = await fetchAnnualReport(yr);
+      const data = await fetchDailyReport(start, end);
       setReport(data);
     } catch (error: any) {
       toast.error(error.message || "Failed to load report");
@@ -50,11 +51,23 @@ export const AnnualReport = () => {
   };
 
   useEffect(() => {
-    fetchData(year);
-  }, [year]);
+    fetchData(startDate, endDate);
+  }, []);
 
-  const handleYearChange = (delta: number) => {
-    setYear((prev) => prev + delta);
+  const handleApply = () => {
+    if (startDate && endDate) {
+      if (startDate > endDate) {
+        toast.error("Start date must be before end date");
+        return;
+      }
+      fetchData(startDate, endDate);
+    }
+  };
+
+  const openExpenseModal = (dayLabel: string, details: ExpenseDetail[]) => {
+    setModalTitle(`খরচের বিস্তারিত - ${dayLabel}`);
+    setExpenseDetails(details);
+    setModalOpen(true);
   };
 
   const formatProfit = (value: number) => {
@@ -62,65 +75,36 @@ export const AnnualReport = () => {
     return `${sign}${value.toFixed(2)}`;
   };
 
-  const openExpenseModal = (monthName: string, details: any[]) => {
-    setModalTitle(`খরচের বিস্তারিত - ${monthName}`);
-    setExpenseDetails(details);
-    setModalOpen(true);
-  };
-
-  // Prepare chart data
-  const chartData =
-    report?.months.map((m) => ({
-      month: m.monthName,
-      salesNetProfit: m.salesNetProfit,
-      otherIncome: m.otherIncome,
-      expenses: m.expenses,
-      monthlyNet: m.monthlyNet,
-      runningCash: m.runningCash,
-      totalSales: m.totalSales,
-    })) || [];
-
-  const pieData = report
-    ? {
-        salesNetProfit: report.totals.totalSalesNetProfit,
-        otherIncome: report.totals.totalOtherIncome,
-      }
-    : { salesNetProfit: 0, otherIncome: 0 };
-
   const downloadPDF = () => {
     if (!report) return;
     const doc = new jsPDF("landscape", "pt", "a4");
     doc.setFontSize(18);
-    doc.text(`Annual Report - ${year}`, 40, 40);
+    doc.text(`Daily Report - ${report.startDate} to ${report.endDate}`, 40, 40);
     doc.setFontSize(10);
-    doc.text(`Year: ${year}`, 40, 60);
+    doc.text(`Date Range: ${report.startDate} to ${report.endDate}`, 40, 60);
 
-    const pdfRows = report.months.map((m, idx) => {
-      const hasOccurred =
-        year < now.getFullYear() || (isCurrentYear && idx <= currentMonth);
-      return [
-        m.monthName,
-        m.totalSales.toFixed(2),
-        m.salesNetProfit.toFixed(2),
-        m.expenses.toFixed(2),
-        m.monthlyNet.toFixed(2),
-        hasOccurred ? m.runningCash.toFixed(2) : "-",
-      ];
-    });
+    const tableData = report.days.map((d) => [
+      d.label,
+      d.totalSales.toFixed(2),
+      d.salesNetProfit.toFixed(2),
+      d.expenses.toFixed(2),
+      d.dailyNet.toFixed(2),
+      d.runningCash.toFixed(2),
+    ]);
 
     autoTable(doc, {
       startY: 70,
       head: [
         [
-          "Month",
+          "Date",
           "Total Sales",
           "Sales Net Profit",
           "Expenses",
-          "Monthly Net",
+          "Daily Net",
           "Running Cash",
         ],
       ],
-      body: pdfRows,
+      body: tableData,
       theme: "grid",
       headStyles: { fillColor: [99, 102, 241] },
       styles: { fontSize: 8 },
@@ -133,7 +117,7 @@ export const AnnualReport = () => {
       40,
       finalY,
     );
-    doc.save(`annual-report-${year}.pdf`);
+    doc.save(`daily-report-${report.startDate}-to-${report.endDate}.pdf`);
   };
 
   if (loading) {
@@ -146,44 +130,53 @@ export const AnnualReport = () => {
 
   if (!report) return null;
 
-  const monthsWithRunning = report.months.map((month, idx) => {
-    const hasOccurred =
-      year < now.getFullYear() || (isCurrentYear && idx <= currentMonth);
-    return {
-      ...month,
-      computedRunningCash: hasOccurred ? month.runningCash : null,
-      hasOccurred,
-    };
-  });
+  // Prepare chart data (same shape as Annual Report)
+  const chartData = report.days.map((d) => ({
+    month: d.label,
+    salesNetProfit: d.salesNetProfit,
+    otherIncome: d.otherIncome,
+    expenses: d.expenses,
+    monthlyNet: d.dailyNet,
+    runningCash: d.runningCash,
+    totalSales: d.totalSales,
+  }));
 
-  const finalCash = report.totals.finalCash;
+  const pieData = {
+    salesNetProfit: report.totals.totalSalesNetProfit,
+    otherIncome: report.totals.totalOtherIncome,
+  };
 
   return (
     <div>
-      <Toolbar title={`Annual Report - ${year}`}>
-        <div className="flex items-center gap-3">
+      <Toolbar title="দৈনিক রিপোর্ট">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-sm text-gray-600 dark:text-gray-300">
+            তারিখ (থেকে):
+          </label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm"
+          />
+          <label className="text-sm text-gray-600 dark:text-gray-300">
+            হতে:
+          </label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm"
+          />
           <Button
-            variant="outline"
+            variant="primary"
             size="sm"
-            onClick={() => handleYearChange(-1)}
+            onClick={handleApply}
             className="flex items-center gap-1"
           >
-            <ChevronLeft className="w-4 h-4" />
-            {year - 1}
+            <RefreshCw className="w-4 h-4" /> প্রয়োগ
           </Button>
-          <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-            {year}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleYearChange(1)}
-            className="flex items-center gap-1"
-          >
-            {year + 1}
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-          <div className="flex gap-2 no-print">
+          <div className="flex gap-2 ml-auto no-print">
             <Button
               variant="primary"
               size="sm"
@@ -198,12 +191,13 @@ export const AnnualReport = () => {
               onClick={() => window.print()}
               className="flex items-center gap-1"
             >
-              <Printer className="w-4 h-4" /> Print
+              <Printer className="w-4 h-4" /> প্রিন্ট
             </Button>
           </div>
         </div>
       </Toolbar>
 
+      {/* ✅ Table – FIRST (Bengali headers) */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -214,18 +208,18 @@ export const AnnualReport = () => {
           <table className="w-full text-sm text-left">
             <thead className="bg-gray-50 dark:bg-gray-700/30 text-gray-700 dark:text-gray-300">
               <tr>
-                <th className="column-header px-4 py-2 font-semibold">মাস</th>
+                <th className="column-header px-4 py-2 font-semibold">তারিখ</th>
                 <th className="column-header px-4 py-2 font-semibold text-right">
-                  মোট বিক্রয়
+                  মোট বিক্রয়
                 </th>
-                <th className="column-header px-4 py-2 font-semibold text-right text-green-600 dark:text-green-400">
+                <th className="column-header px-4 py-2 font-semibold text-right text-green-600">
                   সেলস নেট প্রফিট
                 </th>
-                <th className="column-header px-4 py-2 font-semibold text-right text-red-600 dark:text-red-400">
+                <th className="column-header px-4 py-2 font-semibold text-right text-red-600">
                   মোট খরচ
                 </th>
                 <th className="column-header px-4 py-2 font-semibold text-right">
-                  মাসিক লাভ
+                  দৈনিক লাভ
                 </th>
                 <th className="column-header px-4 py-2 font-semibold text-right">
                   চলতি ক্যাশ
@@ -233,67 +227,60 @@ export const AnnualReport = () => {
               </tr>
             </thead>
             <tbody>
-              {monthsWithRunning.map((month, idx) => {
-                const isCurrentMonth = idx === currentMonth && isCurrentYear;
-                const hasExpenses =
-                  month.expenseDetails && month.expenseDetails.length > 0;
+              {report.days.map((day, idx) => {
+                const isToday =
+                  new Date(day.date).toDateString() === today.toDateString();
                 return (
                   <tr
                     key={idx}
                     className={`table-row border-b border-gray-200 dark:border-gray-700 transition-all ${
-                      isCurrentMonth
+                      isToday
                         ? "bg-gradient-to-r from-indigo-50 via-purple-50 to-indigo-50 dark:from-indigo-950/40 dark:via-purple-950/30 dark:to-indigo-950/40 shadow-inner"
                         : "hover:bg-gray-50 dark:hover:bg-gray-700/30"
                     }`}
                   >
                     <td className="column-body px-4 py-3 font-medium">
-                      {month.monthName}
-                      {isCurrentMonth && (
+                      {day.label}
+                      {isToday && (
                         <span className="ml-2 inline-flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50 px-2 py-0.5 rounded-full">
                           <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                          বর্তমান
+                          আজ
                         </span>
                       )}
                     </td>
                     <td className="column-body px-4 py-3 text-right text-gray-700 dark:text-gray-300">
-                      ৳{month.totalSales.toFixed(2)}
+                      ৳{day.totalSales.toFixed(2)}
                     </td>
                     <td className="column-body px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400">
-                      ৳{month.salesNetProfit.toFixed(2)}
+                      ৳{day.salesNetProfit.toFixed(2)}
                     </td>
                     <td className="column-body px-4 py-3 text-right font-semibold text-red-600 dark:text-red-400">
                       <div className="flex items-center justify-end gap-2">
-                        ৳{month.expenses.toFixed(2)}
-                        {hasExpenses && (
-                          <button
-                            onClick={() =>
-                              openExpenseModal(
-                                month.monthName,
-                                month.expenseDetails,
-                              )
-                            }
-                            className="p-1 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
-                            title="খরচের বিবরণ দেখুন"
-                          >
-                            <Info className="w-4 h-4" />
-                          </button>
-                        )}
+                        ৳{day.expenses.toFixed(2)}
+                        {day.expenseDetails &&
+                          day.expenseDetails.length > 0 && (
+                            <button
+                              onClick={() =>
+                                openExpenseModal(day.label, day.expenseDetails)
+                              }
+                              className="p-1 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                              title="খরচের বিবরণ দেখুন"
+                            >
+                              <Info className="w-4 h-4" />
+                            </button>
+                          )}
                       </div>
                     </td>
                     <td
                       className={`column-body px-4 py-3 text-right font-bold ${
-                        month.monthlyNet >= 0
-                          ? "text-green-600 dark:text-green-400"
-                          : "text-red-600 dark:text-red-400"
+                        day.dailyNet >= 0 ? "text-green-600" : "text-red-600"
                       }`}
                     >
-                      {month.monthlyNet >= 0 ? "+" : ""}
-                      {month.monthlyNet.toFixed(2)}
+                      {day.dailyNet >= 0 ? "+" : ""}
+                      {day.dailyNet.toFixed(2)}
                     </td>
                     <td className="column-body px-4 py-3 text-right font-medium text-gray-700 dark:text-gray-300">
-                      {month.computedRunningCash !== null
-                        ? `৳${month.computedRunningCash.toFixed(2)}`
-                        : "-"}
+                      ৳{day.runningCash.toFixed(2)}
                     </td>
                   </tr>
                 );
@@ -305,18 +292,18 @@ export const AnnualReport = () => {
                 <td className="column-body px-4 py-3 text-right text-gray-800 dark:text-white">
                   ৳{report.totals.totalSales.toFixed(2)}
                 </td>
-                <td className="column-body px-4 py-3 text-right text-green-600 dark:text-green-400">
+                <td className="column-body px-4 py-3 text-right text-green-600">
                   ৳{report.totals.totalSalesNetProfit.toFixed(2)}
                 </td>
-                <td className="column-body px-4 py-3 text-right text-red-600 dark:text-red-400">
+                <td className="column-body px-4 py-3 text-right text-red-600">
                   ৳{report.totals.totalExpenses.toFixed(2)}
                 </td>
                 <td className="column-body px-4 py-3 text-right">
-                  {report.totals.totalMonthlyNet >= 0 ? "+" : ""}
-                  {report.totals.totalMonthlyNet.toFixed(2)}
+                  {report.totals.totalDailyNet >= 0 ? "+" : ""}
+                  {report.totals.totalDailyNet.toFixed(2)}
                 </td>
                 <td className="column-body px-4 py-3 text-right text-gray-800 dark:text-white">
-                  ৳{finalCash.toFixed(2)}
+                  ৳{report.totals.finalCash.toFixed(2)}
                 </td>
               </tr>
             </tfoot>
@@ -334,7 +321,7 @@ export const AnnualReport = () => {
         <div className="max-h-96 overflow-y-auto p-1">
           {expenseDetails.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400">
-              এই মাসে কোনো খরচ নেই
+              এই দিনে কোনো খরচ নেই
             </p>
           ) : (
             <table className="w-full text-sm">
@@ -370,19 +357,35 @@ export const AnnualReport = () => {
         </div>
       </Modal>
 
+      {/* ✅ Charts – SECOND (with rotated labels) */}
       <div className="mt-6 no-print">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ComboChart data={chartData} year={year} />
-          <SalesProfitChart data={chartData} year={year} />
-          <SalesChart data={chartData} year={year} />
-          <IncomePieChart data={pieData} year={year} />
+          <ComboChart
+            data={chartData}
+            year={new Date().getFullYear()}
+            rotateLabels={true}
+          />
+          <SalesProfitChart
+            data={chartData}
+            year={new Date().getFullYear()}
+            rotateLabels={true}
+          />
+          <SalesChart
+            data={chartData}
+            year={new Date().getFullYear()}
+            rotateLabels={true}
+          />
+          <IncomePieChart data={pieData} year={new Date().getFullYear()} />
         </div>
         <div className="mt-4">
-          <MonthlyComparisonChart data={chartData} year={year} />
+          <MonthlyComparisonChart
+            data={chartData}
+            year={new Date().getFullYear()}
+          />
         </div>
       </div>
     </div>
   );
 };
 
-export default AnnualReport;
+export default DailyReport;

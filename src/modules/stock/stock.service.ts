@@ -24,3 +24,14 @@ export const getStockList = async (
   });
   return response.data;
 };
+// in your stock api service file
+export const adjustStock = async (payload: {
+  stockId: number;
+  quantity: number;
+  reasonType: "lost" | "damaged" | "count_mistake" | "other";
+  customReason?: string;
+  imageUrl?: string;
+}) => {
+  const response = await api.post("/stock/adjust", payload);
+  return response.data;
+};

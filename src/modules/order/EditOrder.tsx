@@ -1299,7 +1299,7 @@ const EditOrder: React.FC = () => {
             This will save all changes and you will be redirected to the order
             list.
           </p>
-          <div className="flex justify-end gap-3 mt-6 pt-4 border-t dark:border-gray-700">
+          <div className="flex justify-end gap-3 mt-6 py-2 border-t dark:border-gray-700">
             <Button
               variant="outline"
               onClick={() => setShowEditConfirmModal(false)}
