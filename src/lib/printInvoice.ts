@@ -37,8 +37,9 @@ export const openAndPrintHtml = (html: string) => {
 export interface PrintableSoldItem {
   productName: string;
   quantity: number;
-  unitPrice: number;
+  unitPrice: number; // sold price per unit (already discounted, if any)
   totalPrice: number;
+  originalSellingPrice?: number | null; // 👈 নতুন — MRP per unit at time of sale
 }
 
 export interface PrintableOrder {
@@ -48,16 +49,12 @@ export interface PrintableOrder {
   customerAddress: string;
   createdAt: string | Date;
   total: number;
+  subtotal?: number | null; // 👈 নতুন
+  discount?: number | null; // 👈 নতুন — order-level discount (TK)
   deliveryCharge?: number | null;
   soldItems?: PrintableSoldItem[];
 }
 
-/**
- * Single source of truth for the 3x4in invoice receipt layout. Used by both
- * OrderList's Reprint/Details-modal print buttons and Order.tsx's
- * "Confirm, Book & Print" flow, so both always print the exact same
- * receipt design.
- */
 export const printInvoiceReceipt = (order: PrintableOrder): boolean => {
   let invoiceBarcodeSVG = "";
   try {
@@ -71,19 +68,58 @@ export const printInvoiceReceipt = (order: PrintableOrder): boolean => {
 
   const itemsHtml =
     order.soldItems
-      ?.map(
-        (item) => `
-      <tr>
-        <td>${item.productName}</td>
-        <td>${item.quantity}</td>
-        <td>${item.unitPrice.toFixed(2)}</td>
-        <td>${item.totalPrice.toFixed(2)}</td>
-      </tr>
-    `,
-      )
+      ?.map((item) => {
+        const hasDiscount =
+          item.originalSellingPrice !== undefined &&
+          item.originalSellingPrice !== null &&
+          item.originalSellingPrice > item.unitPrice;
+
+        const discountPercent = hasDiscount
+          ? ((item.originalSellingPrice! - item.unitPrice) /
+              item.originalSellingPrice!) *
+            100
+          : 0;
+
+        const priceCell = hasDiscount
+          ? `
+          <div class="price-cell">
+            <span class="strike-price">${item.originalSellingPrice!.toFixed(2)}</span>
+            <span class="discount-badge">-${discountPercent.toFixed(0)}%</span>
+          </div>
+        `
+          : `${item.unitPrice.toFixed(2)} Tk`;
+
+        return `
+        <tr>
+          <td>${item.productName}</td>
+          <td>${item.quantity}</td>
+          <td>${priceCell}</td>
+          <td>${item.totalPrice.toFixed(2)} Tk</td>
+        </tr>
+      `;
+      })
       .join("") || "";
 
   const logoUrl = `${window.location.origin}/logo/logo.jpg`;
+
+  // 👇 Subtotal — use order.subtotal if present, else derive from items
+  const subtotal =
+    order.subtotal ??
+    (order.soldItems?.reduce((sum, i) => sum + i.totalPrice, 0) || 0);
+
+  // 👇 Discount is order-level (soldItems don't carry a per-item discount —
+  // unitPrice*quantity always equals totalPrice, so there's nothing to
+  // derive at the item level). We show the TK amount plus a % computed
+  // against the subtotal.
+  const discountAmount = order.discount ?? 0;
+  const discountPercent = subtotal > 0 ? (discountAmount / subtotal) * 100 : 0;
+
+  const subtotalHtml = `<p class="charge-line">Subtotal: <span>${subtotal.toFixed(2)} TK</span></p>`;
+
+  const discountHtml =
+    discountAmount > 0
+      ? `<p class="charge-line discount-line">Discount (${discountPercent.toFixed(1)}%): <span>-${discountAmount.toFixed(2)} TK</span></p>`
+      : "";
 
   const deliveryChargeHtml =
     order.deliveryCharge !== undefined && order.deliveryCharge !== null
@@ -108,13 +144,31 @@ export const printInvoiceReceipt = (order: PrintableOrder): boolean => {
           body {
             font-family: Arial, Helvetica, sans-serif;
             font-size: 16px;
-            padding: 0.05in 0.1in 0.1in;
+            padding: 0.08in 0.15in 0.12in;
             width: 100%;
             color: #000;
             font-weight: 600;
             -webkit-font-smoothing: none;
             text-rendering: geometricPrecision;
           }
+.price-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+.strike-price {
+  text-decoration: line-through;
+  color: #999;
+  font-size: 11px;
+  font-weight: 500;
+}
+.discount-badge {
+  color: #c0392b;
+  font-size: 10px;
+  font-weight: 700;
+}
 
           .header {
             display: flex;
@@ -148,15 +202,16 @@ export const printInvoiceReceipt = (order: PrintableOrder): boolean => {
             background: #fff;
             color: #000;
             text-align: left;
-            padding: 5px;
+            padding: 5px 6px;
             font-size: 13px;
             font-weight: 700;
             border-bottom: 2px solid #000;
           }
-          td { padding: 5px; border-bottom: 1px solid #000; font-size: 14px; font-weight: 600; color: #000; }
+          td { padding: 5px 6px; border-bottom: 1px solid #000; font-size: 14px; font-weight: 600; color: #000; }
 
           .summary { margin-top: 8px; text-align: right; }
           .summary .charge-line { margin: 3px 0; font-size: 14px; font-weight: 600; color: #000; }
+          .summary .discount-line { color: #c0392b; }
           .total { text-align: right; margin-top: 6px; font-size: 18px; font-weight: 900; color: #000; }
           .footer { text-align: center; border-top: 2px solid #000; padding-top: 6px; margin-top: 6px; font-size: 12px; font-weight: 600; color: #000; }
         </style>
@@ -177,6 +232,8 @@ export const printInvoiceReceipt = (order: PrintableOrder): boolean => {
           <tbody>${itemsHtml}</tbody>
         </table>
         <div class="summary">
+          ${subtotalHtml}
+          ${discountHtml}
           ${deliveryChargeHtml}
         </div>
         <div class="total">Total: ${order.total.toFixed(2)} TK</div>

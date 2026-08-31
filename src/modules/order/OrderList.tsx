@@ -922,6 +922,41 @@ export const OrderList: React.FC = () => {
                   <Column
                     field="unitPrice"
                     header="Unit Price"
+                    body={(row: any) => {
+                      const hasDiscount =
+                        row.originalSellingPrice !== undefined &&
+                        row.originalSellingPrice !== null &&
+                        row.originalSellingPrice > row.unitPrice;
+
+                      if (!hasDiscount) {
+                        return `${row.unitPrice.toFixed(2)} TK`;
+                      }
+
+                      const discountPercent =
+                        ((row.originalSellingPrice - row.unitPrice) /
+                          row.originalSellingPrice) *
+                        100;
+
+                      return (
+                        <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+                          <span className="line-through text-gray-400 text-xs">
+                            {row.originalSellingPrice.toFixed(2)}
+                          </span>
+                          <span className="font-semibold">
+                            {row.unitPrice.toFixed(2)} TK
+                          </span>
+                          <span className="text-red-600 text-xs font-bold">
+                            -{discountPercent.toFixed(0)}%
+                          </span>
+                        </div>
+                      );
+                    }}
+                    headerClassName="column-header"
+                    bodyClassName="column-body"
+                  />
+                  <Column
+                    field="unitPrice"
+                    header="Unit Price"
                     body={(row: any) => `${row.unitPrice.toFixed(2)} TK`}
                     headerClassName="column-header"
                     bodyClassName="column-body"
