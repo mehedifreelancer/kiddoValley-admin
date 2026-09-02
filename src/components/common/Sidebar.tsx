@@ -1,6 +1,6 @@
 // components/common/Sidebar.tsx
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, Pin, Store } from "lucide-react";
+import { ChevronDown, Pin } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -189,7 +189,7 @@ const Sidebar: React.FC = () => {
             : `${COLLAPSED_WIDTH}px`,
         }}
       >
-        <div className="flex-shrink-0 px-4 py-[18px] border-b border-gray-200 dark:border-gray-700">
+        <div className="flex-shrink-0 px-4 py-[1px] border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <AnimatePresence mode="wait">
               {isSidebarExpanded ? (
@@ -201,10 +201,12 @@ const Sidebar: React.FC = () => {
                   className="flex items-center gap-2 cursor-pointer"
                   onClick={() => navigate("/")}
                 >
-                  <Store className="w-6 h-6 text-sky-700/80 dark:text-sky-700/70" />
-                  <span className="font-bold text-md text-gray-800 dark:text-white">
-                    Kiddo Valley
-                  </span>
+                  <img
+                    height="10px"
+                    width="100%"
+                    src="/logo/logo.jpg"
+                    alt="Logo"
+                  />
                 </motion.div>
               ) : (
                 <motion.div
@@ -214,9 +216,7 @@ const Sidebar: React.FC = () => {
                   exit={{ opacity: 0 }}
                   className="w-full flex justify-center cursor-pointer"
                   onClick={() => navigate("/")}
-                >
-                  <Store className="w-6 h-6 text-sky-700/80 dark:text-sky-700/70" />
-                </motion.div>
+                ></motion.div>
               )}
             </AnimatePresence>
 
@@ -227,7 +227,7 @@ const Sidebar: React.FC = () => {
                 setSidebarPinned(!isSidebarPinned);
                 setIsHovered(false);
               }}
-              className={`p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
+              className={`p-5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
                 !isSidebarExpanded ? "mx-auto" : ""
               }`}
               title={isSidebarPinned ? "Unpin sidebar" : "Pin sidebar"}

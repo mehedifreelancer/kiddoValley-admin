@@ -296,3 +296,46 @@ textarea::-webkit-scrollbar-thumb {
 .p-calendar .p-inputtext {
   border: none !important;
 }
+
+/* Apex xhart dark theme fix */
+html[data-theme="dark"] .apexcharts-menu {
+  background-color: #374151 !important;
+}
+
+.apexcharts-menu-item {
+  @apply p-2 dark:text-[#cAcAcA] rounded;
+}
+
+.apexcharts-menu-item:hover {
+  background-color: #e5e7eb !important;
+}
+
+html[data-theme="dark"] .apexcharts-menu-item:hover {
+  background-color: #111827 !important;
+}
+
+/* APexchart css customize  */
+.dark .apexcharts-xaxis-label {
+  fill: #cacaca !important;
+}
+
+html[data-theme="dark"] .apexcharts-yaxis-title text {
+  fill: #cacaca !important;
+}
+
+html[data-theme="dark"] .apexcharts-yaxis-texts-g text {
+  fill: #cacaca !important;
+}
+
+html[data-theme="dark"] .apexcharts-xaxis-texts-g text {
+  fill: #cacaca !important;
+}
+
+html[data-theme="dark"] .apexcharts-xaxis-title text {
+  fill: #cacaca !important;
+}
+
+html[data-theme="dark"] .apexcharts-legend-text {
+  color: #cacaca !important;
+  margin-left: -10px;
+}

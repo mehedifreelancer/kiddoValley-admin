@@ -1511,6 +1511,8 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
                             <button
                               onClick={async () => {
                                 if (row.currentQty > 0) {
+                                  console.log(row.currentQty, "+++++");
+
                                   toast.error(
                                     "Cannot delete price set because it has quantity greater than 0. Please reduce stock to zero first.",
                                   );
