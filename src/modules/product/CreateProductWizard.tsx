@@ -849,6 +849,9 @@ export const CreateProductWizard = ({
           "attributePriority",
           JSON.stringify(productAttributePriority),
         );
+        if (thumbnail) {
+          formData.append("existingThumbnail", thumbnail);
+        }
         await updateProduct(productId, formData);
       }
 
@@ -875,6 +878,9 @@ export const CreateProductWizard = ({
           "attributePriority",
           JSON.stringify(productAttributePriority),
         );
+        if (thumbnail) {
+          formData.append("existingThumbnail", thumbnail);
+        }
         await updateProduct(productId, formData);
       }
 
@@ -950,14 +956,16 @@ export const CreateProductWizard = ({
               step="0.1"
               min="0"
               value={productWeight === 0 ? "" : productWeight}
-              onChange={(e) => setProductWeight(parseFloat(e.target.value) || 0)}
+              onChange={(e) =>
+                setProductWeight(parseFloat(e.target.value) || 0)
+              }
             />
           </div>
-            <InputField
-              label="Video URL"
-              value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
-            />
+          <InputField
+            label="Video URL"
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+          />
           <div>
             <label className="block text-sm font-medium mb-2">
               Description

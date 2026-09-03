@@ -457,7 +457,15 @@ export const EditProductWizard: React.FC<EditProductWizardProps> = ({
       } else if (thumbnail) {
         formData.append("existingThumbnail", thumbnail);
       }
-      await updateProduct(productId, formData);
+
+      const res = await updateProduct(productId, formData); // 👈 response ধরুন
+
+      // ✅ Server থেকে আসল নতুন thumbnail URL দিয়ে state sync করুন
+      if (res?.data?.thumbnail) {
+        setThumbnail(res.data.thumbnail);
+      }
+      setThumbnailFile(null); // ✅ এটাই মূল ফিক্স — file cleared, তাই Step 4-এ আবার re-upload হবে না
+
       toast.success("Product basic info updated");
       setStep(2);
     } catch (err: any) {
