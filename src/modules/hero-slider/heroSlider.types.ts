@@ -1,5 +1,4 @@
-export interface HeroSlider {
-  id: number;
+export interface HeroSliderFormData {
   badgeText: string;
   firstTitle: string;
   secondTitle: string;
@@ -8,29 +7,19 @@ export interface HeroSlider {
   description: string;
   bookTitle: string;
   bookSubtitle: string;
-  sliderDetailsUrl: string | null;
-  bgImage: string;
+  sliderDetailsUrl?: string;
+  bgType: "image" | "color"; // 🆕
+  bgImage?: string | null; // 🆕 optional
+  bgColor?: string | null; // 🆕
   innerBigImage: string;
   innerTopImage: string;
   innerBottomImage: string;
-  order: number;
   isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
 }
 
-export type HeroSliderFormData = Omit<
-  HeroSlider,
-  "id" | "createdAt" | "updatedAt" | "order"
->;
-
-export interface PaginatedResponse<T> {
-  success: boolean;
-  data: T[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
-  };
+export interface HeroSlider extends HeroSliderFormData {
+  id: number;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
 }

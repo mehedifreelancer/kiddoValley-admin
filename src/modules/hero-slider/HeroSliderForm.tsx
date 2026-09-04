@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Button from "../../components/ui/Button";
+import GradientColorPicker from "../../components/ui/GradientColorPicker";
 import ImageUploadField from "../../components/ui/ImageUploadField";
 import InputField from "../../components/ui/InputField";
 import { uploadHeroImage } from "./heroSlider.service";
@@ -21,7 +22,9 @@ const defaultFormData: HeroSliderFormData = {
   bookTitle: "",
   bookSubtitle: "",
   sliderDetailsUrl: "",
+  bgType: "image",
   bgImage: "",
+  bgColor: null,
   innerBigImage: "",
   innerTopImage: "",
   innerBottomImage: "",
@@ -38,7 +41,7 @@ export const HeroSliderForm: React.FC<Props> = ({
   useEffect(() => {
     if (slide) {
       const { id, createdAt, updatedAt, order, ...rest } = slide;
-      setForm(rest);
+      setForm({ bgType: "image", bgColor: null, ...rest });
     } else {
       setForm({ ...defaultFormData });
     }
@@ -48,10 +51,30 @@ export const HeroSliderForm: React.FC<Props> = ({
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  // কালার সিলেক্ট হলে — bgType কালার হয়ে যাবে
+  const handleColorSelect = (gradient: string) => {
+    setForm((prev) => ({
+      ...prev,
+      bgType: "color",
+      bgColor: gradient,
+      bgImage: "",
+    }));
+  };
+
+  // 🆕 টগল সুইচ — quick ভাবে image <-> color এর মাঝে সুইচ করার জন্য
+  const handleToggleBgType = (checked: boolean) => {
+    setForm((prev) => ({
+      ...prev,
+      bgType: checked ? "color" : "image",
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(form);
   };
+
+  const isColorMode = form.bgType === "color";
 
   return (
     <form
@@ -121,12 +144,57 @@ export const HeroSliderForm: React.FC<Props> = ({
       <div className="space-y-2">
         <h4 className="font-medium">Images</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ImageUploadField
-            label="Background Image *"
-            value={form.bgImage}
-            onChange={(url) => handleChange("bgImage", url)}
-            onUpload={uploadHeroImage}
-          />
+          {/* Background Image ফিল্ড — label, toggle switch, color picker একসাথে */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm font-medium">Background Image *</label>
+              <div className="flex items-center gap-2">
+                {/* 🆕 Toggle Switch — image <-> color quick সুইচ */}
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isColorMode}
+                  onClick={() => handleToggleBgType(!isColorMode)}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                    isColorMode
+                      ? "bg-purple-600"
+                      : "bg-gray-300 dark:bg-gray-600"
+                  }`}
+                  title={isColorMode ? "Switch to image" : "Switch to color"}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      isColorMode ? "translate-x-5" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+
+                <GradientColorPicker
+                  value={form.bgColor}
+                  onSelect={handleColorSelect}
+                />
+              </div>
+            </div>
+
+            {isColorMode ? (
+              <div
+                className="w-full h-24 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center"
+                style={{ background: form.bgColor || undefined }}
+              >
+                <span className="text-white text-xs drop-shadow font-medium">
+                  {form.bgColor ? "Color background" : "Pick a color →"}
+                </span>
+              </div>
+            ) : (
+              <ImageUploadField
+                label=""
+                value={form.bgImage || ""}
+                onChange={(url) => handleChange("bgImage", url)}
+                onUpload={uploadHeroImage}
+              />
+            )}
+          </div>
+
           <ImageUploadField
             label="Big Book Image *"
             value={form.innerBigImage}
