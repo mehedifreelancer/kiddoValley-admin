@@ -29,7 +29,18 @@ const DEFAULT_COLUMNS = {
   "2xl": 4,
 };
 
+// 🆕 প্রতিটা breakpoint-এর জন্য ডিফল্ট gap (মোবাইলে gap-1, বড় স্ক্রিনে বাড়তে থাকবে)
+const DEFAULT_GAPS = {
+  default: 1,
+  sm: 2,
+  md: 3,
+  lg: 4,
+  xl: 4,
+  "2xl": 4,
+};
+
 const COLUMN_OPTIONS = [1, 2, 3, 4, 5, 6];
+const GAP_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 8]; // 🆕 gap ভ্যালু অপশন
 
 export const GridManagement = () => {
   const [loading, setLoading] = useState(true);
@@ -37,34 +48,52 @@ export const GridManagement = () => {
   const [showResetModal, setShowResetModal] = useState(false);
   const [columns, setColumns] =
     useState<Record<string, number>>(DEFAULT_COLUMNS);
+  const [gaps, setGaps] = useState<Record<string, number>>(DEFAULT_GAPS); // 🆕
   const [originalColumns, setOriginalColumns] =
     useState<Record<string, number>>(DEFAULT_COLUMNS);
+  const [originalGaps, setOriginalGaps] =
+    useState<Record<string, number>>(DEFAULT_GAPS); // 🆕
 
-  // Build Tailwind grid class string
-  const buildGridClasses = (cols: Record<string, number>) => {
-    const parts = ["grid", "gap-4"];
+  // 🆕 Build Tailwind grid class string — এখন কলাম আর গ্যাপ দুটোই responsive
+  const buildGridClasses = (
+    cols: Record<string, number>,
+    gapValues: Record<string, number>,
+  ) => {
+    const parts = ["grid"];
+
+    // gap classes (breakpoint অনুযায়ী)
+    for (const bp of BREAKPOINTS) {
+      const prefix = bp.prefix;
+      const gapVal = gapValues[bp.key] ?? 4;
+      parts.push(prefix === "" ? `gap-${gapVal}` : `${prefix}gap-${gapVal}`);
+    }
+
+    // grid-cols classes (breakpoint অনুযায়ী)
     for (const bp of BREAKPOINTS) {
       const prefix = bp.prefix;
       const col = cols[bp.key] || 1;
-      if (prefix === "") {
-        parts.push(`grid-cols-${col}`);
-      } else {
-        parts.push(`${prefix}grid-cols-${col}`);
-      }
+      parts.push(
+        prefix === "" ? `grid-cols-${col}` : `${prefix}grid-cols-${col}`,
+      );
     }
+
     return parts.join(" ");
   };
 
-  const currentGridClasses = buildGridClasses(columns);
+  const currentGridClasses = buildGridClasses(columns, gaps);
 
   const fetchSettings = async () => {
     try {
       setLoading(true);
       const data = await getGridSettings();
-      // Parse gridClasses to extract column counts
-      const parsed = parseGridClasses(data.gridClasses);
-      setColumns(parsed);
-      setOriginalColumns(parsed);
+      // Parse gridClasses to extract column counts এবং gap ভ্যালু
+      const { columns: parsedCols, gaps: parsedGaps } = parseGridClasses(
+        data.gridClasses,
+      );
+      setColumns(parsedCols);
+      setOriginalColumns(parsedCols);
+      setGaps(parsedGaps); // 🆕
+      setOriginalGaps(parsedGaps); // 🆕
     } catch (error) {
       toast.error("Failed to load layout settings");
     } finally {
@@ -72,18 +101,32 @@ export const GridManagement = () => {
     }
   };
 
+  // 🆕 এখন কলাম এবং গ্যাপ দুটোই parse করা হচ্ছে
   const parseGridClasses = (classes: string) => {
     const parts = classes.split(" ");
-    const result: Record<string, number> = { ...DEFAULT_COLUMNS };
+    const resultCols: Record<string, number> = { ...DEFAULT_COLUMNS };
+    const resultGaps: Record<string, number> = { ...DEFAULT_GAPS };
+
     for (const part of parts) {
-      const match = part.match(/^(sm:|md:|lg:|xl:|2xl:)?grid-cols-(\d+)$/);
-      if (match) {
-        const prefix = match[1] || "default";
-        const col = parseInt(match[2]);
-        result[prefix === "default" ? "default" : prefix.slice(0, -1)] = col;
+      const colMatch = part.match(/^(sm:|md:|lg:|xl:|2xl:)?grid-cols-(\d+)$/);
+      if (colMatch) {
+        const prefix = colMatch[1] || "default";
+        const col = parseInt(colMatch[2]);
+        resultCols[prefix === "default" ? "default" : prefix.slice(0, -1)] =
+          col;
+        continue;
+      }
+
+      const gapMatch = part.match(/^(sm:|md:|lg:|xl:|2xl:)?gap-(\d+)$/);
+      if (gapMatch) {
+        const prefix = gapMatch[1] || "default";
+        const gapVal = parseInt(gapMatch[2]);
+        resultGaps[prefix === "default" ? "default" : prefix.slice(0, -1)] =
+          gapVal;
       }
     }
-    return result;
+
+    return { columns: resultCols, gaps: resultGaps };
   };
 
   useEffect(() => {
@@ -94,13 +137,19 @@ export const GridManagement = () => {
     setColumns((prev) => ({ ...prev, [breakpoint]: value }));
   };
 
+  // 🆕 গ্যাপ পরিবর্তনের হ্যান্ডলার
+  const handleGapChange = (breakpoint: string, value: number) => {
+    setGaps((prev) => ({ ...prev, [breakpoint]: value }));
+  };
+
   const handleSave = async () => {
-    const gridClasses = buildGridClasses(columns);
+    const gridClasses = buildGridClasses(columns, gaps);
     setSaving(true);
     try {
       await updateGridSettings({ gridClasses });
       toast.success("Layout settings saved");
       setOriginalColumns(columns);
+      setOriginalGaps(gaps); // 🆕
     } catch (error) {
       toast.error("Failed to save settings");
     } finally {
@@ -110,8 +159,10 @@ export const GridManagement = () => {
 
   const handleReset = async () => {
     setColumns(DEFAULT_COLUMNS);
+    setGaps(DEFAULT_GAPS); // 🆕
     setOriginalColumns(DEFAULT_COLUMNS);
-    const gridClasses = buildGridClasses(DEFAULT_COLUMNS);
+    setOriginalGaps(DEFAULT_GAPS); // 🆕
+    const gridClasses = buildGridClasses(DEFAULT_COLUMNS, DEFAULT_GAPS);
     try {
       await updateGridSettings({ gridClasses });
       toast.success("Settings reset to default");
@@ -152,31 +203,66 @@ export const GridManagement = () => {
             Grid Layout Configuration
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Select the number of columns for each screen size. This will control
-            the product grid layout across the site.
+            Select the number of columns and gap spacing for each screen size.
+            This will control the product grid layout across the site.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {BREAKPOINTS.map((bp) => (
-              <div key={bp.key} className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {bp.label}
-                </label>
-                <select
-                  value={columns[bp.key] || 1}
-                  onChange={(e) =>
-                    handleColumnChange(bp.key, parseInt(e.target.value))
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                >
-                  {COLUMN_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c} columns
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
+          {/* Columns */}
+          <div>
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Columns
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {BREAKPOINTS.map((bp) => (
+                <div key={bp.key} className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {bp.label}
+                  </label>
+                  <select
+                    value={columns[bp.key] || 1}
+                    onChange={(e) =>
+                      handleColumnChange(bp.key, parseInt(e.target.value))
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  >
+                    {COLUMN_OPTIONS.map((c) => (
+                      <option key={c} value={c}>
+                        {c} columns
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 🆕 Gap Section */}
+          <div>
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Gap Spacing
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {BREAKPOINTS.map((bp) => (
+                <div key={bp.key} className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {bp.label}
+                  </label>
+                  <select
+                    value={gaps[bp.key] ?? 4}
+                    onChange={(e) =>
+                      handleGapChange(bp.key, parseInt(e.target.value))
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  >
+                    {GAP_OPTIONS.map((g) => (
+                      <option key={g} value={g}>
+                        gap-{g}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
