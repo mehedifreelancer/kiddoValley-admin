@@ -1,6 +1,6 @@
 "use client";
 
-import { Upload, X } from "lucide-react";
+import { Clock, Mail, MapPin, Phone, Upload, X } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { toast } from "react-hot-toast";
 import Button from "../../components/ui/Button";
@@ -10,6 +10,7 @@ import Toolbar from "../../components/ui/Toolbar";
 import { webSettingsSchema } from "./webSettings.schema";
 import { getWebSettings, updateWebSettings } from "./webSettings.service";
 import {
+  ContactInfo,
   SocialLinks,
   WebSettings as WebSettingsType,
 } from "./webSettings.types";
@@ -20,6 +21,15 @@ export const WebSettings: React.FC = () => {
     logoUrl: null,
     socialLinks: { facebook: "", instagram: "", youtube: "", website: "" },
     footerText: "",
+    contactInfo: {
+      phone: "",
+      email: "",
+      facebookPage: "",
+      whatsapp: "",
+      address: "",
+      workingHours: "",
+      workingHoursWeekend: "",
+    },
   });
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -35,7 +45,7 @@ export const WebSettings: React.FC = () => {
         if (data.logoUrl) setLogoPreview(data.logoUrl);
         else setLogoPreview(null);
       } catch (error) {
-        toast.error("Failed to load settings");
+        toast.error("সেটিংস লোড করতে ব্যর্থ হয়েছে");
       } finally {
         setLoading(false);
       }
@@ -55,6 +65,14 @@ export const WebSettings: React.FC = () => {
     setSettings((prev) => ({ ...prev, footerText: value }));
   };
 
+  // 🆕 Contact Info handlers
+  const handleContactChange = (field: keyof ContactInfo, value: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      contactInfo: { ...prev.contactInfo, [field]: value },
+    }));
+  };
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -69,12 +87,13 @@ export const WebSettings: React.FC = () => {
     setSettings((prev) => ({ ...prev, logoUrl: null }));
   };
 
-  // ✅ Zod দিয়ে ভ্যালিডেট করুন
+  // ✅ Zod দিয়ে ভ্যালিডেট করুন
   const validateAndSave = async () => {
     const formDataToValidate = {
       logoUrl: settings.logoUrl,
       socialLinks: settings.socialLinks,
       footerText: settings.footerText,
+      contactInfo: settings.contactInfo,
     };
 
     try {
@@ -83,7 +102,7 @@ export const WebSettings: React.FC = () => {
       // ✅ Zod error-এ `issues` ব্যবহার করুন
       const issues = error.issues || error.errors || [];
       const errorMessages = issues.map((e: any) => e.message).join(", ");
-      toast.error(`Validation failed: ${errorMessages}`);
+      toast.error(`ভ্যালিডেশন ব্যর্থ: ${errorMessages}`);
       return;
     }
 
@@ -99,37 +118,43 @@ export const WebSettings: React.FC = () => {
 
       formData.append("socialLinks", JSON.stringify(settings.socialLinks));
       formData.append("footerText", settings.footerText);
+      formData.append("contactInfo", JSON.stringify(settings.contactInfo)); // 🆕
 
       const updated = await updateWebSettings(formData);
       setSettings(updated);
       if (updated.logoUrl) setLogoPreview(updated.logoUrl);
       else setLogoPreview(null);
-      toast.success("All settings saved successfully!");
+      toast.success("সব সেটিংস সফলভাবে সংরক্ষণ করা হয়েছে!");
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to save settings");
+      toast.error(
+        error.response?.data?.message || "সেটিংস সংরক্ষণ ব্যর্থ হয়েছে",
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
   if (loading) {
-    return <div className="flex justify-center py-12">Loading settings...</div>;
+    return (
+      <div className="flex justify-center py-12">সেটিংস লোড করা হচ্ছে...</div>
+    );
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <Toolbar title="Web Settings">
+    <div className="max-w-5xl mx-auto">
+      <Toolbar title="ওয়েব সেটিংস">
         <Button
           variant="success"
           onClick={validateAndSave}
           loading={submitting}
         >
-          Save All
+          সব সেভ করুন
         </Button>
       </Toolbar>
 
+      {/* Logo Panel */}
       <Panel
-        title="Logo"
+        title="লোগো"
         className="mb-4 border-l-4 border-blue-500"
         titleClassName="text-blue-700 dark:text-blue-300 font-semibold"
       >
@@ -158,8 +183,8 @@ export const WebSettings: React.FC = () => {
               >
                 <Upload className="w-10 h-10 mb-2 text-gray-500 dark:text-gray-400" />
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  <span className="font-semibold">Click to upload</span> or drag
-                  and drop
+                  <span className="font-semibold">ক্লিক করুন</span> বা ড্র্যাগ
+                  করুন
                 </p>
                 <p className="text-xs text-gray-400">PNG, JPG, SVG (max 5MB)</p>
               </div>
@@ -175,45 +200,170 @@ export const WebSettings: React.FC = () => {
         </div>
       </Panel>
 
+      {/* Social Links Panel */}
       <Panel
-        title="Social Links"
+        title="সোশ্যাল মিডিয়া লিংক"
         className="mb-4 border-l-4 border-green-500"
         titleClassName="text-green-700 dark:text-green-300 font-semibold"
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <InputField
-            label="Facebook URL"
+            label="ফেসবুক URL"
             value={settings.socialLinks.facebook}
             onChange={(e) => handleSocialChange("facebook", e.target.value)}
             placeholder="https://facebook.com/yourpage"
           />
           <InputField
-            label="Instagram URL"
+            label="ইনস্টাগ্রাম URL"
             value={settings.socialLinks.instagram}
             onChange={(e) => handleSocialChange("instagram", e.target.value)}
             placeholder="https://instagram.com/yourprofile"
           />
           <InputField
-            label="YouTube URL"
+            label="ইউটিউব URL"
             value={settings.socialLinks.youtube}
             onChange={(e) => handleSocialChange("youtube", e.target.value)}
             placeholder="https://youtube.com/c/yourchannel"
           />
           <InputField
-            label="Website URL"
+            label="ওয়েবসাইট URL"
             value={settings.socialLinks.website}
             onChange={(e) => handleSocialChange("website", e.target.value)}
             placeholder="https://yourwebsite.com"
           />
         </div>
         <p className="text-xs text-gray-400 mt-2">
-          ⚠️ Each social link must be a valid URL (including http:// or
-          https://)
+          ⚠️ প্রতিটি লিংক সম্পূর্ণ URL হতে হবে (http:// বা https:// সহ)
         </p>
       </Panel>
 
+      {/* 🆕 Contact Info Panel */}
       <Panel
-        title="Tiny Footer Text"
+        title="যোগাযোগ তথ্য"
+        className="mb-4 border-l-4 border-orange-500"
+        titleClassName="text-orange-700 dark:text-orange-300 font-semibold"
+      >
+        <div className="space-y-4">
+          {/* Contact Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Phone */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <Phone className="w-4 h-4 inline mr-2" />
+                ফোন নম্বর *
+              </label>
+              <input
+                type="text"
+                value={settings.contactInfo?.phone || ""}
+                onChange={(e) => handleContactChange("phone", e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm"
+                placeholder="০১৭৮১-৮৭৩০৬৪"
+              />
+            </div>
+
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <Mail className="w-4 h-4 inline mr-2" />
+                ইমেইল *
+              </label>
+              <input
+                type="email"
+                value={settings.contactInfo?.email || ""}
+                onChange={(e) => handleContactChange("email", e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm"
+                placeholder="contact@example.com"
+              />
+            </div>
+
+            {/* WhatsApp */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <Phone className="w-4 h-4 inline mr-2" />
+                হোয়াটসঅ্যাপ নম্বর *
+              </label>
+              <input
+                type="text"
+                value={settings.contactInfo?.whatsapp || ""}
+                onChange={(e) =>
+                  handleContactChange("whatsapp", e.target.value)
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm"
+                placeholder="০১৭৮১-৮৭৩০৬৪"
+              />
+            </div>
+
+            {/* Facebook Page */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                ফেসবুক পেজ
+              </label>
+              <input
+                type="text"
+                value={settings.contactInfo?.facebookPage || ""}
+                onChange={(e) =>
+                  handleContactChange("facebookPage", e.target.value)
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm"
+                placeholder="Kiddo Valley"
+              />
+            </div>
+
+            {/* Address */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <MapPin className="w-4 h-4 inline mr-2" />
+                ঠিকানা *
+              </label>
+              <input
+                type="text"
+                value={settings.contactInfo?.address || ""}
+                onChange={(e) => handleContactChange("address", e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm"
+                placeholder="ঢাকা, বাংলাদেশ"
+              />
+            </div>
+
+            {/* Working Hours */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <Clock className="w-4 h-4 inline mr-2" />
+                কর্মঘণ্টা *
+              </label>
+              <input
+                type="text"
+                value={settings.contactInfo?.workingHours || ""}
+                onChange={(e) =>
+                  handleContactChange("workingHours", e.target.value)
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm"
+                placeholder="সকাল ৯টা – রাত ৯টা"
+              />
+            </div>
+
+            {/* Weekend Hours */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <Clock className="w-4 h-4 inline mr-2" />
+                সপ্তাহান্তের কর্মঘণ্টা
+              </label>
+              <input
+                type="text"
+                value={settings.contactInfo?.workingHoursWeekend || ""}
+                onChange={(e) =>
+                  handleContactChange("workingHoursWeekend", e.target.value)
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm"
+                placeholder="সকাল ১০টা – রাত ৮টা (শুক্রবার ও শনিবার)"
+              />
+            </div>
+          </div>
+        </div>
+      </Panel>
+
+      {/* Footer Text Panel */}
+      <Panel
+        title="ফুটার টেক্সট"
         className="border-l-4 border-purple-500"
         titleClassName="text-purple-700 dark:text-purple-300 font-semibold"
       >
@@ -223,11 +373,11 @@ export const WebSettings: React.FC = () => {
             onChange={(e) => handleFooterChange(e.target.value)}
             rows={4}
             className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm"
-            placeholder="e.g., © 2025 Kiddo Valley. All rights reserved."
+            placeholder="উদাহরণ: © ২০২৫ Kiddo Valley। সর্বাধিকার সংরক্ষিত।"
             maxLength={500}
           />
           <p className="text-xs text-gray-400 mt-1">
-            {settings.footerText.length}/500 characters
+            {settings.footerText.length}/500 অক্ষর
           </p>
         </div>
       </Panel>
