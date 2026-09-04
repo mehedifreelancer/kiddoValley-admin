@@ -231,4 +231,10 @@ export const sidebarMenuData: MenuItem[] = [
     path: "/formulas",
     roles: ["super_admin"],
   },
+  {
+    id: "worksheets",
+    label: "Worksheets",
+    icon: <FileText className="w-5 h-5" />,
+    path: "/worksheets",
+  },
 ];

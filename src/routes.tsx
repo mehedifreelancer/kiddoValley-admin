@@ -36,6 +36,7 @@ import GridManagement from "./modules/web-settings/layout-settings/GridManagemen
 import PackagingSettings from "./modules/web-settings/packaging-settings/PackagingSettings";
 import { WebSettings } from "./modules/web-settings/WebSettings";
 import DailyReport from "./modules/reports/daily-report/DailyReport";
+import Worksheet from "./modules/worksheet/Worksheet";
 
 // Placeholder for UserManagement (if not created yet)
 // import UserManagement from "./modules/users/User";
@@ -366,6 +367,16 @@ export const router = createBrowserRouter([
             allowedRoles={["super_admin", "admin", "data_accountant"]}
           >
             <FormulaManagement />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "worksheets",
+        element: (
+          <ProtectedRoute
+            allowedRoles={["super_admin", "admin", "data_accountant"]}
+          >
+            <Worksheet />
           </ProtectedRoute>
         ),
       },

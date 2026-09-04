@@ -234,24 +234,40 @@ export const Order: React.FC = () => {
     return stock.currentQty - reserved;
   };
 
+  // একটা helper function যোগ করো ফাইলের উপরে (imports এর পরে)
+  const roundMoney = (value: number): number => {
+    return Math.round(value * 100) / 100;
+  };
+
   const recalcItem = (
     item: OrderItem,
     quantity: number,
     soldPrice: number,
   ): OrderItem => {
-    const total = soldPrice * quantity;
-    const discountPerUnit = Math.max(0, item.sellingPrice - soldPrice);
-    const discountAmount = discountPerUnit * quantity;
+    const roundedSoldPrice = roundMoney(soldPrice);
+    const total = roundMoney(roundedSoldPrice * quantity);
+    const discountPerUnit = roundMoney(
+      Math.max(0, item.sellingPrice - roundedSoldPrice),
+    );
+    const discountAmount = roundMoney(discountPerUnit * quantity);
     const discountPercent =
-      item.sellingPrice > 0 ? (discountPerUnit / item.sellingPrice) * 100 : 0;
+      item.sellingPrice > 0
+        ? roundMoney((discountPerUnit / item.sellingPrice) * 100)
+        : 0;
     const finalPrice = total;
-    const profitTk = (soldPrice - item.buyingPrice) * quantity;
+    const profitTk = roundMoney(
+      (roundedSoldPrice - item.buyingPrice) * quantity,
+    );
     const profitPercent =
-      soldPrice > 0 ? ((soldPrice - item.buyingPrice) / soldPrice) * 100 : 0;
+      roundedSoldPrice > 0
+        ? roundMoney(
+            ((roundedSoldPrice - item.buyingPrice) / roundedSoldPrice) * 100,
+          )
+        : 0;
     return {
       ...item,
       quantity,
-      soldPrice,
+      soldPrice: roundedSoldPrice,
       total,
       discountAmount,
       discountPercent,

@@ -25,7 +25,7 @@ export const OverviewStats: React.FC<OverviewStatsProps> = ({ data }) => {
       color: "from-indigo-500 to-purple-500",
     },
     {
-      label: "মোট বিক্রয়",
+      label: "মোট বিক্রয় টাকা",
       value: `৳${(data?.totalRevenue || 0).toFixed(2)}`,
       icon: DollarSign,
       color: "from-green-500 to-emerald-500",
